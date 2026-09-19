@@ -795,6 +795,13 @@ function makeItem(label, kind, insertText, detail) {
   return item;
 }
 
+// Reads live (not cached) so a mid-session settings change takes effect on
+// the very next completion, no reload needed.
+function stateIdPrefix() {
+  const prepend = vscode.workspace.getConfiguration('saltSyntax').get('prependSlsToStateId', true);
+  return prepend ? '{{ sls }}.' : '';
+}
+
 function insideJinjaTag(linePrefix) {
   const lastOpen = Math.max(
     linePrefix.lastIndexOf('{{'),
@@ -833,7 +840,7 @@ function activate(context) {
       const fields = getFields(mod, fn, variant);
       const args = buildArgsBody(fields, '    ', 2);
       const snippet = new vscode.SnippetString(
-        `{{ sls }}.\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
+        `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
       );
       await editor.edit((editBuilder) => editBuilder.delete(range));
       await editor.insertSnippet(snippet, new vscode.Position(position.line, modStart));
@@ -882,7 +889,7 @@ function activate(context) {
                 };
                 const args = buildArgsBody(fields, '    ', 2);
                 item.documentation = new vscode.MarkdownString(
-                  `Inserts a full state block:\n\n\`\`\`sls\n{{ sls }}.<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
+                  `Inserts a full state block:\n\n\`\`\`sls\n${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
                 );
               } else {
                 // Already indented under an existing state id: just the function stub.

@@ -78,6 +78,16 @@
           "strings": true
         }
       }
+    },
+    "configuration": {
+      "title": "Salt Syntax",
+      "properties": {
+        "saltSyntax.prependSlsToStateId": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When inserting a full state block from module completion (e.g. typing `file.` and picking `managed`), prepend `{{ sls }}.` to the generated state ID: `{{ sls }}.<state_id>:`. Disable to just insert `<state_id>:` instead."
+        }
+      }
     }
   },
   "scripts": {

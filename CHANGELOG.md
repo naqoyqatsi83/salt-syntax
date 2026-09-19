@@ -16,6 +16,10 @@ version heading when that state gets tagged and merged to `main`.
 - `.sls`-specific editor defaults: render whitespace (spaces as `·`, tabs
   as `→`), insert/trim a single final newline on save, and enforce LF line
   endings. [#1](https://github.com/naqoyqatsi83/salt-syntax/issues/1)
+- `saltSyntax.prependSlsToStateId` setting (default `true`) to control
+  whether the full-block completion prepends `{{ sls }}.` to the generated
+  state ID, for people who don't use that convention. Read live, no reload
+  needed. [#7](https://github.com/naqoyqatsi83/salt-syntax/issues/7)
 - Every `module.function` completion with real arguments beyond `name` now
   also offers a `(full)` variant alongside the existing basic one, with
   every parameter the function actually accepts (real names and real

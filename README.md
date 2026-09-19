@@ -157,6 +157,12 @@ they don't affect any other file type — and like any default, you can still
 override them in your own `settings.json` if you want something else for
 `.sls` files specifically.
 
+### Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| `saltSyntax.prependSlsToStateId` | `true` | Whether the full-block completion (see above) prepends `{{ sls }}.` to the generated state ID — `{{ sls }}.<state_id>:` vs. just `<state_id>:`. Takes effect immediately, no reload needed. |
+
 ## Installation
 
 ### From a release
