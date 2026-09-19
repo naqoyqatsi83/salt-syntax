@@ -117,12 +117,23 @@ module/function pairs (`state-pkg-installed`, `state-service-running`,
 
 Comments (`#`, `{# #}`), bracket matching and auto-close for `{{ }}` /
 `{% %}` / `{# #}`, and sensible YAML-style indentation (2-space, spaces not
-tabs) — set as this extension's editor defaults for `.sls` files, along with
-`editor.quickSuggestions` tuned so completion reacts inside plain scalar
-values too (VS Code disables quick suggestions inside `string`-scoped text
-by default, and unquoted YAML values are scoped as strings here to color
-correctly — this re-enables suggestions there without changing the
-coloring).
+tabs) — set as this extension's editor defaults for `.sls` files, along with:
+
+- `editor.quickSuggestions` tuned so completion reacts inside plain scalar
+  values too (VS Code disables quick suggestions inside `string`-scoped
+  text by default, and unquoted YAML values are scoped as strings here to
+  color correctly — this re-enables suggestions there without changing the
+  coloring).
+- `editor.renderWhitespace: "all"` — spaces render as `·` and tabs as `→`,
+  since mixed indentation is an easy, hard-to-spot way to break YAML.
+- `files.insertFinalNewline` / `files.trimFinalNewlines` — every save ends
+  with exactly one trailing blank line, no more, no less.
+- `files.eol: "\n"` — LF line endings, regardless of platform.
+
+All of these are per-language defaults (`[sls]` in VS Code settings), so
+they don't affect any other file type — and like any default, you can still
+override them in your own `settings.json` if you want something else for
+`.sls` files specifically.
 
 ## Installation
 
