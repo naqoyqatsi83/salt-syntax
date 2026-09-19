@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.3.3] - 2026-09-19
+
 ### Added
 - `.sls`-specific editor defaults: render whitespace (spaces as `·`, tabs
   as `→`), insert/trim a single final newline on save, and enforce LF line
