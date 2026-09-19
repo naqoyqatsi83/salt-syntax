@@ -1,0 +1,236 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SaltStack SLS",
+  "scopeName": "source.sls",
+  "comment": "Scope names for Jinja constructs intentionally match common Jinja/Django TextMate scope conventions (entity.name.tag.jinja, keyword.control.jinja, etc.) so existing color themes with Jinja/Django-aware rules render identically. The line-shape rules (state-decl-line etc.) are this grammar's own, needed because a plain top-level `{include: source.jinja}, {include: source.yaml}` grammar cannot correctly resume YAML key-parsing after a Jinja tag that leads a key (see README).",
+  "patterns": [
+    { "include": "#jinja-comment" },
+    { "include": "#jinja-raw" },
+    { "include": "#state-decl-line" },
+    { "include": "#jinja-statement" },
+    { "include": "#jinja-expression" },
+    { "include": "#yaml-comment" },
+    { "include": "#dash-key-line" },
+    { "include": "#plain-list-item" },
+    { "include": "#plain-key-line" },
+    { "include": "#sls-value" }
+  ],
+  "repository": {
+    "key-content": {
+      "patterns": [
+        { "include": "#jinja-comment" },
+        { "include": "#jinja-statement" },
+        { "include": "#jinja-expression" }
+      ]
+    },
+
+    "yaml-comment": {
+      "match": "(^|\\s)(#.*)$",
+      "captures": { "2": { "name": "comment.line.number-sign.sls" } }
+    },
+
+    "dash-key-line": {
+      "comment": "- key: value   (requisite / state-argument line, e.g. `- require:`, `- name: foo`)",
+      "match": "^(\\s*)(-)(\\s+)([^\\n]+?)(:)(?:(\\s+)(.*))?$",
+      "captures": {
+        "4": { "name": "entity.name.tag.sls", "patterns": [ { "include": "#key-content" } ] },
+        "7": { "patterns": [ { "include": "#sls-value" } ] }
+      }
+    },
+
+    "plain-list-item": {
+      "comment": "- value   (a bare list item, e.g. under `names:`)",
+      "match": "^(\\s*)(-)(\\s+)(.*)$",
+      "captures": {
+        "4": { "patterns": [ { "include": "#sls-value" } ] }
+      }
+    },
+
+    "plain-key-line": {
+      "comment": "key: value   (module.function:, or a top-level state id with no Jinja in it)",
+      "match": "^(\\s*)([^\\s\\n][^\\n]*?)(:)(?:(\\s+)(.*))?$",
+      "captures": {
+        "2": { "name": "entity.name.tag.sls", "patterns": [ { "include": "#key-content" } ] },
+        "4": { "patterns": [ { "include": "#sls-value" } ] }
+      }
+    },
+
+    "state-decl-line": {
+      "comment": "A key line whose key starts with a Jinja tag, e.g. `{{ sls }}.service_dead:`. Handled as one whole-line match (Jinja sub-tokenized within it) so the line is never handed to a key-parser that Jinja has already partially consumed.",
+      "match": "^(\\{\\{|\\{%|\\{#)[^\\n]*?(:)(?:(\\s+)(.*))?$",
+      "captures": {
+        "0": { "patterns": [ { "include": "#state-decl-key" } ] }
+      }
+    },
+    "state-decl-key": {
+      "match": "^([^\\n]+?)(:)([^\\n]*)$",
+      "captures": {
+        "1": { "name": "entity.name.tag.sls", "patterns": [ { "include": "#key-content" } ] },
+        "3": { "patterns": [ { "include": "#sls-value" } ] }
+      }
+    },
+
+    "sls-value": {
+      "patterns": [
+        { "include": "#jinja-comment" },
+        { "include": "#jinja-raw" },
+        { "include": "#jinja-statement" },
+        { "include": "#jinja-expression" },
+        {
+          "begin": "'",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.sls" } },
+          "end": "'",
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.sls" } },
+          "name": "string.quoted.single.sls"
+        },
+        {
+          "begin": "\"",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.sls" } },
+          "end": "\"",
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.sls" } },
+          "name": "string.quoted.double.sls",
+          "patterns": [ { "match": "\\\\.", "name": "constant.character.escape.sls" } ]
+        },
+        {
+          "match": "\\b(True|False|true|false|Yes|No|yes|no|On|Off|on|off|null|Null|NULL)\\b",
+          "name": "constant.language.sls"
+        },
+        {
+          "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b",
+          "name": "constant.numeric.sls"
+        },
+        {
+          "match": "(^|\\s)(#.*)$",
+          "captures": { "2": { "name": "comment.line.number-sign.sls" } }
+        },
+        {
+          "comment": "YAML treats an unquoted plain scalar as a string too, so give it the same scope quoted strings get.",
+          "match": "\\S[^\\n]*",
+          "name": "string.unquoted.plain.sls"
+        }
+      ]
+    },
+
+    "jinja-comment": {
+      "begin": "\\{#-?",
+      "beginCaptures": { "0": { "name": "entity.other.jinja.delimiter.comment" } },
+      "end": "-?#\\}",
+      "endCaptures": { "0": { "name": "entity.other.jinja.delimiter.comment" } },
+      "name": "comment.block.jinja"
+    },
+    "jinja-raw": {
+      "begin": "(\\{%-?)\\s*(raw)\\s*(-?%\\})",
+      "beginCaptures": {
+        "1": { "name": "entity.other.jinja.delimiter.tag" },
+        "2": { "name": "keyword.control.jinja" },
+        "3": { "name": "entity.other.jinja.delimiter.tag" }
+      },
+      "end": "(\\{%-?)\\s*(endraw)\\s*(-?%\\})",
+      "endCaptures": {
+        "1": { "name": "entity.other.jinja.delimiter.tag" },
+        "2": { "name": "keyword.control.jinja" },
+        "3": { "name": "entity.other.jinja.delimiter.tag" }
+      },
+      "name": "comment.block.jinja.raw"
+    },
+    "jinja-statement": {
+      "begin": "\\{%-?",
+      "beginCaptures": { "0": { "name": "entity.other.jinja.delimiter.tag" } },
+      "end": "-?%\\}",
+      "endCaptures": { "0": { "name": "entity.other.jinja.delimiter.tag" } },
+      "name": "meta.scope.jinja.tag",
+      "patterns": [ { "include": "#jinja-expr" } ]
+    },
+    "jinja-expression": {
+      "begin": "\\{\\{-?",
+      "beginCaptures": { "0": { "name": "variable.entity.other.jinja.delimiter" } },
+      "end": "-?\\}\\}",
+      "endCaptures": { "0": { "name": "variable.entity.other.jinja.delimiter" } },
+      "name": "variable.meta.scope.jinja",
+      "patterns": [ { "include": "#jinja-expr" } ]
+    },
+    "jinja-expr": {
+      "patterns": [
+        { "include": "#jinja-block-keyword" },
+        { "include": "#jinja-filter-keyword" },
+        { "include": "#jinja-test-keyword" },
+        { "include": "#jinja-leading-keyword" },
+        {
+          "match": "\\b(and|else|if|elif|endif|for|endfor|in|import|not|or|recursive|with(out)?\\s+context)\\b",
+          "name": "keyword.control.jinja"
+        },
+        {
+          "match": "\\b(true|false|none|True|False|None)\\b",
+          "name": "constant.language.jinja"
+        },
+        {
+          "match": "\\b(loop|super|self|varargs|kwargs)\\b",
+          "name": "variable.language.jinja"
+        },
+        {
+          "begin": "\"",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.jinja" } },
+          "end": "\"",
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.jinja" } },
+          "name": "string.quoted.double.jinja"
+        },
+        {
+          "begin": "'",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.jinja" } },
+          "end": "'",
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.jinja" } },
+          "name": "string.quoted.single.jinja"
+        },
+        {
+          "match": "\\b[0-9]+(\\.[0-9]+)?\\b",
+          "name": "constant.numeric.jinja"
+        },
+        {
+          "match": "(\\|)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.other.jinja" },
+            "2": { "name": "variable.other.jinja.filter" }
+          }
+        },
+        {
+          "match": "(\\.)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.other.jinja" },
+            "2": { "name": "variable.other.jinja.attribute" }
+          }
+        },
+        { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "variable.other.jinja" },
+        { "match": "(\\+|-|\\*\\*|\\*|//|/|%)", "name": "keyword.operator.arithmetic.jinja" },
+        { "match": "(==|<=|>=|<|>|!=)", "name": "keyword.operator.comparison.jinja" },
+        { "match": "=", "name": "keyword.operator.assignment.jinja" },
+        { "match": "(\\.|:|\\||,|~|\\[|\\]|\\(|\\))", "name": "punctuation.other.jinja" }
+      ]
+    },
+    "jinja-block-keyword": {
+      "match": "\\b(block)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.jinja" },
+        "2": { "name": "variable.other.jinja.block" }
+      }
+    },
+    "jinja-filter-keyword": {
+      "match": "\\b(filter)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.jinja" },
+        "2": { "name": "variable.other.jinja.filter" }
+      }
+    },
+    "jinja-test-keyword": {
+      "match": "\\b(is)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.jinja" },
+        "2": { "name": "variable.other.jinja.test" }
+      }
+    },
+    "jinja-leading-keyword": {
+      "comment": "Any bare word directly after {% or {%- is a statement keyword (set, endif, macro, endmacro, with, endwith, ...).",
+      "match": "(?<=\\{%-|\\{%)\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\b(?!\\s*[,=])",
+      "captures": { "1": { "name": "keyword.control.jinja" } }
+    }
+  }
+}

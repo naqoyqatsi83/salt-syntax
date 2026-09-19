@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('language-configuration.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('syntaxes/sls.tmLanguage.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('snippets/sls-snippets.json','utf8'))"
+
+      - name: Check extension.js syntax
+        run: node --check src/extension.js
+
+      - name: Package extension
+        run: npx --yes @vscode/vsce package --no-dependencies
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: salt-syntax-vsix
+          path: "*.vsix"

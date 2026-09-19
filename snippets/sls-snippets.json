@@ -1,0 +1,115 @@
+{
+  "SLS file header": {
+    "prefix": "sls-header",
+    "body": [
+      "# -*- coding: utf-8 -*-",
+      "# vim: ft=sls",
+      "",
+      "$0"
+    ],
+    "description": "Standard coding/vim header for a Salt SLS file"
+  },
+  "tplroot from tpldir": {
+    "prefix": "jinja-tplroot",
+    "body": [
+      "{# Get the tplroot from tpldir #}",
+      "{% set tplroot = tpldir.split('/')[0] %}",
+      "$0"
+    ],
+    "description": "Derive tplroot from tpldir"
+  },
+  "import map.jinja": {
+    "prefix": "jinja-import-map",
+    "body": [
+      "{% from tplroot ~ \"/lib/map.jinja\" import ${1:formula} with context %}",
+      "$0"
+    ],
+    "description": "Import formula map from lib/map.jinja"
+  },
+  "pkg.installed state": {
+    "prefix": "state-pkg-installed",
+    "body": [
+      "{{ sls }}.${1:pkg}_installed:",
+      "  pkg.installed:",
+      "    - name: ${2:package_name}",
+      "$0"
+    ],
+    "description": "pkg.installed state"
+  },
+  "pkg.removed state": {
+    "prefix": "state-pkg-removed",
+    "body": [
+      "{{ sls }}.${1:pkg}_absent:",
+      "  pkg.removed:",
+      "    - name: ${2:package_name}",
+      "$0"
+    ],
+    "description": "pkg.removed state"
+  },
+  "service.running state": {
+    "prefix": "state-service-running",
+    "body": [
+      "{{ sls }}.${1:service}_running:",
+      "  service.running:",
+      "    - name: ${2:service_name}",
+      "    - enable: True",
+      "$0"
+    ],
+    "description": "service.running state"
+  },
+  "service.dead state": {
+    "prefix": "state-service-dead",
+    "body": [
+      "{{ sls }}.${1:service}_dead:",
+      "  service.dead:",
+      "    - name: ${2:service_name}",
+      "    - enable: False",
+      "$0"
+    ],
+    "description": "service.dead state"
+  },
+  "file.managed state": {
+    "prefix": "state-file-managed",
+    "body": [
+      "{{ sls }}.${1:file}_managed:",
+      "  file.managed:",
+      "    - name: ${2:/path/to/file}",
+      "    - source: ${3:salt://path/to/source}",
+      "    - user: ${4:root}",
+      "    - group: ${5:root}",
+      "    - mode: ${6:'0644'}",
+      "$0"
+    ],
+    "description": "file.managed state"
+  },
+  "file.absent state": {
+    "prefix": "state-file-absent",
+    "body": [
+      "{{ sls }}.${1:file}_absent:",
+      "  file.absent:",
+      "    - name: ${2:/path/to/file}",
+      "$0"
+    ],
+    "description": "file.absent state"
+  },
+  "cmd.run state": {
+    "prefix": "state-cmd-run",
+    "body": [
+      "{{ sls }}.${1:cmd}_run:",
+      "  cmd.run:",
+      "    - name: ${2:command}",
+      "    - require:",
+      "      - ${3:module}: ${4:requisite_id}",
+      "$0"
+    ],
+    "description": "cmd.run state"
+  },
+  "require requisite": {
+    "prefix": "req-require",
+    "body": [
+      "- require:",
+      "  - ${1:module}: ${2:state_id}"
+    ],
+    "description": "require requisite list"
+  }
+}
