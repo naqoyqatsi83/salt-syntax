@@ -62,8 +62,11 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
 ### Autocompletion
 
 - **Type a module name + `.` at the start of a line** (e.g. `file.`) to get
-  its common state functions (`managed`, `absent`, ...). Picking one inserts
-  a full block:
+  its real state functions (`managed`, `absent`, ...) — all 131 of Salt's
+  official state modules are covered, with function names extracted
+  directly from `salt/states/*.py` on the `saltstack/salt` repo (not
+  guessed), so `module.function` combos that don't actually exist in Salt
+  don't show up. Picking one inserts a full block:
 
   ```sls
   {{ sls }}.<state_id>:
@@ -85,9 +88,9 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
 - Type a module name + `.` **under an existing state id** (2–6 space
   indent) instead inserts just the function stub at that indent, since the
   id line is already there.
-- Start of a state-function line (2–6 space indent) suggests common Salt
-  execution modules (`pkg`, `service`, `file`, `user`, `cmd`, `mount`,
-  `lvm`, `git`, ...).
+- Start of a state-function line (2–6 space indent) suggests from all 131
+  state modules (`pkg`, `service`, `file`, `user`, `cmd`, `mount`, `lvm`,
+  `git`, `win_dacl`, `postgres_user`, `rabbitmq_vhost`, ...).
 - After `- ` suggests common requisites/args (`require`, `watch`, `onlyif`,
   `unless`, `name`, `names`, `source`, `mode`, ...).
 - Type a bare Jinja keyword anywhere outside a tag (`for`, `if`, `set`,

@@ -17,6 +17,24 @@ version heading when that state gets tagged and merged to `main`.
   as `→`), insert/trim a single final newline on save, and enforce LF line
   endings. [#1](https://github.com/naqoyqatsi83/salt-syntax/issues/1)
 
+### Changed
+- `module.function` completion now covers all 131 of Salt's official state
+  modules, with function names extracted directly from `salt/states/*.py`
+  on `saltstack/salt` (a function only counts if it's a top-level `def`
+  taking `name` as its first parameter — Salt's real convention for state
+  functions — which also filters out internal hook functions like
+  `mod_watch`/`mod_beacon` that are never written by hand in an SLS file)
+  instead of a ~23-module hand-guessed list.
+  [#2](https://github.com/naqoyqatsi83/salt-syntax/issues/2)
+
+### Fixed
+- `pip`/`virtualenv` module completion used the wrong public names (the
+  underlying files are `pip_state.py`/`virtualenv_mod.py` — Salt exposes
+  them as `pip`/`virtualenv` via `__virtualname__`, which the old
+  hand-written list got right by luck but couldn't verify).
+  `supervisord`, which isn't part of current core Salt, is no longer
+  suggested. [#2](https://github.com/naqoyqatsi83/salt-syntax/issues/2)
+
 ## [0.3.2] - 2026-09-19
 
 Initial release.
