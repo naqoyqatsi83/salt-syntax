@@ -196,15 +196,174 @@ const FUNCTION_FIELDS = {
 };
 const DEFAULT_FIELDS = [['name', 'name']];
 
-// Picks which argument set a completion item should use. "full" falls back to
-// "basic" (then to just `name`) for any module.function with nothing beyond
-// `name` in FULL_FUNCTION_FIELDS, so there's never a pointless duplicate item.
+// Every module.function with at least one parameter that has no default at
+// all in its real Salt v3008.2 signature (Python would raise TypeError
+// without it) -- generated the same way as MODULE_FUNCTIONS/
+// FULL_FUNCTION_FIELDS, not hand-written. Used to guarantee "basic" always
+// includes these, even for functions with no curated FUNCTION_FIELDS entry:
+// showing just `name` for something like acl.absent (which also needs
+// acl_type) would produce a state Salt rejects outright.
+
+const MANDATORY_FIELDS = {
+  'acl.absent': ['acl_type'],
+  'acl.list_absent': ['acl_type'],
+  'acl.list_present': ['acl_type'],
+  'acl.present': ['acl_type'],
+  'alias.present': ['target'],
+  'apache.configfile': ['config'],
+  'appx.absent': ['query'],
+  'archive.extracted': ['source'],
+  'at.present': ['timespec'],
+  'at.watch': ['timespec'],
+  'certutil.add_store': ['store'],
+  'certutil.del_store': ['store'],
+  'chocolatey.source_present': ['source_location'],
+  'cloud.present': ['cloud_provider'],
+  'cloud.profile': ['profile'],
+  'cloud.volume_attached': ['server_name'],
+  'cmd.call': ['func'],
+  'cmd.wait_call': ['func'],
+  'debconf.set': ['data'],
+  'debconf.set_file': ['source'],
+  'dsc_resource.managed': ['module_name', 'properties'],
+  'environ.setenv': ['value'],
+  'etcd.set': ['value'],
+  'etcd.wait_set': ['value'],
+  'file.accumulated': ['filename', 'text'],
+  'file.comment': ['regex'],
+  'file.copy': ['source'],
+  'file.hardlink': ['target'],
+  'file.mknod': ['ntype'],
+  'file.recurse': ['source'],
+  'file.rename': ['source'],
+  'file.replace': ['pattern', 'repl'],
+  'file.retention_schedule': ['retain'],
+  'file.shortcut': ['target'],
+  'file.symlink': ['target'],
+  'file.uncomment': ['regex'],
+  'git.cloned': ['target'],
+  'git.detached': ['rev', 'target'],
+  'git.latest': ['target'],
+  'grains.append': ['value'],
+  'grains.list_absent': ['value'],
+  'grains.list_present': ['value'],
+  'grains.present': ['value'],
+  'host.absent': ['ip'],
+  'host.only': ['hostnames'],
+  'host.present': ['ip'],
+  'idem.state': ['sls'],
+  'ipset.set_present': ['set_type'],
+  'keychain.installed': ['password'],
+  'keychain.uninstalled': ['password'],
+  'lgpo_reg.value_absent': ['key'],
+  'lgpo_reg.value_disabled': ['key'],
+  'lgpo_reg.value_present': ['key', 'v_data'],
+  'logrotate.set': ['key', 'value'],
+  'loop.until_no_eval': ['expected'],
+  'macdefaults.absent': ['domain'],
+  'macdefaults.write': ['domain', 'value'],
+  'mount.fstab_absent': ['fs_file'],
+  'mount.fstab_present': ['fs_file', 'fs_vfstype'],
+  'mount.mounted': ['device', 'fstype'],
+  'netacl.term': ['filter_name', 'term_name'],
+  'netconfig.replace_pattern': ['pattern', 'repl'],
+  'pkgbuild.built': ['runas', 'dest_dir', 'spec', 'sources', 'tgt'],
+  'postgres_cluster.absent': ['version'],
+  'postgres_cluster.present': ['version'],
+  'postgres_language.absent': ['maintenance_db'],
+  'postgres_language.present': ['maintenance_db'],
+  'postgres_privileges.absent': ['object_name', 'object_type'],
+  'postgres_privileges.present': ['object_name', 'object_type'],
+  'postgres_schema.absent': ['dbname'],
+  'postgres_schema.present': ['dbname'],
+  'postgres_tablespace.present': ['directory'],
+  'powercfg.set_timeout': ['value'],
+  'proxy.managed': ['port'],
+  'quota.mode': ['mode', 'quotatype'],
+  'rabbitmq_cluster.joined': ['host'],
+  'rabbitmq_policy.present': ['pattern', 'definition'],
+  'rabbitmq_upstream.present': ['uri'],
+  'raid.present': ['level', 'devices'],
+  'salt.function': ['tgt'],
+  'salt.parallel_runners': ['runners'],
+  'salt.state': ['tgt'],
+  'salt.wait_for_event': ['id_list'],
+  'selinux.fcontext_policy_present': ['sel_type'],
+  'selinux.port_policy_present': ['sel_type'],
+  'ssh_auth.absent': ['user'],
+  'ssh_auth.manage': ['ssh_keys', 'user'],
+  'ssh_auth.present': ['user'],
+  'ssh_pki.certificate_managed_ssh': ['result', 'comment', 'changes'],
+  'ssh_pki.private_key_managed_ssh': ['result', 'comment', 'changes'],
+  'ssh_pki.public_key_managed': ['public_key_source'],
+  'sysctl.present': ['value'],
+  'sysfs.present': ['value'],
+  'syslog_ng.config': ['config'],
+  'win_dacl.absent': ['objectType', 'user', 'permission', 'acetype', 'propagation'],
+  'win_dacl.disinherit': ['objectType'],
+  'win_dacl.inherit': ['objectType'],
+  'win_dacl.present': ['objectType', 'user', 'permission', 'acetype', 'propagation'],
+  'win_firewall.add_rule': ['localport'],
+  'win_iis.container_setting': ['container'],
+  'win_iis.create_app': ['site', 'sourcepath'],
+  'win_iis.create_binding': ['site'],
+  'win_iis.create_cert_binding': ['site'],
+  'win_iis.create_vdir': ['site', 'sourcepath'],
+  'win_iis.deployed': ['sourcepath'],
+  'win_iis.remove_app': ['site'],
+  'win_iis.remove_binding': ['site'],
+  'win_iis.remove_cert_binding': ['site'],
+  'win_iis.remove_vdir': ['site'],
+  'win_iis.set_app': ['site'],
+  'win_pki.remove_cert': ['thumbprint'],
+  'win_smtp_server.active_log_format': ['log_format'],
+  'win_snmp.agent_settings': ['contact', 'location'],
+  'wusa.installed': ['source'],
+  'x509.crl_managed': ['signing_private_key'],
+  'x509.pem_managed': ['text'],
+  'x509_v2.certificate_managed_ssh': ['result', 'comment', 'changes'],
+  'x509_v2.crl_managed': ['signing_private_key', 'revoked'],
+  'x509_v2.csr_managed': ['private_key'],
+  'x509_v2.pem_managed': ['text'],
+  'x509_v2.private_key_managed_ssh': ['result', 'comment', 'changes'],
+  'xattr.delete': ['attributes'],
+  'xattr.exists': ['attributes']
+};
+
+// Picks which argument set a completion item should use.
 function getFields(mod, fn, variant) {
   const key = `${mod}.${fn}`;
   if (variant === 'full' && FULL_FUNCTION_FIELDS[key] && FULL_FUNCTION_FIELDS[key].length > 0) {
     return FULL_FUNCTION_FIELDS[key];
   }
-  return FUNCTION_FIELDS[key] || DEFAULT_FIELDS;
+  return getBasicFields(mod, fn);
+}
+
+// "basic" = the curated common set (or just `name` if nothing's curated for
+// this function), with any genuinely mandatory parameter merged in that
+// isn't already present -- pulling its real default-or-placeholder from
+// FULL_FUNCTION_FIELDS when available, falling back to the bare param name
+// otherwise. This is what keeps "basic" from ever omitting something Salt
+// would actually require.
+function getBasicFields(mod, fn) {
+  const key = `${mod}.${fn}`;
+  const curated = FUNCTION_FIELDS[key];
+  const required = MANDATORY_FIELDS[key] || [];
+  const fields = curated ? curated.slice() : [['name', 'name']];
+  if (required.length === 0) {
+    return fields;
+  }
+  const present = new Set(fields.map(([k]) => k));
+  const fullFields = FULL_FUNCTION_FIELDS[key] || [];
+  required.forEach((paramName) => {
+    if (present.has(paramName)) {
+      return;
+    }
+    const fromFull = fullFields.find(([k]) => k === paramName);
+    fields.push(fromFull ? fromFull : [paramName, paramName]);
+    present.add(paramName);
+  });
+  return fields;
 }
 
 function availableVariants(mod, fn) {
@@ -553,22 +712,18 @@ const FULL_FUNCTION_FIELDS = {
 
 
 // Builds `<indent>- key: ${n:placeholder}` lines, returning the joined text
-// and the next unused tabstop number. `trailingBlank` adds one extra free
-// `- ` line at the end (for the caller to add more args by hand) -- only
-// makes sense for the "basic" variant, which is intentionally incomplete;
-// "full" already lists every real argument, so it just gets a bare `$0`
-// (final cursor position, no extra line) after the last value instead.
-function buildArgsBody(fields, indent, startTabstop, trailingBlank = true) {
+// and the next unused tabstop number. Ends with a bare `$0` (final cursor
+// position) right after the last value rather than an extra blank `- ` line
+// -- basic now always includes every mandatory argument (see
+// MANDATORY_FIELDS above), so that invite-more-args line wasn't earning its
+// keep; add another `- key: value` line by hand same as any other YAML edit.
+function buildArgsBody(fields, indent, startTabstop) {
   let n = startTabstop;
   const lines = fields.map(([key, placeholder]) => {
     const line = `${indent}- ${key}: \${${n}:${placeholder}}`;
     n += 1;
     return line;
   });
-  if (trailingBlank) {
-    lines.push(`${indent}- $0`);
-    return { text: lines.join('\n'), nextTabstop: n };
-  }
   return { text: lines.join('\n') + '$0', nextTabstop: n };
 }
 
@@ -676,7 +831,7 @@ function activate(context) {
       const modStart = position.character - mod.length - 1;
       const range = new vscode.Range(position.line, modStart, position.line, position.character);
       const fields = getFields(mod, fn, variant);
-      const args = buildArgsBody(fields, '    ', 2, variant !== 'full');
+      const args = buildArgsBody(fields, '    ', 2);
       const snippet = new vscode.SnippetString(
         `{{ sls }}.\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
       );
@@ -725,13 +880,13 @@ function activate(context) {
                   title: 'Insert full state block',
                   arguments: [mod, fn, variant]
                 };
-                const args = buildArgsBody(fields, '    ', 2, !isFull);
+                const args = buildArgsBody(fields, '    ', 2);
                 item.documentation = new vscode.MarkdownString(
                   `Inserts a full state block:\n\n\`\`\`sls\n{{ sls }}.<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
                 );
               } else {
                 // Already indented under an existing state id: just the function stub.
-                const args = buildArgsBody(fields, '  ', 1, !isFull);
+                const args = buildArgsBody(fields, '  ', 1);
                 item.insertText = new vscode.SnippetString(`${fn}:\n${args.text}`);
               }
               return item;

@@ -96,6 +96,14 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   beyond `name` (e.g. `archive.extracted` has none) don't get a redundant
   `(full)` entry. Data for both variants is extracted the same way as the
   module list itself (see below) — not hand-written.
+- **`basic` always includes every argument Salt actually requires** —
+  parameters with no default at all in the real function signature are
+  merged in automatically, even for functions with no hand-curated entry
+  (e.g. `acl.absent` needs `name` *and* `acl_type`; both show up, not just
+  `name`). Neither variant ends with an extra blank `- ` line anymore —
+  `basic` already covers what's required, `full` already covers everything
+  — add another `- key: value` by hand same as any other YAML edit if you
+  need something beyond what's shown.
 - Type a module name + `.` **under an existing state id** (2–6 space
   indent) instead inserts just the function stub at that indent, since the
   id line is already there.

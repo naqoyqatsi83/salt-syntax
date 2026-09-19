@@ -50,8 +50,16 @@ version heading when that state gets tagged and merged to `main`.
 - The `(full)` completion variant ended with the same trailing blank
   `- ` arg line the basic variant uses to invite adding more args — except
   `(full)` already lists every real argument, so there's nothing left to
-  add. That line only appears for the basic variant now.
-  [#5](https://github.com/naqoyqatsi83/salt-syntax/issues/5)
+  add. [#5](https://github.com/naqoyqatsi83/salt-syntax/issues/5)
+- Basic completion could omit arguments Salt genuinely requires — it only
+  ever showed a small curated set, or just `name` for anything not
+  curated, with no guarantee of covering what's actually mandatory (e.g.
+  `acl.absent` needs `acl_type` too, but had no curated entry). Every
+  parameter with no default at all in the real v3008.2 signature is now
+  merged into basic automatically, even with no curated entry. Also
+  dropped basic's own trailing blank `- ` line (see #5 above) now that
+  it's no longer needed to invite adding a still-missing required arg.
+  [#6](https://github.com/naqoyqatsi83/salt-syntax/issues/6)
 
 ## [0.3.2] - 2026-09-19
 

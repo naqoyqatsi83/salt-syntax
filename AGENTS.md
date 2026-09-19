@@ -42,14 +42,18 @@ only thing that turns the source tree into a `.vsix`.
 
 ## Updating the Salt module/function list
 
-`MODULE_FUNCTIONS` and `FULL_FUNCTION_FIELDS` in `src/extension.js` are
-extracted from Salt's own source, not hand-written — see the comments above
-each in that file for the exact rules (name-first-param filter,
-`__virtualname__` resolution, `__func_alias__` fixes, the handful of
-confirmed-by-hand exceptions; `FULL_FUNCTION_FIELDS` additionally parses
-each qualifying function's real parameter list and default values straight
-out of its signature, handling both single- and multi-line `def`s). To
-regenerate it against a newer Salt release:
+`MODULE_FUNCTIONS`, `FULL_FUNCTION_FIELDS`, and `MANDATORY_FIELDS` in
+`src/extension.js` are extracted from Salt's own source, not hand-written —
+see the comments above each in that file for the exact rules (name-first-
+param filter, `__virtualname__` resolution, `__func_alias__` fixes, the
+handful of confirmed-by-hand exceptions; `FULL_FUNCTION_FIELDS` additionally
+parses each qualifying function's real parameter list and default values
+straight out of its signature, handling both single- and multi-line `def`s;
+`MANDATORY_FIELDS` records which of those parameters have no default at all
+— genuinely required, not just commonly-set — and `getBasicFields()` uses it
+to guarantee the "basic" completion variant never omits one, merging it in
+even for a function with no curated `FUNCTION_FIELDS` entry). To regenerate
+against a newer Salt release:
 
 1. Pick the release tag (e.g. `v3008.3`) — a real, tagged release, not
    `master`. `master` carries unreleased modules/functions (verified: as of
