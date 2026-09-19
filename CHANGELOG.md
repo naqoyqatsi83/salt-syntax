@@ -12,6 +12,17 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- `Ctrl+/`/`Cmd+/` on a single line containing a Jinja tag comments out
+  just that tag using Jinja's own comment syntax (`{% x %}` <->
+  `{#% x %#}`, `{{ x }}` <-> `{#{ x }#}` — a single `#` inserted just
+  inside each delimiter, trivially reversible), instead of the normal
+  line-comment behavior. Multiple tags on one line toggle independently.
+  Anything else (multi-line selection, no Jinja tag on the line, a
+  genuine pre-existing `{#- ... #}` comment) falls through to VS Code's
+  normal line-comment command unchanged.
+  [#10](https://github.com/naqoyqatsi83/salt-syntax/issues/10)
+
 ## [0.3.3] - 2026-09-19
 
 ### Added

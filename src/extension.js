@@ -814,6 +814,30 @@ function insideJinjaTag(linePrefix) {
   return closeAfter === -1;
 }
 
+// Matches a Jinja tag on a single line, in either its plain or "toggled"
+// (commented) form. The two commented alternatives are listed first, but
+// there's no real ambiguity either way: a plain {% ... %}'s 2nd character is
+// always "%", {{ ... }}'s is always "{", and a commented tag's is always "#"
+// -- distinct in every case, so alternation order doesn't actually matter
+// for correctness, just for readability. A genuine pre-existing Jinja
+// comment ({#- ... #}, no % or { as the 3rd character) matches none of
+// these and is correctly left alone.
+const JINJA_TAG_RE = /\{#%.*?%#\}|\{#\{.*?\}#\}|\{%.*?%\}|\{\{.*?\}\}/g;
+
+// {% x %} <-> {#% x %#}, {{ x }} <-> {#{ x }#}: Jinja's lexer just looks
+// for the literal next "{#" to start a comment and the next "#}" to end it,
+// so wrapping with a single # just inside each original delimiter is a
+// minimal, trivially reversible comment toggle that never touches the
+// tag's own original characters (including any leading/trailing "-"
+// whitespace-control markers, which just end up adjacent to our #s).
+function toggleJinjaTagText(text) {
+  if (text[1] === '#') {
+    // Already toggled on: strip the two inserted #s.
+    return text[0] + text.slice(2, -2) + text[text.length - 1];
+  }
+  return text[0] + '#' + text.slice(1, -1) + '#' + text[text.length - 1];
+}
+
 // Maps each saltSyntax.* toggle to the [sls]-scoped settings it controls and
 // what "off" (opted out of the default) should explicitly set them to.
 // "on" (the default) means *no* override -- it just removes whatever
@@ -879,6 +903,41 @@ async function activate(context) {
       }
     })
   );
+
+  // Ctrl+/ override (see package.json's keybindings, scoped to editorLangId
+  // == sls so it doesn't affect any other language): comments/uncomments
+  // just the Jinja tag(s) on the current line via toggleJinjaTagText() when
+  // there's a single cursor confined to one line that actually has a Jinja
+  // tag on it. Everything else -- multiple cursors, a multi-line selection,
+  // or a line with no Jinja tag -- falls straight through to VS Code's own
+  // normal line-comment command, unchanged.
+  const toggleCommentCommand = vscode.commands.registerCommand('saltSyntax.toggleComment', async () => {
+    const editor = vscode.window.activeTextEditor;
+    const fallThrough = () => vscode.commands.executeCommand('editor.action.commentLine');
+    if (!editor || editor.document.languageId !== 'sls' || editor.selections.length !== 1) {
+      return fallThrough();
+    }
+    const selection = editor.selection;
+    if (selection.start.line !== selection.end.line) {
+      return fallThrough();
+    }
+    const lineNumber = selection.start.line;
+    const lineText = editor.document.lineAt(lineNumber).text;
+    const matches = [...lineText.matchAll(JINJA_TAG_RE)];
+    if (matches.length === 0) {
+      return fallThrough();
+    }
+    // All replacements are computed against the same pre-edit snapshot of
+    // the line and queued in one editor.edit() call, so VS Code applies
+    // them together against the original offsets -- no need to walk the
+    // matches back-to-front to dodge shifting positions.
+    await editor.edit((editBuilder) => {
+      for (const m of matches) {
+        const range = new vscode.Range(lineNumber, m.index, lineNumber, m.index + m[0].length);
+        editBuilder.replace(range, toggleJinjaTagText(m[0]));
+      }
+    });
+  });
 
   // Deletes the "mod." the user typed and inserts the full
   // {{ sls }}.<state_id>: / mod.fn: / ...args block as a live, tabbable
@@ -1058,7 +1117,13 @@ async function activate(context) {
     '|'
   );
 
-  context.subscriptions.push(insertStateBlockCommand, stateProvider, requisiteProvider, jinjaProvider);
+  context.subscriptions.push(
+    toggleCommentCommand,
+    insertStateBlockCommand,
+    stateProvider,
+    requisiteProvider,
+    jinjaProvider
+  );
 }
 
 function deactivate() {}

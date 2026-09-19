@@ -2,7 +2,7 @@
   "name": "salt-syntax",
   "displayName": "Salt Syntax",
   "description": "Syntax highlighting, coloring and IntelliSense for SaltStack SLS files (YAML + Jinja2)",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "publisher": "naqoyqatsi83",
   "author": "naqoyqatsi83",
   "license": "MIT",
@@ -103,7 +103,21 @@
           "markdownDescription": "Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). Disabling this writes explicit `\"[sls]\"` overrides in your settings restoring VS Code's own defaults (both `false`); re-enabling removes those overrides again."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "saltSyntax.toggleComment",
+        "title": "Salt Syntax: Toggle Jinja/Line Comment"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "saltSyntax.toggleComment",
+        "key": "ctrl+/",
+        "mac": "cmd+/",
+        "when": "editorTextFocus && editorLangId == sls"
+      }
+    ]
   },
   "scripts": {
     "package": "npx --yes @vscode/vsce package --no-dependencies"

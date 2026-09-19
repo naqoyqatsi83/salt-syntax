@@ -125,6 +125,32 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   what you're actually typing (a word, or right after `{{`/`{%`/`|`) — it
   won't re-dump the full list on every space.
 
+### Smart comment toggle
+
+`Ctrl+/` (`Cmd+/` on macOS) on a single line that contains a Jinja tag
+comments out just that tag, using Jinja's own comment syntax — insert a `#`
+right after the opening brace and right before the closing one:
+
+```sls
+{{ sls }}.service_dead:
+```
+
+`Ctrl+/` on that line turns it into:
+
+```sls
+{#{ sls }#}.service_dead:
+```
+
+This works because Jinja's lexer just looks for the next literal `{#` to
+start a comment and the next `#}` to end it — it doesn't care what's in
+between, so `{#% x %#}` and `{#{ x }#}` are both valid, ordinary Jinja
+comments, and pressing `Ctrl+/` again strips exactly the two `#`s it added
+(round-trips perfectly, `-` whitespace-control markers included). Multiple
+tags on one line toggle independently, based on each one's own current
+state. Anything else — a multi-line selection, a line with no Jinja tag, or
+a genuine pre-existing `{#- ... #}` comment (nothing to toggle) — falls
+straight through to VS Code's normal line-comment behavior, unchanged.
+
 ### Snippets
 
 Boilerplate that isn't really "completion" so much as "type a short prefix,
