@@ -163,10 +163,16 @@ No build step — `src/extension.js` runs as-is. `npm run package` (or
 `npx @vscode/vsce package`) produces the `.vsix`.
 
 CI (`.github/workflows/build.yml`) validates every JSON file, checks
-`extension.js` syntax, packages the extension, and uploads the `.vsix` as a
-build artifact on every push and PR. Pushing a `v*.*.*` tag
-(`.github/workflows/release.yml`) packages it again and attaches the
-`.vsix` to a GitHub Release.
+`extension.js` syntax, and packages the extension on every push/PR to
+`main`/`develop`, uploading the `.vsix` as a build artifact. Pushing a `v*`
+tag additionally attaches that build's `.vsix` to a GitHub Release.
+
+### Branching & releases
+
+All work happens on `develop`; `main` only moves via merging `develop` in
+at tag time (see [AGENTS.md](AGENTS.md) for the full policy).
+[CHANGELOG.md](CHANGELOG.md) tracks unreleased changes as they land, moving
+under a version heading when tagged.
 
 ## Credits
 
