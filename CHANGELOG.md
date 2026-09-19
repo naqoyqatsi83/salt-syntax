@@ -18,14 +18,14 @@ version heading when that state gets tagged and merged to `main`.
   endings. [#1](https://github.com/naqoyqatsi83/salt-syntax/issues/1)
 
 ### Changed
-- `module.function` completion now covers all 131 of Salt's official state
-  modules, with function names extracted directly from `salt/states/*.py`
-  on `saltstack/salt` (a function only counts if it's a top-level `def`
-  taking `name` as its first parameter — Salt's real convention for state
-  functions — which also filters out internal hook functions like
-  `mod_watch`/`mod_beacon` that are never written by hand in an SLS file)
-  instead of a ~23-module hand-guessed list.
-  [#2](https://github.com/naqoyqatsi83/salt-syntax/issues/2)
+- `module.function` completion now covers all 128 state modules that exist
+  in Salt v3008.2 (the latest stable release), with function names
+  extracted directly from `salt/states/*.py` at that release tag (a
+  function only counts if it's a top-level `def` taking `name` as its
+  first parameter — Salt's real convention for state functions — which
+  also filters out internal hook functions like `mod_watch`/`mod_beacon`
+  that are never written by hand in an SLS file) instead of a ~23-module
+  hand-guessed list. [#2](https://github.com/naqoyqatsi83/salt-syntax/issues/2)
 
 ### Fixed
 - `pip`/`virtualenv` module completion used the wrong public names (the
@@ -34,6 +34,12 @@ version heading when that state gets tagged and merged to `main`.
   hand-written list got right by luck but couldn't verify).
   `supervisord`, which isn't part of current core Salt, is no longer
   suggested. [#2](https://github.com/naqoyqatsi83/salt-syntax/issues/2)
+- The #2 extraction was pulled from `master` (unreleased) rather than a
+  stable release, which meant suggesting 3 modules (`dnfmodule`,
+  `postgres_default_privileges`, `python`) and 2 `pkg` functions
+  (`trusted`, `untrusted`) that don't exist in any released Salt yet.
+  Re-pinned to `v3008.2`.
+  [#3](https://github.com/naqoyqatsi83/salt-syntax/issues/3)
 
 ## [0.3.2] - 2026-09-19
 

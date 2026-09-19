@@ -1,18 +1,25 @@
 const vscode = require('vscode');
 
-// All 131 of Salt's official state modules (docs.saltproject.io/en/latest/ref/states/all),
-// each mapped to its real, public state function names. Extracted directly from
-// salt/states/*.py on the saltstack/salt GitHub repo (master, pulled 2026-09-19)
-// rather than hand-guessed: a function only counts as a real state function here if
-// it's a top-level `def` whose first parameter is literally `name` (Salt's actual
-// convention for state functions), which also excludes internal hook functions
-// (mod_init, mod_aggregate, mod_watch, mod_beacon, ...) that Salt calls automatically
-// and that are never written as `module.function:` by hand in an SLS file. A handful
-// of real state functions that don't follow the name-first convention (module.run,
-// postgres_cluster/schema.absent) were confirmed by hand and added back in. Each
-// module's key is its actual public SLS name (from `__virtualname__` where Salt
-// overrides the filename, e.g. pip_state.py -> pip, virtualenv_mod.py -> virtualenv) --
-// not always the same as the source filename.
+// All 128 of Salt's official state modules that exist in v3008.2 (the latest
+// stable release as of writing) -- docs.saltproject.io/en/latest/ref/states/all
+// lists 131, but 3 (dnfmodule, postgres_default_privileges, python) only exist
+// on the unreleased master branch, and pkg on master also has 2 extra functions
+// (trusted/untrusted) not yet in any release; this list deliberately excludes
+// all of those so it doesn't suggest states that don't exist in the Salt most
+// people actually have installed. Extracted directly from salt/states/*.py on
+// the saltstack/salt GitHub repo at tag v3008.2, not hand-guessed: a function
+// only counts as a real state function here if it's a top-level `def` whose
+// first parameter is literally `name` (Salt's actual convention for state
+// functions), which also excludes internal hook functions (mod_init,
+// mod_aggregate, mod_watch, mod_beacon, ...) that Salt calls automatically and
+// that are never written as `module.function:` by hand in an SLS file. A
+// handful of real state functions that don't follow the name-first convention
+// (module.run, postgres_cluster/schema.absent) were confirmed by hand and
+// added back in. Each module's key is its actual public SLS name (from
+// `__virtualname__` where Salt overrides the filename, e.g. pip_state.py ->
+// pip, virtualenv_mod.py -> virtualenv) -- not always the same as the source
+// filename. Re-extraction steps (e.g. to bump to a newer release) are in
+// AGENTS.md.
 const MODULE_FUNCTIONS = {
   acl: ['absent', 'list_absent', 'list_present', 'present'],
   alias: ['absent', 'present'],
@@ -35,7 +42,6 @@ const MODULE_FUNCTIONS = {
   debconf: ['set', 'set_file'],
   disk: ['status'],
   dism: ['capability_installed', 'capability_removed', 'feature_installed', 'feature_removed', 'kb_removed', 'package_installed', 'package_removed', 'provisioned_package_installed'],
-  dnfmodule: ['disabled', 'enabled', 'installed', 'removed'],
   dsc_resource: ['managed'],
   environ: ['setenv'],
   etcd: ['directory', 'rm', 'set', 'wait_rm', 'wait_set'],
@@ -78,13 +84,12 @@ const MODULE_FUNCTIONS = {
   nftables: ['append', 'chain_absent', 'chain_present', 'delete', 'flush', 'insert', 'set_policy', 'table_absent', 'table_present'],
   ntp: ['managed'],
   pip: ['installed', 'removed', 'uptodate'],
-  pkg: ['downloaded', 'group_installed', 'held', 'installed', 'latest', 'patch_downloaded', 'patch_installed', 'purged', 'removed', 'trusted', 'unheld', 'untrusted', 'uptodate'],
+  pkg: ['downloaded', 'group_installed', 'held', 'installed', 'latest', 'patch_downloaded', 'patch_installed', 'purged', 'removed', 'unheld', 'uptodate'],
   pkgbuild: ['built', 'repo'],
   pkgng: ['update_packaging_site'],
   pkgrepo: ['absent', 'managed'],
   postgres_cluster: ['absent', 'present'],
   postgres_database: ['absent', 'present'],
-  postgres_default_privileges: ['absent', 'present'],
   postgres_extension: ['absent', 'present'],
   postgres_group: ['absent', 'present'],
   postgres_initdb: ['present'],
@@ -97,7 +102,6 @@ const MODULE_FUNCTIONS = {
   process: ['absent'],
   proxy: ['managed'],
   pyenv: ['absent', 'install_pyenv', 'installed'],
-  python: ['run', 'script'],
   quota: ['mode'],
   rabbitmq_cluster: ['joined'],
   rabbitmq_plugin: ['disabled', 'enabled'],

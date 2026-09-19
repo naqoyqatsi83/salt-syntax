@@ -40,6 +40,38 @@ only thing that turns the source tree into a `.vsix`.
 | `src/extension.js` | Completion providers |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
 
+## Updating the Salt module/function list
+
+`MODULE_FUNCTIONS` in `src/extension.js` is extracted from Salt's own
+source, not hand-written — see the comment above it in that file for the
+exact rules (name-first-param filter, `__virtualname__` resolution,
+`__func_alias__` fixes, the handful of confirmed-by-hand exceptions). To
+regenerate it against a newer Salt release:
+
+1. Pick the release tag (e.g. `v3008.3`) — a real, tagged release, not
+   `master`. `master` carries unreleased modules/functions (verified: as of
+   this writing it has `dnfmodule`/`postgres_default_privileges`/`python`
+   and two extra `pkg` functions that don't exist in any tagged release
+   yet) — pinning to a tag is what keeps this list matching the Salt people
+   actually have installed.
+2. `GET https://api.github.com/repos/saltstack/salt/contents/salt/states?ref=<tag>`
+   for the file list, then download each `salt/states/<file>.py` raw from
+   that same tag.
+3. For each file: top-level `def name(...)` where the first parameter is
+   literally `name` = a real state function (this is Salt's actual
+   convention, and it's what filters out internal-only hooks like
+   `mod_watch`/`mod_beacon`/`mod_aggregate`, which Salt calls automatically
+   and are never written as `module.function:` by hand). Apply
+   `__virtualname__` (module's public name) and `__func_alias__`
+   (individual function renames, e.g. `copy_` -> `copy`) where a file
+   defines them.
+4. Diff against the previous version and manually verify anything that
+   changed shape (new/removed modules, function list changes) before
+   committing — don't just trust the automated pass blind, the same way the
+   original extraction caught `module.run` and `postgres_cluster/schema
+   .absent` as real exceptions to the name-first rule only by checking the
+   rejected list by hand.
+
 ## Verifying grammar changes
 
 There's no test suite that runs in CI for the grammar itself (it's a
