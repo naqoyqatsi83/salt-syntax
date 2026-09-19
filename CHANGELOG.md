@@ -16,6 +16,13 @@ version heading when that state gets tagged and merged to `main`.
 - `.sls`-specific editor defaults: render whitespace (spaces as `·`, tabs
   as `→`), insert/trim a single final newline on save, and enforce LF line
   endings. [#1](https://github.com/naqoyqatsi83/salt-syntax/issues/1)
+- Every `module.function` completion with real arguments beyond `name` now
+  also offers a `(full)` variant alongside the existing basic one, with
+  every parameter the function actually accepts (real names and real
+  default values, parsed straight from its Salt v3008.2 source signature —
+  e.g. `file.managed (full)` has all 49). Functions with nothing beyond
+  `name` don't get a redundant `(full)` entry.
+  [#4](https://github.com/naqoyqatsi83/salt-syntax/issues/4)
 
 ### Changed
 - `module.function` completion now covers all 128 state modules that exist

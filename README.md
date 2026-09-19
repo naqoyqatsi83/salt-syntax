@@ -87,6 +87,15 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   `user`/`group.present`, `cmd.run`, `mount.*`, `archive.extracted`,
   `git.latest`, `cron.present`, and `lvm.lv_*` have their typical arguments
   prefilled; anything else falls back to just `name`.
+- **Every function with real arguments beyond `name` also offers a `(full)`
+  variant** — e.g. typing `file.` shows both `managed` (the handful above)
+  and `managed (full)`, which includes *every* parameter `file.managed`
+  actually accepts (49 of them), each defaulted to its real value from
+  Salt's own source (`source: None`, `keep_source: True`,
+  `sig_backend: 'gpg'`, ...), all as tab stops. Functions with nothing
+  beyond `name` (e.g. `archive.extracted` has none) don't get a redundant
+  `(full)` entry. Data for both variants is extracted the same way as the
+  module list itself (see below) — not hand-written.
 - Type a module name + `.` **under an existing state id** (2–6 space
   indent) instead inserts just the function stub at that indent, since the
   id line is already there.

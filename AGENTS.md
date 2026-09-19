@@ -42,10 +42,13 @@ only thing that turns the source tree into a `.vsix`.
 
 ## Updating the Salt module/function list
 
-`MODULE_FUNCTIONS` in `src/extension.js` is extracted from Salt's own
-source, not hand-written — see the comment above it in that file for the
-exact rules (name-first-param filter, `__virtualname__` resolution,
-`__func_alias__` fixes, the handful of confirmed-by-hand exceptions). To
+`MODULE_FUNCTIONS` and `FULL_FUNCTION_FIELDS` in `src/extension.js` are
+extracted from Salt's own source, not hand-written — see the comments above
+each in that file for the exact rules (name-first-param filter,
+`__virtualname__` resolution, `__func_alias__` fixes, the handful of
+confirmed-by-hand exceptions; `FULL_FUNCTION_FIELDS` additionally parses
+each qualifying function's real parameter list and default values straight
+out of its signature, handling both single- and multi-line `def`s). To
 regenerate it against a newer Salt release:
 
 1. Pick the release tag (e.g. `v3008.3`) — a real, tagged release, not

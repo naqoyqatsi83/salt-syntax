@@ -196,6 +196,362 @@ const FUNCTION_FIELDS = {
 };
 const DEFAULT_FIELDS = [['name', 'name']];
 
+// Picks which argument set a completion item should use. "full" falls back to
+// "basic" (then to just `name`) for any module.function with nothing beyond
+// `name` in FULL_FUNCTION_FIELDS, so there's never a pointless duplicate item.
+function getFields(mod, fn, variant) {
+  const key = `${mod}.${fn}`;
+  if (variant === 'full' && FULL_FUNCTION_FIELDS[key] && FULL_FUNCTION_FIELDS[key].length > 0) {
+    return FULL_FUNCTION_FIELDS[key];
+  }
+  return FUNCTION_FIELDS[key] || DEFAULT_FIELDS;
+}
+
+function availableVariants(mod, fn) {
+  const key = `${mod}.${fn}`;
+  const variants = ['basic'];
+  if (FULL_FUNCTION_FIELDS[key] && FULL_FUNCTION_FIELDS[key].length > 0) {
+    variants.push('full');
+  }
+  return variants;
+}
+
+// Full (all-arguments) variant of the same data, keyed the same way, generated
+// the same way as MODULE_FUNCTIONS (real function signatures from Salt
+// v3008.2 source, not hand-written) -- see the comment above MODULE_FUNCTIONS
+// and AGENTS.md's "Updating the Salt module/function list" section. Only
+// includes module.function pairs that actually have parameters beyond
+// `name`; nothing to show "full" for is just omitted rather than duplicating
+// the basic/name-only entry.
+const FULL_FUNCTION_FIELDS = {
+  'acl.absent': [['acl_type', 'acl_type'], ['acl_name', '\'\''], ['perms', '\'\''], ['recurse', 'False']],
+  'acl.list_absent': [['acl_type', 'acl_type'], ['acl_names', 'None'], ['recurse', 'False']],
+  'acl.list_present': [['acl_type', 'acl_type'], ['acl_names', 'None'], ['perms', '\'\''], ['recurse', 'False'], ['force', 'False']],
+  'acl.present': [['acl_type', 'acl_type'], ['acl_name', '\'\''], ['perms', '\'\''], ['recurse', 'False'], ['force', 'False']],
+  'alias.present': [['target', 'target']],
+  'ansible.playbooks': [['rundir', 'None'], ['git_repo', 'None'], ['git_kwargs', 'None'], ['ansible_kwargs', 'None']],
+  'apache.configfile': [['config', 'config']],
+  'appx.absent': [['query', 'query'], ['include_store', 'False'], ['frameworks', 'False'], ['deprovision_only', 'False']],
+  'archive.extracted': [['source', 'source'], ['source_hash', 'None'], ['source_hash_name', 'None'], ['source_hash_update', 'False'], ['skip_files_list_verify', 'False'], ['skip_verify', 'False'], ['password', 'None'], ['options', 'None'], ['list_options', 'None'], ['force', 'False'], ['overwrite', 'False'], ['clean', 'False'], ['clean_parent', 'False'], ['user', 'None'], ['group', 'None'], ['if_missing', 'None'], ['trim_output', 'False'], ['use_cmd_unzip', 'None'], ['extract_perms', 'True'], ['enforce_toplevel', 'True'], ['enforce_ownership_on', 'None'], ['archive_format', 'None'], ['use_etag', 'False'], ['signature', 'None'], ['source_hash_sig', 'None'], ['signed_by_any', 'None'], ['signed_by_all', 'None'], ['keyring', 'None'], ['gnupghome', 'None'], ['sig_backend', 'gpg']],
+  'assistive.installed': [['enabled', 'True']],
+  'at.absent': [['jobid', 'None']],
+  'at.present': [['timespec', 'timespec'], ['tag', 'None'], ['user', 'None'], ['job', 'None'], ['unique_tag', 'False']],
+  'at.watch': [['timespec', 'timespec'], ['tag', 'None'], ['user', 'None'], ['job', 'None'], ['unique_tag', 'False']],
+  'beacon.absent': [['save', 'False']],
+  'beacon.present': [['save', 'False']],
+  'blockdev.formatted': [['fs_type', 'ext4'], ['force', 'False']],
+  'certutil.add_store': [['store', 'store'], ['saltenv', 'base']],
+  'certutil.del_store': [['store', 'store'], ['saltenv', 'base']],
+  'chocolatey.bootstrapped': [['force', 'False'], ['source', 'None'], ['version', 'None']],
+  'chocolatey.installed': [['version', 'None'], ['source', 'None'], ['force', 'False'], ['pre_versions', 'False'], ['install_args', 'None'], ['override_args', 'False'], ['force_x86', 'False'], ['package_args', 'None'], ['allow_multiple', 'False'], ['execution_timeout', 'None'], ['virus_check', 'None']],
+  'chocolatey.source_present': [['source_location', 'source_location'], ['username', 'None'], ['password', 'None'], ['force', 'False'], ['priority', 'None']],
+  'chocolatey.uninstalled': [['version', 'None'], ['uninstall_args', 'None'], ['override_args', 'False']],
+  'chocolatey.upgraded': [['version', 'None'], ['source', 'None'], ['force', 'False'], ['pre_versions', 'False'], ['install_args', 'None'], ['override_args', 'False'], ['force_x86', 'False'], ['package_args', 'None']],
+  'cloud.absent': [['onlyif', 'None'], ['unless', 'None']],
+  'cloud.present': [['cloud_provider', 'cloud_provider'], ['onlyif', 'None'], ['unless', 'None'], ['opts', 'None']],
+  'cloud.profile': [['profile', 'profile'], ['onlyif', 'None'], ['unless', 'None'], ['opts', 'None']],
+  'cloud.volume_absent': [['provider', 'None']],
+  'cloud.volume_attached': [['server_name', 'server_name'], ['provider', 'None']],
+  'cloud.volume_detached': [['server_name', 'None'], ['provider', 'None']],
+  'cloud.volume_present': [['provider', 'None']],
+  'cmd.call': [['func', 'func'], ['args', '()'], ['kws', 'None'], ['output_loglevel', 'debug'], ['hide_output', 'False'], ['use_vt', 'False']],
+  'cmd.run': [['cwd', 'None'], ['root', 'None'], ['runas', 'None'], ['password', 'None'], ['shell', 'None'], ['env', 'None'], ['prepend_path', 'None'], ['stateful', 'False'], ['output_loglevel', 'debug'], ['hide_output', 'False'], ['timeout', 'None'], ['ignore_timeout', 'False'], ['use_vt', 'False'], ['success_retcodes', 'None'], ['success_stdout', 'None'], ['success_stderr', 'None']],
+  'cmd.script': [['source', 'None'], ['template', 'None'], ['cwd', 'None'], ['runas', 'None'], ['password', 'None'], ['shell', 'None'], ['env', 'None'], ['stateful', 'False'], ['timeout', 'None'], ['use_vt', 'False'], ['output_loglevel', 'debug'], ['hide_output', 'False'], ['defaults', 'None'], ['context', 'None'], ['success_retcodes', 'None'], ['success_stdout', 'None'], ['success_stderr', 'None']],
+  'cmd.wait': [['cwd', 'None'], ['root', 'None'], ['runas', 'None'], ['shell', 'None'], ['env', '()'], ['stateful', 'False'], ['output_loglevel', 'debug'], ['hide_output', 'False'], ['use_vt', 'False'], ['success_retcodes', 'None'], ['success_stdout', 'None'], ['success_stderr', 'None']],
+  'cmd.wait_call': [['func', 'func'], ['args', '()'], ['kws', 'None'], ['stateful', 'False'], ['use_vt', 'False'], ['output_loglevel', 'debug'], ['hide_output', 'False']],
+  'cmd.wait_script': [['source', 'None'], ['template', 'None'], ['cwd', 'None'], ['runas', 'None'], ['shell', 'None'], ['env', 'None'], ['stateful', 'False'], ['use_vt', 'False'], ['output_loglevel', 'debug'], ['hide_output', 'False'], ['success_retcodes', 'None'], ['success_stdout', 'None'], ['success_stderr', 'None']],
+  'cron.absent': [['user', 'root'], ['identifier', 'False'], ['special', 'None']],
+  'cron.env_absent': [['user', 'root']],
+  'cron.env_present': [['value', 'None'], ['user', 'root']],
+  'cron.file': [['source_hash', '\'\''], ['source_hash_name', 'None'], ['user', 'root'], ['template', 'None'], ['context', 'None'], ['replace', 'True'], ['defaults', 'None'], ['backup', '\'\'']],
+  'cron.present': [['user', 'root'], ['minute', '*'], ['hour', '*'], ['daymonth', '*'], ['month', '*'], ['dayweek', '*'], ['comment', 'None'], ['commented', 'False'], ['identifier', 'False'], ['special', 'None']],
+  'debconf.set': [['data', 'data']],
+  'debconf.set_file': [['source', 'source'], ['template', 'None'], ['context', 'None'], ['defaults', 'None']],
+  'disk.status': [['maximum', 'None'], ['minimum', 'None'], ['absolute', 'False'], ['free', 'False']],
+  'dism.capability_installed': [['source', 'None'], ['limit_access', 'False'], ['image', 'None'], ['restart', 'False']],
+  'dism.capability_removed': [['image', 'None'], ['restart', 'False']],
+  'dism.feature_installed': [['package', 'None'], ['source', 'None'], ['limit_access', 'False'], ['enable_parent', 'False'], ['image', 'None'], ['restart', 'False']],
+  'dism.feature_removed': [['remove_payload', 'False'], ['image', 'None'], ['restart', 'False']],
+  'dism.kb_removed': [['image', 'None'], ['restart', 'False']],
+  'dism.package_installed': [['ignore_check', 'False'], ['prevent_pending', 'False'], ['image', 'None'], ['restart', 'False']],
+  'dism.package_removed': [['image', 'None'], ['restart', 'False']],
+  'dism.provisioned_package_installed': [['image', 'None'], ['restart', 'False']],
+  'dsc_resource.managed': [['module_name', 'module_name'], ['properties', 'properties']],
+  'environ.setenv': [['value', 'value'], ['false_unsets', 'False'], ['clear_all', 'False'], ['update_minion', 'False'], ['permanent', 'False']],
+  'etcd.directory': [['profile', 'None']],
+  'etcd.rm': [['recurse', 'False'], ['profile', 'None']],
+  'etcd.set': [['value', 'value'], ['profile', 'None']],
+  'etcd.wait_rm': [['recurse', 'False'], ['profile', 'None']],
+  'etcd.wait_set': [['value', 'value'], ['profile', 'None']],
+  'event.send': [['data', 'None'], ['preload', 'None'], ['with_env', 'False'], ['with_grains', 'False'], ['with_pillar', 'False'], ['show_changed', 'True']],
+  'event.wait': [['sfun', 'None'], ['data', 'None']],
+  'file.accumulated': [['filename', 'filename'], ['text', 'text']],
+  'file.append': [['text', 'None'], ['makedirs', 'False'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['ignore_whitespace', 'True'], ['show_changes', 'True']],
+  'file.blockreplace': [['marker_start', '#-- start managed zone --'], ['marker_end', '#-- end managed zone --'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['content', '\'\''], ['append_if_not_found', 'False'], ['prepend_if_not_found', 'False'], ['backup', '.bak'], ['show_changes', 'True'], ['append_newline', 'None'], ['insert_before_match', 'None'], ['insert_after_match', 'None']],
+  'file.cached': [['source_hash', '\'\''], ['source_hash_name', 'None'], ['skip_verify', 'False'], ['saltenv', 'base'], ['use_etag', 'False'], ['source_hash_sig', 'None'], ['signed_by_any', 'None'], ['signed_by_all', 'None'], ['keyring', 'None'], ['gnupghome', 'None'], ['sig_backend', 'gpg']],
+  'file.comment': [['regex', 'regex'], ['char', '#'], ['backup', '.bak'], ['ignore_missing', 'False']],
+  'file.copy': [['source', 'source'], ['force', 'False'], ['makedirs', 'False'], ['preserve', 'False'], ['user', 'None'], ['group', 'None'], ['mode', 'None'], ['dir_mode', 'None'], ['subdir', 'False']],
+  'file.decode': [['encoded_data', 'None'], ['contents_pillar', 'None'], ['encoding_type', 'base64'], ['checksum', 'md5']],
+  'file.directory': [['user', 'None'], ['group', 'None'], ['recurse', 'None'], ['max_depth', 'None'], ['dir_mode', 'None'], ['file_mode', 'None'], ['makedirs', 'False'], ['clean', 'False'], ['require', 'None'], ['exclude_pat', 'None'], ['follow_symlinks', 'False'], ['force', 'False'], ['backupname', 'None'], ['allow_symlink', 'True'], ['children_only', 'False'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True'], ['win_perms_reset', 'False']],
+  'file.hardlink': [['target', 'target'], ['force', 'False'], ['makedirs', 'False'], ['user', 'None'], ['group', 'None'], ['dir_mode', 'None']],
+  'file.keyvalue': [['key', 'None'], ['value', 'None'], ['key_values', 'None'], ['separator', '='], ['append_if_not_found', 'False'], ['prepend_if_not_found', 'False'], ['search_only', 'False'], ['show_changes', 'True'], ['ignore_if_missing', 'False'], ['count', '1'], ['uncomment', 'None'], ['key_ignore_case', 'False'], ['value_ignore_case', 'False'], ['create_if_missing', 'False'], ['prune', 'False']],
+  'file.line': [['content', 'None'], ['match', 'None'], ['mode', 'None'], ['location', 'None'], ['before', 'None'], ['after', 'None'], ['show_changes', 'True'], ['backup', 'False'], ['quiet', 'False'], ['indent', 'True'], ['create', 'False'], ['user', 'None'], ['group', 'None'], ['file_mode', 'None']],
+  'file.managed': [['source', 'None'], ['source_hash', '\'\''], ['source_hash_name', 'None'], ['keep_source', 'True'], ['user', 'None'], ['group', 'None'], ['mode', 'None'], ['attrs', 'None'], ['template', 'None'], ['makedirs', 'False'], ['dir_mode', 'None'], ['context', 'None'], ['replace', 'True'], ['defaults', 'None'], ['backup', '\'\''], ['show_changes', 'True'], ['create', 'True'], ['contents', 'None'], ['tmp_dir', 'None'], ['tmp_ext', '\'\''], ['contents_pillar', 'None'], ['contents_grains', 'None'], ['contents_newline', 'True'], ['contents_delimiter', ':'], ['encoding', 'None'], ['encoding_errors', 'strict'], ['allow_empty', 'True'], ['follow_symlinks', 'True'], ['check_cmd', 'None'], ['skip_verify', 'False'], ['selinux', 'None'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True'], ['win_perms_reset', 'False'], ['verify_ssl', 'True'], ['use_etag', 'False'], ['signature', 'None'], ['source_hash_sig', 'None'], ['signed_by_any', 'None'], ['signed_by_all', 'None'], ['keyring', 'None'], ['gnupghome', 'None'], ['ignore_ordering', 'False'], ['ignore_whitespace', 'False'], ['ignore_comment_characters', 'None'], ['new_file_diff', 'False'], ['sig_backend', 'gpg']],
+  'file.mknod': [['ntype', 'ntype'], ['major', '0'], ['minor', '0'], ['user', 'None'], ['group', 'None'], ['mode', '0600']],
+  'file.not_cached': [['saltenv', 'base']],
+  'file.patch': [['source', 'None'], ['source_hash', 'None'], ['source_hash_name', 'None'], ['skip_verify', 'False'], ['template', 'None'], ['context', 'None'], ['defaults', 'None'], ['options', '\'\''], ['reject_file', 'None'], ['strip', 'None'], ['saltenv', 'None']],
+  'file.prepend': [['text', 'None'], ['makedirs', 'False'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['header', 'None'], ['show_changes', 'True']],
+  'file.pruned': [['recurse', 'False'], ['ignore_errors', 'False'], ['older_than', 'None']],
+  'file.recurse': [['source', 'source'], ['keep_source', 'True'], ['clean', 'False'], ['require', 'None'], ['user', 'None'], ['group', 'None'], ['dir_mode', 'None'], ['file_mode', 'None'], ['sym_mode', 'None'], ['template', 'None'], ['context', 'None'], ['replace', 'True'], ['defaults', 'None'], ['include_empty', 'False'], ['backup', '\'\''], ['include_pat', 'None'], ['exclude_pat', 'None'], ['maxdepth', 'None'], ['keep_symlinks', 'False'], ['force_symlinks', 'False'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True'], ['merge', 'False']],
+  'file.rename': [['source', 'source'], ['force', 'False'], ['makedirs', 'False']],
+  'file.replace': [['pattern', 'pattern'], ['repl', 'repl'], ['count', '0'], ['flags', '8'], ['bufsize', '1'], ['append_if_not_found', 'False'], ['prepend_if_not_found', 'False'], ['not_found_content', 'None'], ['backup', '.bak'], ['show_changes', 'True'], ['ignore_if_missing', 'False'], ['backslash_literal', 'False'], ['encoding', 'None']],
+  'file.retention_schedule': [['retain', 'retain'], ['strptime_format', 'None'], ['timezone', 'None']],
+  'file.serialize': [['dataset', 'None'], ['dataset_pillar', 'None'], ['user', 'None'], ['group', 'None'], ['mode', 'None'], ['backup', '\'\''], ['makedirs', 'False'], ['show_changes', 'True'], ['create', 'True'], ['merge_if_exists', 'False'], ['encoding', 'None'], ['encoding_errors', 'strict'], ['serializer', 'None'], ['serializer_opts', 'None'], ['deserializer_opts', 'None'], ['check_cmd', 'None'], ['tmp_dir', 'None'], ['tmp_ext', '\'\'']],
+  'file.shortcut': [['target', 'target'], ['arguments', 'None'], ['working_dir', 'None'], ['description', 'None'], ['icon_location', 'None'], ['force', 'False'], ['backupname', 'None'], ['makedirs', 'False'], ['user', 'None']],
+  'file.symlink': [['target', 'target'], ['force', 'False'], ['backupname', 'None'], ['makedirs', 'False'], ['user', 'None'], ['group', 'None'], ['mode', 'None'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'None'], ['atomic', 'False'], ['disallow_copy_and_unlink', 'False'], ['inherit_user_and_group', 'False'], ['follow_symlinks', 'True']],
+  'file.tidied': [['age', '0'], ['matches', 'None'], ['rmdirs', 'False'], ['size', '0'], ['exclude', 'None'], ['full_path_match', 'False'], ['followlinks', 'False'], ['time_comparison', 'atime'], ['age_size_logical_operator', 'OR'], ['age_size_only', 'None'], ['rmlinks', 'True']],
+  'file.touch': [['atime', 'None'], ['mtime', 'None'], ['makedirs', 'False']],
+  'file.uncomment': [['regex', 'regex'], ['char', '#'], ['backup', '.bak']],
+  'firewall.check': [['port', 'None']],
+  'firewalld.present': [['block_icmp', 'None'], ['prune_block_icmp', 'False'], ['default', 'None'], ['masquerade', 'None'], ['ports', 'None'], ['prune_ports', 'False'], ['port_fwd', 'None'], ['prune_port_fwd', 'False'], ['services', 'None'], ['prune_services', 'False'], ['interfaces', 'None'], ['prune_interfaces', 'False'], ['sources', 'None'], ['prune_sources', 'False'], ['rich_rules', 'None'], ['prune_rich_rules', 'False']],
+  'firewalld.service': [['ports', 'None'], ['protocols', 'None']],
+  'git.cloned': [['target', 'target'], ['branch', 'None'], ['user', 'None'], ['password', 'None'], ['identity', 'None'], ['https_user', 'None'], ['https_pass', 'None'], ['output_encoding', 'None']],
+  'git.config_set': [['value', 'None'], ['multivar', 'None'], ['repo', 'None'], ['user', 'None'], ['password', 'None'], ['output_encoding', 'None']],
+  'git.config_unset': [['value_regex', 'None'], ['repo', 'None'], ['user', 'None'], ['password', 'None'], ['output_encoding', 'None']],
+  'git.detached': [['rev', 'rev'], ['target', 'target'], ['remote', 'origin'], ['user', 'None'], ['password', 'None'], ['force_clone', 'False'], ['force_checkout', 'False'], ['fetch_remote', 'True'], ['hard_reset', 'False'], ['submodules', 'False'], ['identity', 'None'], ['https_user', 'None'], ['https_pass', 'None'], ['output_encoding', 'None']],
+  'git.latest': [['target', 'target'], ['rev', 'HEAD'], ['branch', 'None'], ['user', 'None'], ['password', 'None'], ['update_head', 'True'], ['force_checkout', 'False'], ['force_clone', 'False'], ['force_fetch', 'False'], ['force_reset', 'False'], ['submodules', 'False'], ['bare', 'False'], ['mirror', 'False'], ['remote', 'origin'], ['fetch_tags', 'True'], ['sync_tags', 'True'], ['depth', 'None'], ['identity', 'None'], ['https_user', 'None'], ['https_pass', 'None'], ['refspec_branch', '*'], ['refspec_tag', '*'], ['output_encoding', 'None']],
+  'git.present': [['force', 'False'], ['bare', 'True'], ['template', 'None'], ['separate_git_dir', 'None'], ['shared', 'None'], ['user', 'None'], ['password', 'None'], ['output_encoding', 'None']],
+  'gpg.absent': [['keys', 'None'], ['user', 'None'], ['gnupghome', 'None'], ['keyring', 'None'], ['keyring_absent_if_empty', 'False']],
+  'gpg.present': [['keys', 'None'], ['user', 'None'], ['keyserver', 'None'], ['gnupghome', 'None'], ['trust', 'None'], ['keyring', 'None'], ['source', 'None'], ['skip_keyserver', 'False'], ['text', 'None'], ['subkey_maxage', '100']],
+  'grains.absent': [['destructive', 'False'], ['delimiter', 'DEFAULT_TARGET_DELIM'], ['force', 'False']],
+  'grains.append': [['value', 'value'], ['convert', 'False'], ['delimiter', 'DEFAULT_TARGET_DELIM']],
+  'grains.exists': [['delimiter', 'DEFAULT_TARGET_DELIM']],
+  'grains.list_absent': [['value', 'value'], ['delimiter', 'DEFAULT_TARGET_DELIM']],
+  'grains.list_present': [['value', 'value'], ['delimiter', 'DEFAULT_TARGET_DELIM']],
+  'grains.present': [['value', 'value'], ['delimiter', 'DEFAULT_TARGET_DELIM'], ['force', 'False']],
+  'group.absent': [['local', 'False']],
+  'group.present': [['gid', 'None'], ['system', 'False'], ['addusers', 'None'], ['delusers', 'None'], ['members', 'None'], ['non_unique', 'False'], ['local', 'False']],
+  'highstate_doc.note': [['source', 'None'], ['contents', 'None']],
+  'host.absent': [['ip', 'ip']],
+  'host.only': [['hostnames', 'hostnames']],
+  'host.present': [['ip', 'ip'], ['comment', '\'\''], ['clean', 'False']],
+  'http.query': [['match', 'None'], ['match_type', 'string'], ['status', 'None'], ['status_type', 'string'], ['wait_for', 'None']],
+  'http.wait_for_successful_query': [['wait_for', '300']],
+  'idem.state': [['sls', 'sls'], ['acct_file', 'None'], ['acct_key', 'None'], ['acct_profile', 'None'], ['cache_dir', 'None'], ['render', 'None'], ['runtime', 'None'], ['source_dir', 'None'], ['test', 'False']],
+  'ini.options_absent': [['sections', 'None'], ['separator', '='], ['encoding', 'None']],
+  'ini.options_present': [['sections', 'None'], ['separator', '='], ['strict', 'False'], ['encoding', 'None'], ['no_spaces', 'False']],
+  'ini.sections_absent': [['sections', 'None'], ['separator', '='], ['encoding', 'None']],
+  'ini.sections_present': [['sections', 'None'], ['separator', '='], ['encoding', 'None']],
+  'ipset.absent': [['entry', 'None'], ['entries', 'None'], ['family', 'ipv4']],
+  'ipset.flush': [['family', 'ipv4']],
+  'ipset.present': [['entry', 'None'], ['family', 'ipv4']],
+  'ipset.set_absent': [['family', 'ipv4']],
+  'ipset.set_present': [['set_type', 'set_type'], ['family', 'ipv4']],
+  'iptables.append': [['table', 'filter'], ['family', 'ipv4']],
+  'iptables.chain_absent': [['table', 'filter'], ['family', 'ipv4']],
+  'iptables.chain_present': [['table', 'filter'], ['family', 'ipv4']],
+  'iptables.delete': [['table', 'filter'], ['family', 'ipv4']],
+  'iptables.flush': [['table', 'filter'], ['family', 'ipv4']],
+  'iptables.insert': [['table', 'filter'], ['family', 'ipv4']],
+  'iptables.set_policy': [['table', 'filter'], ['family', 'ipv4']],
+  'keychain.default_keychain': [['domain', 'user'], ['user', 'None']],
+  'keychain.installed': [['password', 'password'], ['keychain', '/Library/Keychains/System.keychain']],
+  'keychain.uninstalled': [['password', 'password'], ['keychain', '/Library/Keychains/System.keychain'], ['keychain_password', 'None']],
+  'kmod.absent': [['persist', 'False'], ['comment', 'True'], ['mods', 'None']],
+  'kmod.present': [['persist', 'False'], ['mods', 'None']],
+  'lgpo.set': [['setting', 'None'], ['policy_class', 'None'], ['computer_policy', 'None'], ['user_policy', 'None'], ['cumulative_rights_assignments', 'True'], ['adml_language', 'en-US'], ['refresh_cache', 'False']],
+  'lgpo_reg.value_absent': [['key', 'key'], ['policy_class', 'Machine'], ['write_registry', 'None'], ['refresh_policy', 'False']],
+  'lgpo_reg.value_disabled': [['key', 'key'], ['policy_class', 'Machine'], ['write_registry', 'None'], ['refresh_policy', 'False']],
+  'lgpo_reg.value_present': [['key', 'key'], ['v_data', 'v_data'], ['v_type', 'REG_DWORD'], ['policy_class', 'Machine'], ['write_registry', 'None'], ['refresh_policy', 'False']],
+  'logrotate.set': [['key', 'key'], ['value', 'value'], ['setting', 'None'], ['conf_file', '_DEFAULT_CONF']],
+  'loop.until': [['m_args', 'None'], ['m_kwargs', 'None'], ['condition', 'None'], ['period', '1'], ['timeout', '60']],
+  'loop.until_no_eval': [['expected', 'expected'], ['compare_operator', 'eq'], ['timeout', '60'], ['period', '1'], ['init_wait', '0'], ['args', 'None'], ['kwargs', 'None']],
+  'lvm.lv_absent': [['vgname', 'None']],
+  'lvm.lv_present': [['vgname', 'None'], ['size', 'None'], ['extents', 'None'], ['snapshot', 'None'], ['pv', '\'\''], ['thinvolume', 'False'], ['thinpool', 'False'], ['force', 'False'], ['resizefs', 'False']],
+  'lvm.vg_present': [['devices', 'None']],
+  'macdefaults.absent': [['domain', 'domain'], ['user', 'None'], ['name_separator', 'None']],
+  'macdefaults.write': [['domain', 'domain'], ['value', 'value'], ['vtype', 'None'], ['name_separator', 'None'], ['user', 'None']],
+  'macpackage.installed': [['target', 'LocalSystem'], ['dmg', 'False'], ['store', 'False'], ['app', 'False'], ['mpkg', 'False'], ['force', 'False'], ['allow_untrusted', 'False'], ['version_check', 'None']],
+  'makeconf.present': [['value', 'None'], ['contains', 'None'], ['excludes', 'None']],
+  'mount.fstab_absent': [['fs_file', 'fs_file'], ['mount_by', 'None'], ['config', '/etc/fstab']],
+  'mount.fstab_present': [['fs_file', 'fs_file'], ['fs_vfstype', 'fs_vfstype'], ['fs_mntops', 'defaults'], ['fs_freq', '0'], ['fs_passno', '0'], ['mount_by', 'None'], ['config', '/etc/fstab'], ['mount', 'True'], ['match_on', 'auto'], ['not_change', 'False'], ['fs_mount', 'True']],
+  'mount.mounted': [['device', 'device'], ['fstype', 'fstype'], ['mkmnt', 'False'], ['opts', 'defaults'], ['dump', '0'], ['pass_num', '0'], ['config', '/etc/fstab'], ['persist', 'True'], ['mount', 'True'], ['user', 'None'], ['match_on', 'auto'], ['device_name_regex', 'None'], ['extra_mount_invisible_options', 'None'], ['extra_mount_invisible_keys', 'None'], ['extra_mount_ignore_fs_keys', 'None'], ['extra_mount_translate_options', 'None'], ['hidden_opts', 'None'], ['bind_mount_copy_active_opts', 'True']],
+  'mount.swap': [['persist', 'True'], ['config', '/etc/fstab']],
+  'mount.unmounted': [['device', 'None'], ['config', '/etc/fstab'], ['persist', 'False'], ['user', 'None']],
+  'netacl.filter': [['filter_options', 'None'], ['terms', 'None'], ['prepend', 'True'], ['pillar_key', 'acl'], ['pillarenv', 'None'], ['saltenv', 'None'], ['merge_pillar', 'False'], ['only_lower_merge', 'False'], ['revision_id', 'None'], ['revision_no', 'None'], ['revision_date', 'True'], ['revision_date_format', '%Y/%m/%d'], ['test', 'False'], ['commit', 'True'], ['debug', 'False']],
+  'netacl.managed': [['filters', 'None'], ['prepend', 'True'], ['pillar_key', 'acl'], ['pillarenv', 'None'], ['saltenv', 'None'], ['merge_pillar', 'False'], ['only_lower_merge', 'False'], ['revision_id', 'None'], ['revision_no', 'None'], ['revision_date', 'True'], ['revision_date_format', '%Y/%m/%d'], ['test', 'False'], ['commit', 'True'], ['debug', 'False']],
+  'netacl.term': [['filter_name', 'filter_name'], ['term_name', 'term_name'], ['filter_options', 'None'], ['pillar_key', 'acl'], ['pillarenv', 'None'], ['saltenv', 'None'], ['merge_pillar', 'False'], ['revision_id', 'None'], ['revision_no', 'None'], ['revision_date', 'True'], ['revision_date_format', '%Y/%m/%d'], ['test', 'False'], ['commit', 'True'], ['debug', 'False'], ['source_service', 'None'], ['destination_service', 'None']],
+  'netconfig.managed': [['template_name', 'None'], ['template_source', 'None'], ['template_hash', 'None'], ['template_hash_name', 'None'], ['saltenv', 'base'], ['template_engine', 'jinja'], ['skip_verify', 'False'], ['context', 'None'], ['defaults', 'None'], ['test', 'False'], ['commit', 'True'], ['debug', 'False'], ['replace', 'False'], ['commit_in', 'None'], ['commit_at', 'None'], ['revert_in', 'None'], ['revert_at', 'None']],
+  'netconfig.replace_pattern': [['pattern', 'pattern'], ['repl', 'repl'], ['count', '0'], ['flags', '8'], ['bufsize', '1'], ['append_if_not_found', 'False'], ['prepend_if_not_found', 'False'], ['not_found_content', 'None'], ['search_only', 'False'], ['show_changes', 'True'], ['backslash_literal', 'False'], ['source', 'running'], ['path', 'None'], ['test', 'False'], ['replace', 'True'], ['debug', 'False'], ['commit', 'True']],
+  'netconfig.saved': [['source', 'running'], ['user', 'None'], ['group', 'None'], ['mode', 'None'], ['attrs', 'None'], ['makedirs', 'False'], ['dir_mode', 'None'], ['replace', 'True'], ['backup', '\'\''], ['show_changes', 'True'], ['create', 'True'], ['tmp_dir', '\'\''], ['tmp_ext', '\'\''], ['encoding', 'None'], ['encoding_errors', 'strict'], ['allow_empty', 'False'], ['follow_symlinks', 'True'], ['check_cmd', 'None'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True'], ['win_perms_reset', 'False']],
+  'netntp.managed': [['peers', 'None'], ['servers', 'None']],
+  'netsnmp.managed': [['config', 'None'], ['defaults', 'None']],
+  'netusers.managed': [['users', 'None'], ['defaults', 'None']],
+  'network.managed': [['enabled', 'True']],
+  'nftables.append': [['family', 'ipv4']],
+  'nftables.chain_absent': [['table', 'filter'], ['family', 'ipv4']],
+  'nftables.chain_present': [['table', 'filter'], ['table_type', 'None'], ['hook', 'None'], ['priority', 'None'], ['family', 'ipv4']],
+  'nftables.delete': [['family', 'ipv4']],
+  'nftables.flush': [['family', 'ipv4'], ['ignore_absence', 'False']],
+  'nftables.insert': [['family', 'ipv4']],
+  'nftables.set_policy': [['table', 'filter'], ['family', 'ipv4']],
+  'nftables.table_absent': [['family', 'ipv4']],
+  'nftables.table_present': [['family', 'ipv4']],
+  'ntp.managed': [['servers', 'None']],
+  'pip.installed': [['pkgs', 'None'], ['pip_bin', 'None'], ['requirements', 'None'], ['bin_env', 'None'], ['use_wheel', 'False'], ['no_use_wheel', 'False'], ['log', 'None'], ['proxy', 'None'], ['timeout', 'None'], ['repo', 'None'], ['editable', 'None'], ['find_links', 'None'], ['index_url', 'None'], ['extra_index_url', 'None'], ['no_index', 'False'], ['mirrors', 'None'], ['build', 'None'], ['target', 'None'], ['download', 'None'], ['download_cache', 'None'], ['source', 'None'], ['upgrade', 'False'], ['force_reinstall', 'False'], ['ignore_installed', 'False'], ['exists_action', 'None'], ['no_deps', 'False'], ['no_install', 'False'], ['no_download', 'False'], ['install_options', 'None'], ['global_options', 'None'], ['user', 'None'], ['cwd', 'None'], ['pre_releases', 'False'], ['cert', 'None'], ['allow_all_external', 'False'], ['allow_external', 'None'], ['allow_unverified', 'None'], ['process_dependency_links', 'False'], ['env_vars', 'None'], ['use_vt', 'False'], ['trusted_host', 'None'], ['no_cache_dir', 'False'], ['cache_dir', 'None'], ['no_binary', 'None'], ['extra_args', 'None']],
+  'pip.removed': [['requirements', 'None'], ['bin_env', 'None'], ['log', 'None'], ['proxy', 'None'], ['timeout', 'None'], ['user', 'None'], ['cwd', 'None'], ['use_vt', 'False']],
+  'pip.uptodate': [['bin_env', 'None'], ['user', 'None'], ['cwd', 'None'], ['use_vt', 'False']],
+  'pkg.downloaded': [['version', 'None'], ['pkgs', 'None'], ['fromrepo', 'None'], ['ignore_epoch', 'None']],
+  'pkg.group_installed': [['skip', 'None'], ['include', 'None']],
+  'pkg.held': [['version', 'None'], ['pkgs', 'None'], ['replace', 'False']],
+  'pkg.installed': [['version', 'None'], ['refresh', 'None'], ['fromrepo', 'None'], ['skip_verify', 'False'], ['skip_suggestions', 'False'], ['pkgs', 'None'], ['sources', 'None'], ['allow_updates', 'False'], ['pkg_verify', 'False'], ['normalize', 'True'], ['ignore_epoch', 'None'], ['reinstall', 'False'], ['update_holds', 'False']],
+  'pkg.latest': [['refresh', 'None'], ['fromrepo', 'None'], ['skip_verify', 'False'], ['pkgs', 'None'], ['watch_flags', 'True']],
+  'pkg.patch_downloaded': [['advisory_ids', 'None']],
+  'pkg.patch_installed': [['advisory_ids', 'None'], ['downloadonly', 'None']],
+  'pkg.purged': [['version', 'None'], ['pkgs', 'None'], ['normalize', 'True'], ['ignore_epoch', 'None']],
+  'pkg.removed': [['version', 'None'], ['pkgs', 'None'], ['normalize', 'True'], ['ignore_epoch', 'None']],
+  'pkg.unheld': [['version', 'None'], ['pkgs', 'None'], ['all', 'False']],
+  'pkg.uptodate': [['refresh', 'False'], ['pkgs', 'None']],
+  'pkgbuild.built': [['runas', 'runas'], ['dest_dir', 'dest_dir'], ['spec', 'spec'], ['sources', 'sources'], ['tgt', 'tgt'], ['template', 'None'], ['deps', 'None'], ['env', 'None'], ['results', 'None'], ['force', 'False'], ['saltenv', 'base'], ['log_dir', '/var/log/salt/pkgbuild']],
+  'pkgbuild.repo': [['keyid', 'None'], ['env', 'None'], ['use_passphrase', 'False'], ['gnupghome', '/etc/salt/gpgkeys'], ['runas', 'builder'], ['timeout', '15.0']],
+  'pkgrepo.managed': [['ppa', 'None'], ['copr', 'None'], ['aptkey', 'True']],
+  'postgres_cluster.absent': [['version', 'version']],
+  'postgres_cluster.present': [['version', 'version'], ['port', 'None'], ['encoding', 'None'], ['locale', 'None'], ['datadir', 'None'], ['allow_group_access', 'None'], ['data_checksums', 'None'], ['wal_segsize', 'None']],
+  'postgres_database.absent': [['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_database.present': [['tablespace', 'None'], ['encoding', 'None'], ['lc_collate', 'None'], ['lc_ctype', 'None'], ['owner', 'None'], ['owner_recurse', 'False'], ['template', 'None'], ['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_extension.absent': [['if_exists', 'None'], ['restrict', 'None'], ['cascade', 'None'], ['user', 'None'], ['maintenance_db', 'None'], ['db_user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None']],
+  'postgres_extension.present': [['if_not_exists', 'None'], ['schema', 'None'], ['ext_version', 'None'], ['from_version', 'None'], ['user', 'None'], ['maintenance_db', 'None'], ['db_user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None']],
+  'postgres_group.absent': [['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_group.present': [['createdb', 'None'], ['createroles', 'None'], ['encrypted', 'None'], ['superuser', 'None'], ['inherit', 'None'], ['login', 'None'], ['replication', 'None'], ['password', 'None'], ['refresh_password', 'None'], ['groups', 'None'], ['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_initdb.present': [['user', 'None'], ['password', 'None'], ['auth', 'password'], ['encoding', 'UTF8'], ['locale', 'None'], ['runas', 'None'], ['waldir', 'None'], ['checksums', 'False']],
+  'postgres_language.absent': [['maintenance_db', 'maintenance_db'], ['user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_language.present': [['maintenance_db', 'maintenance_db'], ['user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_privileges.absent': [['object_name', 'object_name'], ['object_type', 'object_type'], ['privileges', 'None'], ['prepend', 'public'], ['maintenance_db', 'None'], ['user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_privileges.present': [['object_name', 'object_name'], ['object_type', 'object_type'], ['privileges', 'None'], ['grant_option', 'None'], ['prepend', 'public'], ['maintenance_db', 'None'], ['user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_schema.absent': [['dbname', 'dbname'], ['user', 'None'], ['db_user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None']],
+  'postgres_schema.present': [['dbname', 'dbname'], ['owner', 'None'], ['user', 'None'], ['db_user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None']],
+  'postgres_tablespace.absent': [['user', 'None'], ['maintenance_db', 'None'], ['db_user', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None']],
+  'postgres_tablespace.present': [['directory', 'directory'], ['options', 'None'], ['owner', 'None'], ['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_user.absent': [['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'postgres_user.present': [['createdb', 'None'], ['createroles', 'None'], ['encrypted', 'None'], ['superuser', 'None'], ['replication', 'None'], ['inherit', 'None'], ['login', 'None'], ['password', 'None'], ['default_password', 'None'], ['refresh_password', 'None'], ['valid_until', 'None'], ['groups', 'None'], ['user', 'None'], ['maintenance_db', 'None'], ['db_password', 'None'], ['db_host', 'None'], ['db_port', 'None'], ['db_user', 'None']],
+  'powercfg.set_timeout': [['value', 'value'], ['power', 'ac'], ['scheme', 'None']],
+  'process.absent': [['user', 'None'], ['signal', 'None']],
+  'proxy.managed': [['port', 'port'], ['services', 'None'], ['user', 'None'], ['password', 'None'], ['bypass_domains', 'None'], ['network_service', 'Ethernet']],
+  'pyenv.absent': [['user', 'None']],
+  'pyenv.install_pyenv': [['user', 'None']],
+  'pyenv.installed': [['default', 'False'], ['user', 'None']],
+  'quota.mode': [['mode', 'mode'], ['quotatype', 'quotatype']],
+  'rabbitmq_cluster.joined': [['host', 'host'], ['user', 'rabbit'], ['ram_node', 'None'], ['runas', 'root']],
+  'rabbitmq_plugin.disabled': [['runas', 'None']],
+  'rabbitmq_plugin.enabled': [['runas', 'None']],
+  'rabbitmq_policy.absent': [['vhost', '/'], ['runas', 'None']],
+  'rabbitmq_policy.present': [['pattern', 'pattern'], ['definition', 'definition'], ['priority', '0'], ['vhost', '/'], ['runas', 'None'], ['apply_to', 'None']],
+  'rabbitmq_upstream.absent': [['runas', 'None']],
+  'rabbitmq_upstream.present': [['uri', 'uri'], ['prefetch_count', 'None'], ['reconnect_delay', 'None'], ['ack_mode', 'None'], ['trust_user_id', 'None'], ['exchange', 'None'], ['max_hops', 'None'], ['expires', 'None'], ['message_ttl', 'None'], ['ha_policy', 'None'], ['queue', 'None'], ['runas', 'None']],
+  'rabbitmq_user.absent': [['runas', 'None']],
+  'rabbitmq_user.present': [['password', 'None'], ['force', 'False'], ['tags', 'None'], ['perms', '()'], ['runas', 'None']],
+  'raid.present': [['level', 'level'], ['devices', 'devices']],
+  'reg.absent': [['vname', 'None'], ['use_32bit_registry', 'False']],
+  'reg.key_absent': [['use_32bit_registry', 'False']],
+  'reg.present': [['vname', 'None'], ['vdata', 'None'], ['vtype', 'REG_SZ'], ['use_32bit_registry', 'False'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True'], ['win_perms_reset', 'False']],
+  'salt.function': [['tgt', 'tgt'], ['ssh', 'False'], ['tgt_type', 'glob'], ['ret', '\'\''], ['ret_config', 'None'], ['ret_kwargs', 'None'], ['expect_minions', 'False'], ['fail_minions', 'None'], ['fail_function', 'None'], ['arg', 'None'], ['kwarg', 'None'], ['timeout', 'None'], ['batch', 'None'], ['subset', 'None'], ['failhard', 'None']],
+  'salt.parallel_runners': [['runners', 'runners']],
+  'salt.state': [['tgt', 'tgt'], ['ssh', 'False'], ['tgt_type', 'glob'], ['ret', '\'\''], ['ret_config', 'None'], ['ret_kwargs', 'None'], ['highstate', 'None'], ['sls', 'None'], ['top', 'None'], ['saltenv', 'None'], ['test', 'None'], ['pillar', 'None'], ['pillarenv', 'None'], ['expect_minions', 'True'], ['exclude', 'None'], ['fail_minions', 'None'], ['allow_fail', '0'], ['concurrent', 'False'], ['timeout', 'None'], ['batch', 'None'], ['queue', 'False'], ['subset', 'None'], ['orchestration_jid', 'None'], ['failhard', 'None']],
+  'salt.wait_for_event': [['id_list', 'id_list'], ['event_id', 'id'], ['timeout', '300'], ['node', 'master']],
+  'salt_proxy.configure_proxy': [['proxyname', 'p8000'], ['start', 'True']],
+  'selinux.boolean': [['value', 'None'], ['booleans', 'None'], ['persist', 'False']],
+  'selinux.fcontext_policy_absent': [['filetype', 'a'], ['sel_type', 'None'], ['sel_user', 'None'], ['sel_level', 'None']],
+  'selinux.fcontext_policy_applied': [['recursive', 'False']],
+  'selinux.fcontext_policy_present': [['sel_type', 'sel_type'], ['filetype', 'a'], ['sel_user', 'None'], ['sel_level', 'None']],
+  'selinux.module': [['module_state', 'Enabled'], ['version', 'any']],
+  'selinux.port_policy_absent': [['sel_type', 'None'], ['protocol', 'None'], ['port', 'None']],
+  'selinux.port_policy_present': [['sel_type', 'sel_type'], ['protocol', 'None'], ['port', 'None'], ['sel_range', 'None']],
+  'service.dead': [['enable', 'None'], ['sig', 'None'], ['init_delay', 'None']],
+  'service.masked': [['runtime', 'False']],
+  'service.running': [['enable', 'None'], ['sig', 'None'], ['init_delay', 'None']],
+  'service.unmasked': [['runtime', 'False']],
+  'shortcut.present': [['arguments', '\'\''], ['description', '\'\''], ['hot_key', '\'\''], ['icon_location', '\'\''], ['icon_index', '0'], ['target', '\'\''], ['window_style', 'Normal'], ['working_dir', '\'\''], ['backup', 'False'], ['force', 'False'], ['make_dirs', 'False'], ['user', 'None']],
+  'ssh_auth.absent': [['user', 'user'], ['enc', 'ssh-rsa'], ['comment', '\'\''], ['source', '\'\''], ['options', 'None'], ['config', '.ssh/authorized_keys'], ['fingerprint_hash_type', 'None']],
+  'ssh_auth.manage': [['ssh_keys', 'ssh_keys'], ['user', 'user'], ['enc', 'ssh-rsa'], ['comment', '\'\''], ['source', '\'\''], ['options', 'None'], ['config', '.ssh/authorized_keys'], ['fingerprint_hash_type', 'None']],
+  'ssh_auth.present': [['user', 'user'], ['enc', 'ssh-rsa'], ['comment', '\'\''], ['source', '\'\''], ['options', 'None'], ['config', '.ssh/authorized_keys'], ['fingerprint_hash_type', 'None']],
+  'ssh_known_hosts.absent': [['user', 'None'], ['config', 'None']],
+  'ssh_known_hosts.present': [['user', 'None'], ['fingerprint', 'None'], ['key', 'None'], ['port', 'None'], ['enc', 'None'], ['config', 'None'], ['hash_known_hosts', 'True'], ['timeout', '5'], ['fingerprint_hash_type', 'None']],
+  'ssh_pki.certificate_managed': [['ttl_remaining', 'None'], ['ca_server', 'None'], ['backend', 'None'], ['backend_args', 'None'], ['signing_policy', 'None'], ['copypath', 'None'], ['cert_type', 'None'], ['signing_private_key', 'None'], ['signing_private_key_passphrase', 'None'], ['public_key', 'None'], ['private_key', 'None'], ['private_key_passphrase', 'None'], ['serial_number', 'None'], ['not_before', 'None'], ['not_after', 'None'], ['ttl', 'None'], ['critical_options', 'None'], ['extensions', 'None'], ['valid_principals', 'None'], ['all_principals', 'False'], ['key_id', 'None']],
+  'ssh_pki.certificate_managed_ssh': [['result', 'result'], ['comment', 'comment'], ['changes', 'changes'], ['contents', 'None']],
+  'ssh_pki.private_key_managed': [['algo', 'rsa'], ['keysize', 'None'], ['passphrase', 'None'], ['new', 'False'], ['overwrite', 'False']],
+  'ssh_pki.private_key_managed_ssh': [['result', 'result'], ['comment', 'comment'], ['changes', 'changes'], ['tempfile', 'None']],
+  'ssh_pki.public_key_managed': [['public_key_source', 'public_key_source'], ['passphrase', 'None']],
+  'status.loadavg': [['maximum', 'None'], ['minimum', 'None']],
+  'sysctl.present': [['value', 'value'], ['config', 'None']],
+  'sysfs.present': [['value', 'value'], ['config', 'None']],
+  'syslog_ng.config': [['config', 'config'], ['write', 'True']],
+  'syslog_ng.started': [['user', 'None'], ['group', 'None'], ['chroot', 'None'], ['caps', 'None'], ['no_caps', 'False'], ['pidfile', 'None'], ['enable_core', 'False'], ['fd_limit', 'None'], ['verbose', 'False'], ['debug', 'False'], ['trace', 'False'], ['yydebug', 'False'], ['persist_file', 'None'], ['control', 'None'], ['worker_threads', 'None']],
+  'system.join_domain': [['username', 'None'], ['password', 'None'], ['account_ou', 'None'], ['account_exists', 'False'], ['restart', 'False']],
+  'system.reboot': [['message', 'None'], ['timeout', '5'], ['force_close', 'True'], ['in_seconds', 'False'], ['only_on_pending_reboot', 'True']],
+  'system.shutdown': [['message', 'None'], ['timeout', '5'], ['force_close', 'True'], ['reboot', 'False'], ['in_seconds', 'False'], ['only_on_pending_reboot', 'False']],
+  'task.absent': [['location', '\\\\']],
+  'task.present': [['location', '\\\\'], ['user_name', 'System'], ['password', 'None'], ['force', 'False']],
+  'test.check_pillar': [['present', 'None'], ['boolean', 'None'], ['integer', 'None'], ['string', 'None'], ['listing', 'None'], ['dictionary', 'None'], ['verbose', 'False']],
+  'test.configurable_test_state': [['changes', 'True'], ['result', 'True'], ['comment', '\'\''], ['warnings', 'None'], ['allow_test_mode_failure', 'False']],
+  'test.show_notification': [['text', 'None']],
+  'timezone.system': [['utc', 'True']],
+  'tls.valid_certificate': [['weeks', '0'], ['days', '0'], ['hours', '0'], ['minutes', '0'], ['seconds', '0']],
+  'user.absent': [['purge', 'False'], ['force', 'False'], ['local', 'False']],
+  'user.present': [['uid', 'None'], ['gid', 'None'], ['usergroup', 'None'], ['groups', 'None'], ['optional_groups', 'None'], ['remove_groups', 'True'], ['home', 'None'], ['createhome', 'True'], ['persist_home', 'False'], ['password', 'None'], ['hash_password', 'False'], ['enforce_password', 'True'], ['empty_password', 'False'], ['shell', 'None'], ['unique', 'True'], ['system', 'False'], ['fullname', 'None'], ['roomnumber', 'None'], ['workphone', 'None'], ['homephone', 'None'], ['other', 'None'], ['loginclass', 'None'], ['date', 'None'], ['mindays', 'None'], ['maxdays', 'None'], ['inactdays', 'None'], ['warndays', 'None'], ['expire', 'None'], ['win_homedrive', 'None'], ['win_profile', 'None'], ['win_logonscript', 'None'], ['win_description', 'None'], ['nologinit', 'False'], ['allow_uid_change', 'False'], ['allow_gid_change', 'False'], ['password_lock', 'None'], ['local', 'False']],
+  'virtualenv.managed': [['venv_bin', 'None'], ['requirements', 'None'], ['system_site_packages', 'False'], ['distribute', 'False'], ['use_wheel', 'False'], ['clear', 'False'], ['python', 'None'], ['extra_search_dir', 'None'], ['never_download', 'None'], ['prompt', 'None'], ['user', 'None'], ['cwd', 'None'], ['index_url', 'None'], ['extra_index_url', 'None'], ['pre_releases', 'False'], ['no_deps', 'False'], ['pip_download', 'None'], ['pip_download_cache', 'None'], ['pip_exists_action', 'None'], ['pip_ignore_installed', 'False'], ['proxy', 'None'], ['use_vt', 'False'], ['env_vars', 'None'], ['no_use_wheel', 'False'], ['pip_upgrade', 'False'], ['pip_pkgs', 'None'], ['pip_no_cache_dir', 'False'], ['pip_cache_dir', 'None'], ['process_dependency_links', 'False'], ['no_binary', 'None']],
+  'win_dacl.absent': [['objectType', 'objectType'], ['user', 'user'], ['permission', 'permission'], ['acetype', 'acetype'], ['propagation', 'propagation']],
+  'win_dacl.disinherit': [['objectType', 'objectType'], ['copy_inherited_acl', 'True']],
+  'win_dacl.inherit': [['objectType', 'objectType'], ['clear_existing_acl', 'False']],
+  'win_dacl.present': [['objectType', 'objectType'], ['user', 'user'], ['permission', 'permission'], ['acetype', 'acetype'], ['propagation', 'propagation']],
+  'win_dns_client.dns_dhcp': [['interface', 'Local Area Connection']],
+  'win_dns_client.dns_exists': [['servers', 'None'], ['interface', 'Local Area Connection'], ['replace', 'False']],
+  'win_dns_client.primary_suffix': [['suffix', 'None'], ['updates', 'False']],
+  'win_firewall.add_rule': [['localport', 'localport'], ['protocol', 'tcp'], ['action', 'allow'], ['dir', 'in'], ['remoteip', 'any']],
+  'win_iis.container_setting': [['container', 'container'], ['settings', 'None']],
+  'win_iis.create_app': [['site', 'site'], ['sourcepath', 'sourcepath'], ['apppool', 'None']],
+  'win_iis.create_binding': [['site', 'site'], ['hostheader', '\'\''], ['ipaddress', '*'], ['port', '80'], ['protocol', 'http'], ['sslflags', '0']],
+  'win_iis.create_cert_binding': [['site', 'site'], ['hostheader', '\'\''], ['ipaddress', '*'], ['port', '443'], ['sslflags', '0']],
+  'win_iis.create_vdir': [['site', 'site'], ['sourcepath', 'sourcepath'], ['app', '/']],
+  'win_iis.deployed': [['sourcepath', 'sourcepath'], ['apppool', '\'\''], ['hostheader', '\'\''], ['ipaddress', '*'], ['port', '80'], ['protocol', 'http']],
+  'win_iis.remove_app': [['site', 'site']],
+  'win_iis.remove_binding': [['site', 'site'], ['hostheader', '\'\''], ['ipaddress', '*'], ['port', '80']],
+  'win_iis.remove_cert_binding': [['site', 'site'], ['hostheader', '\'\''], ['ipaddress', '*'], ['port', '443']],
+  'win_iis.remove_vdir': [['site', 'site'], ['app', '/']],
+  'win_iis.set_app': [['site', 'site'], ['settings', 'None']],
+  'win_iis.webconfiguration_settings': [['settings', 'None']],
+  'win_path.exists': [['index', 'None']],
+  'win_pki.import_cert': [['cert_format', '_DEFAULT_FORMAT'], ['context', '_DEFAULT_CONTEXT'], ['store', '_DEFAULT_STORE'], ['exportable', 'True'], ['password', '\'\''], ['saltenv', 'base']],
+  'win_pki.remove_cert': [['thumbprint', 'thumbprint'], ['context', '_DEFAULT_CONTEXT'], ['store', '_DEFAULT_STORE']],
+  'win_servermanager.installed': [['features', 'None'], ['recurse', 'False'], ['restart', 'False'], ['source', 'None'], ['exclude', 'None']],
+  'win_servermanager.removed': [['features', 'None'], ['remove_payload', 'False'], ['restart', 'False']],
+  'win_smtp_server.active_log_format': [['log_format', 'log_format'], ['server', '_DEFAULT_SERVER']],
+  'win_smtp_server.connection_ip_list': [['addresses', 'None'], ['grant_by_default', 'False'], ['server', '_DEFAULT_SERVER']],
+  'win_smtp_server.relay_ip_list': [['addresses', 'None'], ['server', '_DEFAULT_SERVER']],
+  'win_smtp_server.server_setting': [['settings', 'None'], ['server', '_DEFAULT_SERVER']],
+  'win_snmp.agent_settings': [['contact', 'contact'], ['location', 'location'], ['services', 'None']],
+  'win_snmp.auth_traps_enabled': [['status', 'True']],
+  'win_snmp.community_names': [['communities', 'None']],
+  'winrepo.genrepo': [['force', 'False'], ['allow_empty', 'False']],
+  'wua.installed': [['updates', 'None']],
+  'wua.removed': [['updates', 'None']],
+  'wua.uptodate': [['software', 'True'], ['drivers', 'False'], ['skip_hidden', 'False'], ['skip_mandatory', 'False'], ['skip_reboot', 'True'], ['categories', 'None'], ['severities', 'None']],
+  'wusa.installed': [['source', 'source']],
+  'x509.certificate_managed': [['days_remaining', '90'], ['append_certs', 'None']],
+  'x509.crl_managed': [['signing_private_key', 'signing_private_key'], ['signing_private_key_passphrase', 'None'], ['signing_cert', 'None'], ['revoked', 'None'], ['days_valid', '100'], ['digest', '\'\''], ['days_remaining', '30'], ['include_expired', 'False']],
+  'x509.pem_managed': [['text', 'text'], ['backup', 'False']],
+  'x509.private_key_managed': [['bits', '2048'], ['passphrase', 'None'], ['cipher', 'aes_128_cbc'], ['new', 'False'], ['overwrite', 'False'], ['verbose', 'True']],
+  'x509_v2.certificate_managed': [['days_remaining', 'None'], ['ca_server', 'None'], ['signing_policy', 'None'], ['encoding', 'pem'], ['append_certs', 'None'], ['digest', 'sha256'], ['signing_private_key', 'None'], ['signing_private_key_passphrase', 'None'], ['signing_cert', 'None'], ['public_key', 'None'], ['private_key', 'None'], ['private_key_passphrase', 'None'], ['csr', 'None'], ['subject', 'None'], ['serial_number', 'None'], ['not_before', 'None'], ['not_after', 'None'], ['days_valid', 'None'], ['pkcs12_passphrase', 'None'], ['pkcs12_encryption_compat', 'False'], ['pkcs12_friendlyname', 'None']],
+  'x509_v2.certificate_managed_ssh': [['result', 'result'], ['comment', 'comment'], ['changes', 'changes'], ['encoding', 'None'], ['contents', 'None']],
+  'x509_v2.crl_managed': [['signing_private_key', 'signing_private_key'], ['revoked', 'revoked'], ['days_remaining', 'None'], ['signing_cert', 'None'], ['signing_private_key_passphrase', 'None'], ['include_expired', 'False'], ['days_valid', 'None'], ['digest', 'sha256'], ['encoding', 'pem'], ['extensions', 'None']],
+  'x509_v2.csr_managed': [['private_key', 'private_key'], ['private_key_passphrase', 'None'], ['digest', 'sha256'], ['encoding', 'pem'], ['subject', 'None']],
+  'x509_v2.pem_managed': [['text', 'text']],
+  'x509_v2.private_key_managed': [['algo', 'rsa'], ['keysize', 'None'], ['passphrase', 'None'], ['encoding', 'pem'], ['new', 'False'], ['overwrite', 'False'], ['pkcs12_encryption_compat', 'False']],
+  'x509_v2.private_key_managed_ssh': [['result', 'result'], ['comment', 'comment'], ['changes', 'changes'], ['tempfile', 'None']],
+  'xattr.delete': [['attributes', 'attributes']],
+  'xattr.exists': [['attributes', 'attributes']]
+};
+
+
 // Builds `<indent>- key: ${n:placeholder}` lines (plus a trailing free
 // tabstop), returning the joined text and the next unused tabstop number.
 function buildArgsBody(fields, indent, startTabstop) {
@@ -299,7 +655,7 @@ function activate(context) {
   // the "." trigger character isn't reliably honored by the editor.
   const insertStateBlockCommand = vscode.commands.registerCommand(
     'saltstack-sls.insertStateBlock',
-    async (mod, fn) => {
+    async (mod, fn, variant) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         return;
@@ -312,7 +668,7 @@ function activate(context) {
       }
       const modStart = position.character - mod.length - 1;
       const range = new vscode.Range(position.line, modStart, position.line, position.character);
-      const fields = FUNCTION_FIELDS[`${mod}.${fn}`] || DEFAULT_FIELDS;
+      const fields = getFields(mod, fn, variant);
       const args = buildArgsBody(fields, '    ', 2);
       const snippet = new vscode.SnippetString(
         `{{ sls }}.\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
@@ -335,37 +691,45 @@ function activate(context) {
           const mod = dotMatch[2];
           const atTopLevel = indent.length === 0;
 
-          return MODULE_FUNCTIONS[mod].map((fn) => {
-            const fields = FUNCTION_FIELDS[`${mod}.${fn}`] || DEFAULT_FIELDS;
-            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
-            item.detail = `${mod}.${fn}`;
+          return MODULE_FUNCTIONS[mod].flatMap((fn) =>
+            availableVariants(mod, fn).map((variant) => {
+              const isFull = variant === 'full';
+              const fields = getFields(mod, fn, variant);
+              const label = isFull ? `${fn} (full)` : fn;
+              const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Function);
+              // Both variants of the same function should show up for the same
+              // typed text, and "basic" should sort right above "full".
+              item.filterText = fn;
+              item.sortText = `${isFull ? '1' : '0'}_${fn}`;
+              item.detail = isFull ? `${mod}.${fn} — all arguments` : `${mod}.${fn}`;
 
-            if (atTopLevel) {
-              // Fresh state block: generate the {{ sls }} id line too, then
-              // jump from the id straight into each argument that needs
-              // filling. This needs to replace the "file." already typed,
-              // not just insert after it — but CompletionItem.range doesn't
-              // reliably widen backward past the "." trigger character in
-              // practice, so instead this suppresses the normal insert and
-              // runs a command that explicitly deletes "file." and inserts
-              // the real snippet via editor.insertSnippet().
-              item.insertText = '';
-              item.command = {
-                command: 'saltstack-sls.insertStateBlock',
-                title: 'Insert full state block',
-                arguments: [mod, fn]
-              };
-              const args = buildArgsBody(fields, '    ', 2);
-              item.documentation = new vscode.MarkdownString(
-                `Inserts a full state block:\n\n\`\`\`sls\n{{ sls }}.<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
-              );
-            } else {
-              // Already indented under an existing state id: just the function stub.
-              const args = buildArgsBody(fields, '  ', 1);
-              item.insertText = new vscode.SnippetString(`${fn}:\n${args.text}`);
-            }
-            return item;
-          });
+              if (atTopLevel) {
+                // Fresh state block: generate the {{ sls }} id line too, then
+                // jump from the id straight into each argument that needs
+                // filling. This needs to replace the "file." already typed,
+                // not just insert after it — but CompletionItem.range doesn't
+                // reliably widen backward past the "." trigger character in
+                // practice, so instead this suppresses the normal insert and
+                // runs a command that explicitly deletes "file." and inserts
+                // the real snippet via editor.insertSnippet().
+                item.insertText = '';
+                item.command = {
+                  command: 'saltstack-sls.insertStateBlock',
+                  title: 'Insert full state block',
+                  arguments: [mod, fn, variant]
+                };
+                const args = buildArgsBody(fields, '    ', 2);
+                item.documentation = new vscode.MarkdownString(
+                  `Inserts a full state block:\n\n\`\`\`sls\n{{ sls }}.<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
+                );
+              } else {
+                // Already indented under an existing state id: just the function stub.
+                const args = buildArgsBody(fields, '  ', 1);
+                item.insertText = new vscode.SnippetString(`${fn}:\n${args.text}`);
+              }
+              return item;
+            })
+          );
         }
 
         // Offer module names at the start of a state-ID's function line
