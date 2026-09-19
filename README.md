@@ -151,15 +151,26 @@ tabs) — set as this extension's editor defaults for `.sls` files, along with:
 - `files.eol: "\n"` — LF line endings, regardless of platform.
 
 All of these are per-language defaults (`[sls]` in VS Code settings), so
-they don't affect any other file type — and like any default, you can still
-override them in your own `settings.json` if you want something else for
-`.sls` files specifically.
+they don't affect any other file type. The last three also have dedicated
+`saltSyntax.*` toggles — see [Settings](#settings) below — and like any
+default, you can always override them yourself in `settings.json` too.
 
 ### Settings
 
 | Setting | Default | Description |
 |---|---|---|
 | `saltSyntax.prependSlsToStateId` | `true` | Whether the full-block completion (see above) prepends `{{ sls }}.` to the generated state ID — `{{ sls }}.<state_id>:` vs. just `<state_id>:`. Takes effect immediately, no reload needed. |
+| `saltSyntax.showWhitespace` | `true` | Render whitespace (`editor.renderWhitespace`) in `.sls` files. |
+| `saltSyntax.enforceLfLineEndings` | `true` | Enforce LF line endings (`files.eol`) in `.sls` files regardless of platform. |
+| `saltSyntax.enforceFinalNewline` | `true` | Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). |
+
+The last three are a thin, discoverable wrapper around the editor defaults
+described above — disabling one doesn't just stop *forcing* that behavior,
+it actively writes an explicit `"[sls]"` override into your settings
+restoring VS Code's own built-in default for that setting (`selection` /
+`auto` / `false`); re-enabling removes that override again, falling back to
+this extension's defaults as normal. Synced on activation and immediately
+whenever you change one — no reload needed.
 
 ## Installation
 

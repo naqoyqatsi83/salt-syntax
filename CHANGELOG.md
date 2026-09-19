@@ -20,6 +20,17 @@ version heading when that state gets tagged and merged to `main`.
   whether the full-block completion prepends `{{ sls }}.` to the generated
   state ID, for people who don't use that convention. Read live, no reload
   needed. [#7](https://github.com/naqoyqatsi83/salt-syntax/issues/7)
+- `saltSyntax.showWhitespace` / `saltSyntax.enforceLfLineEndings` /
+  `saltSyntax.enforceFinalNewline` settings (all default `true`) as a
+  dedicated, discoverable wrapper around the existing
+  `editor.renderWhitespace`/`files.eol`/`files.insertFinalNewline`+
+  `trimFinalNewlines` `.sls` defaults. Disabling one actively writes an
+  explicit `"[sls]"` override restoring VS Code's own built-in default
+  (since a `configurationDefault` can only be overridden by an explicit
+  value, not cleared); re-enabling removes that override again, falling
+  back to this extension's defaults as normal. Synced on activation and
+  immediately on change — no reload needed.
+  [#9](https://github.com/naqoyqatsi83/salt-syntax/issues/9)
 - Every `module.function` completion with real arguments beyond `name` now
   also offers a `(full)` variant alongside the existing basic one, with
   every parameter the function actually accepts (real names and real

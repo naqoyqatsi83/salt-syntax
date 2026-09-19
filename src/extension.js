@@ -814,8 +814,71 @@ function insideJinjaTag(linePrefix) {
   return closeAfter === -1;
 }
 
-function activate(context) {
+// Maps each saltSyntax.* toggle to the [sls]-scoped settings it controls and
+// what "off" (opted out of the default) should explicitly set them to.
+// "on" (the default) means *no* override -- it just removes whatever
+// explicit override a previous "off" wrote, falling back to
+// configurationDefaults again. Writing `undefined` can't cancel a
+// configurationDefault on its own (it's the lowest-priority layer, used only
+// when nothing else -- including no leftover override from this function --
+// is set), so "off" has to write a real value: VS Code's own built-in
+// default for that setting, i.e. what a vanilla install with no Salt Syntax
+// preference would use.
+const EDITOR_DEFAULT_TOGGLES = [
+  { setting: 'saltSyntax.showWhitespace', section: 'editor', key: 'renderWhitespace', offValue: 'selection' },
+  { setting: 'saltSyntax.enforceLfLineEndings', section: 'files', key: 'eol', offValue: 'auto' },
+  { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'insertFinalNewline', offValue: false },
+  { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'trimFinalNewlines', offValue: false }
+];
+
+async function syncEditorDefaults() {
+  const saltCfg = vscode.workspace.getConfiguration('saltSyntax');
+  for (const toggle of EDITOR_DEFAULT_TOGGLES) {
+    const key = toggle.setting.split('.')[1];
+    const enabled = saltCfg.get(key, true);
+    const cfg = vscode.workspace.getConfiguration(toggle.section, { languageId: 'sls' });
+    const value = enabled ? undefined : toggle.offValue;
+
+    // Skip the write entirely when it wouldn't change anything -- avoids
+    // touching settings.json on every single activation when nothing's
+    // actually toggled (the common case, since the default is "on").
+    const inspected = cfg.inspect(toggle.key);
+    const current = inspected && inspected.globalLanguageValue;
+    if (current === value) {
+      continue;
+    }
+
+    try {
+      await cfg.update(toggle.key, value, vscode.ConfigurationTarget.Global, true);
+    } catch (err) {
+      // Global settings write can fail in restricted/untrusted-workspace
+      // contexts -- not fatal, the configurationDefault (or whatever the
+      // user already has) still applies either way.
+      console.error('Salt Syntax: could not sync editor default', toggle.key, err);
+    }
+  }
+}
+
+async function activate(context) {
   const selector = { language: 'sls' };
+
+  // Awaited (not fire-and-forget): syncEditorDefaults() writes up to 4
+  // settings sequentially, and VS Code lets activate() return a Promise
+  // precisely so setup like this can complete before the extension is
+  // considered active, rather than racing document opens or a rapid second
+  // toggle against an in-flight sync.
+  await syncEditorDefaults();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
+      if (
+        e.affectsConfiguration('saltSyntax.showWhitespace') ||
+        e.affectsConfiguration('saltSyntax.enforceLfLineEndings') ||
+        e.affectsConfiguration('saltSyntax.enforceFinalNewline')
+      ) {
+        await syncEditorDefaults();
+      }
+    })
+  );
 
   // Deletes the "mod." the user typed and inserts the full
   // {{ sls }}.<state_id>: / mod.fn: / ...args block as a live, tabbable

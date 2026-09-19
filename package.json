@@ -86,6 +86,21 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "When inserting a full state block from module completion (e.g. typing `file.` and picking `managed`), prepend `{{ sls }}.` to the generated state ID: `{{ sls }}.<state_id>:`. Disable to just insert `<state_id>:` instead."
+        },
+        "saltSyntax.showWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Render whitespace (`editor.renderWhitespace`) in `.sls` files — spaces as `·`, tabs as `→`. Disabling this writes an explicit `\"[sls]\"` override in your settings restoring VS Code's own default (`selection`); re-enabling removes that override again."
+        },
+        "saltSyntax.enforceLfLineEndings": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enforce LF line endings (`files.eol`) in `.sls` files regardless of platform. Disabling this writes an explicit `\"[sls]\"` override in your settings restoring VS Code's own default (`auto`); re-enabling removes that override again."
+        },
+        "saltSyntax.enforceFinalNewline": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). Disabling this writes explicit `\"[sls]\"` overrides in your settings restoring VS Code's own defaults (both `false`); re-enabling removes those overrides again."
         }
       }
     }
