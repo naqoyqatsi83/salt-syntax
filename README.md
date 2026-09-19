@@ -78,15 +78,20 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
       - user: root
       - group: root
       - mode: '0644'
-      -
   ```
 
-  with tab stops on the state id and every argument that needs a real
-  value, ending on a free `- ` line for anything else. `pkg.*`,
-  `service.running`/`dead`, `file.managed`/`directory`/`symlink`,
-  `user`/`group.present`, `cmd.run`, `mount.*`, `archive.extracted`,
-  `git.latest`, `cron.present`, and `lvm.lv_*` have their typical arguments
-  prefilled; anything else falls back to just `name`.
+  with tab stops on the state id and every value, landing the cursor right
+  after the last one. `pkg.*`, `service.running`/`dead`,
+  `file.managed`/`directory`/`symlink`, `user`/`group.present`, `cmd.run`,
+  `mount.*`, `archive.extracted`, `git.latest`, `cron.present`, and
+  `lvm.lv_*` have their typical arguments curated like this; anything else
+  falls back to just `name` — **plus any argument Salt genuinely requires**
+  (parameters with no default at all in the real function signature are
+  merged in automatically, even with no curated entry — e.g. `acl.absent`
+  has no curated entry but still gets `acl_type` alongside `name`, since
+  Salt would otherwise reject the state outright). Add another
+  `- key: value` line by hand, same as any other YAML edit, for anything
+  beyond what's shown.
 - **Every function with real arguments beyond `name` also offers a `(full)`
   variant** — e.g. typing `file.` shows both `managed` (the handful above)
   and `managed (full)`, which includes *every* parameter `file.managed`
@@ -94,16 +99,9 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   Salt's own source (`source: None`, `keep_source: True`,
   `sig_backend: 'gpg'`, ...), all as tab stops. Functions with nothing
   beyond `name` (e.g. `archive.extracted` has none) don't get a redundant
-  `(full)` entry. Data for both variants is extracted the same way as the
-  module list itself (see below) — not hand-written.
-- **`basic` always includes every argument Salt actually requires** —
-  parameters with no default at all in the real function signature are
-  merged in automatically, even for functions with no hand-curated entry
-  (e.g. `acl.absent` needs `name` *and* `acl_type`; both show up, not just
-  `name`). Neither variant ends with an extra blank `- ` line anymore —
-  `basic` already covers what's required, `full` already covers everything
-  — add another `- key: value` by hand same as any other YAML edit if you
-  need something beyond what's shown.
+  `(full)` entry. Data for both variants — and which arguments count as
+  mandatory for `basic` — is extracted the same way as the module list
+  itself (see below), not hand-written.
 - Type a module name + `.` **under an existing state id** (2–6 space
   indent) instead inserts just the function stub at that indent, since the
   id line is already there.
@@ -190,16 +188,24 @@ Development Host with it loaded live from source.
 
 ```
 salt-syntax/
-├── package.json                    # Extension manifest (languages, grammars, snippets)
+├── package.json                    # Extension manifest (languages, grammars, snippets, settings)
 ├── language-configuration.json     # Comments, brackets, auto-close, indentation
 ├── syntaxes/sls.tmLanguage.json    # TextMate grammar
 ├── snippets/sls-snippets.json      # Static snippets
 ├── src/extension.js                # Completion providers (plain JS, no build step)
-└── examples/uninstall_formula.sls  # Sample file used while developing the grammar
+├── examples/uninstall_formula.sls  # Sample file used while developing the grammar
+├── AGENTS.md                       # Workflow policy + how to regenerate the module/function data
+├── CHANGELOG.md                    # Keep a Changelog, per the branching policy below
+├── LICENSE                         # MIT
+└── .github/workflows/build.yml     # CI (see below)
 ```
 
 No build step — `src/extension.js` runs as-is. `npm run package` (or
-`npx @vscode/vsce package`) produces the `.vsix`.
+`npx --yes @vscode/vsce package --no-dependencies`) produces the `.vsix`.
+`MODULE_FUNCTIONS`, `FULL_FUNCTION_FIELDS`, and `MANDATORY_FIELDS` in
+`src/extension.js` are extracted from Salt's own source, not hand-written —
+see [AGENTS.md](AGENTS.md#updating-the-salt-modulefunction-list) for the
+exact rules and how to regenerate them against a newer Salt release.
 
 CI (`.github/workflows/build.yml`) validates every JSON file, checks
 `extension.js` syntax, and packages the extension on every push/PR to

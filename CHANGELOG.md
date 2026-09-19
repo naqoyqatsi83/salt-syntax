@@ -64,6 +64,14 @@ version heading when that state gets tagged and merged to `main`.
   dropped basic's own trailing blank `- ` line (see #5 above) now that
   it's no longer needed to invite adding a still-missing required arg.
   [#6](https://github.com/naqoyqatsi83/salt-syntax/issues/6)
+- README's basic-completion example still showed the trailing blank `- `
+  line removed in #6, and its wording hadn't caught up with the mandatory-
+  args guarantee added in the same change. The project file tree in both
+  README and AGENTS.md was missing `AGENTS.md`, `CHANGELOG.md`, `LICENSE`,
+  and `.github/workflows/build.yml`. `package.json`'s `package` script also
+  used a bare `vsce package`, which fails without a global install —
+  inconsistent with what CI and the docs actually run.
+  [#8](https://github.com/naqoyqatsi83/salt-syntax/issues/8)
 
 ## [0.3.2] - 2026-09-19
 

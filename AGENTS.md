@@ -26,19 +26,22 @@ This repo follows a standing process — apply it without being asked:
 
 A VS Code language extension for SaltStack `.sls` files (YAML + embedded
 Jinja2) — see [README.md](README.md) for what it actually does. No build
-step: `src/extension.js` runs as-is, and `npx @vscode/vsce package` is the
-only thing that turns the source tree into a `.vsix`.
+step: `src/extension.js` runs as-is, and
+`npx --yes @vscode/vsce package --no-dependencies` is the only thing that
+turns the source tree into a `.vsix`.
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `package.json` | Extension manifest — languages, grammars, snippets, editor defaults |
+| `package.json` | Extension manifest — languages, grammars, snippets, editor defaults, settings |
 | `language-configuration.json` | Comments, brackets, auto-close, indentation |
 | `syntaxes/sls.tmLanguage.json` | TextMate grammar |
 | `snippets/sls-snippets.json` | Static snippets |
 | `src/extension.js` | Completion providers |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
+| `CHANGELOG.md` | Keep a Changelog, per the Workflow section above |
+| `.github/workflows/build.yml` | CI: validates/packages on push/PR, releases on `v*` tags |
 
 ## Updating the Salt module/function list
 

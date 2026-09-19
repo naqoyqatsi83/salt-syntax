@@ -91,6 +91,6 @@
     }
   },
   "scripts": {
-    "package": "vsce package"
+    "package": "npx --yes @vscode/vsce package --no-dependencies"
   }
 }
