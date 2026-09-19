@@ -47,6 +47,11 @@ version heading when that state gets tagged and merged to `main`.
   (`trusted`, `untrusted`) that don't exist in any released Salt yet.
   Re-pinned to `v3008.2`.
   [#3](https://github.com/naqoyqatsi83/salt-syntax/issues/3)
+- The `(full)` completion variant ended with the same trailing blank
+  `- ` arg line the basic variant uses to invite adding more args — except
+  `(full)` already lists every real argument, so there's nothing left to
+  add. That line only appears for the basic variant now.
+  [#5](https://github.com/naqoyqatsi83/salt-syntax/issues/5)
 
 ## [0.3.2] - 2026-09-19
 

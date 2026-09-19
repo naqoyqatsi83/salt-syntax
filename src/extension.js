@@ -552,17 +552,24 @@ const FULL_FUNCTION_FIELDS = {
 };
 
 
-// Builds `<indent>- key: ${n:placeholder}` lines (plus a trailing free
-// tabstop), returning the joined text and the next unused tabstop number.
-function buildArgsBody(fields, indent, startTabstop) {
+// Builds `<indent>- key: ${n:placeholder}` lines, returning the joined text
+// and the next unused tabstop number. `trailingBlank` adds one extra free
+// `- ` line at the end (for the caller to add more args by hand) -- only
+// makes sense for the "basic" variant, which is intentionally incomplete;
+// "full" already lists every real argument, so it just gets a bare `$0`
+// (final cursor position, no extra line) after the last value instead.
+function buildArgsBody(fields, indent, startTabstop, trailingBlank = true) {
   let n = startTabstop;
   const lines = fields.map(([key, placeholder]) => {
     const line = `${indent}- ${key}: \${${n}:${placeholder}}`;
     n += 1;
     return line;
   });
-  lines.push(`${indent}- $0`);
-  return { text: lines.join('\n'), nextTabstop: n };
+  if (trailingBlank) {
+    lines.push(`${indent}- $0`);
+    return { text: lines.join('\n'), nextTabstop: n };
+  }
+  return { text: lines.join('\n') + '$0', nextTabstop: n };
 }
 
 const REQUISITE_KEYS = [
@@ -669,7 +676,7 @@ function activate(context) {
       const modStart = position.character - mod.length - 1;
       const range = new vscode.Range(position.line, modStart, position.line, position.character);
       const fields = getFields(mod, fn, variant);
-      const args = buildArgsBody(fields, '    ', 2);
+      const args = buildArgsBody(fields, '    ', 2, variant !== 'full');
       const snippet = new vscode.SnippetString(
         `{{ sls }}.\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
       );
@@ -718,13 +725,13 @@ function activate(context) {
                   title: 'Insert full state block',
                   arguments: [mod, fn, variant]
                 };
-                const args = buildArgsBody(fields, '    ', 2);
+                const args = buildArgsBody(fields, '    ', 2, !isFull);
                 item.documentation = new vscode.MarkdownString(
                   `Inserts a full state block:\n\n\`\`\`sls\n{{ sls }}.<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
                 );
               } else {
                 // Already indented under an existing state id: just the function stub.
-                const args = buildArgsBody(fields, '  ', 1);
+                const args = buildArgsBody(fields, '  ', 1, !isFull);
                 item.insertText = new vscode.SnippetString(`${fn}:\n${args.text}`);
               }
               return item;
