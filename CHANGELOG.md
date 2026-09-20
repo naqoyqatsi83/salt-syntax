@@ -12,6 +12,13 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Changed
+- CI (`.github/workflows/build.yml`) now runs only on a `v*` tag push (or
+  manual `workflow_dispatch`), not on every `develop`/`main` push. The
+  release flow pushes the same already-tested commit to `develop`, then
+  `main`, then the tag — three identical runs for one release.
+  [#13](https://github.com/naqoyqatsi83/salt-syntax/issues/13)
+
 ## [0.4.0] - 2026-09-20
 
 ### Added

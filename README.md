@@ -252,10 +252,13 @@ No build step — `src/extension.js` runs as-is. `npm run package` (or
 see [AGENTS.md](AGENTS.md#updating-the-salt-modulefunction-list) for the
 exact rules and how to regenerate them against a newer Salt release.
 
-CI (`.github/workflows/build.yml`) validates every JSON file, checks
-`extension.js` syntax, and packages the extension on every push/PR to
-`main`/`develop`, uploading the `.vsix` as a build artifact. Pushing a `v*`
-tag additionally attaches that build's `.vsix` to a GitHub Release.
+CI (`.github/workflows/build.yml`) runs only on a `v*` tag push (or manually
+via `workflow_dispatch`): validates every JSON file, checks `extension.js`
+syntax, packages the extension, uploads the `.vsix` as a build artifact,
+and attaches it to a GitHub Release. It deliberately doesn't run on every
+`develop`/`main` push — the release flow pushes the same already-tested
+commit to `develop`, then `main`, then the tag, and running full CI on
+each of those three pushes for identical code was pure noise.
 
 ### Branching & releases
 

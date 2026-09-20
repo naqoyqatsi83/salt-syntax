@@ -21,6 +21,11 @@ This repo follows a standing process — apply it without being asked:
   tag `main` at that merge commit, then push both the branch and the tag.
   Pushing a `v*` tag triggers `.github/workflows/build.yml`'s release job,
   which packages the `.vsix` and attaches it to a GitHub Release.
+- **CI only runs on a `v*` tag push**, not on every `develop`/`main`
+  push — verification of a change has to happen before it's committed
+  (see "Verifying grammar changes" below, and mocked-`vscode` tests for
+  `src/extension.js` logic), not after, since nothing will catch a
+  mistake on `develop` until the next release.
 
 ## Project Nature
 
@@ -41,7 +46,7 @@ turns the source tree into a `.vsix`.
 | `src/extension.js` | Completion providers |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
 | `CHANGELOG.md` | Keep a Changelog, per the Workflow section above |
-| `.github/workflows/build.yml` | CI: validates/packages on push/PR, releases on `v*` tags |
+| `.github/workflows/build.yml` | CI: validates/packages/releases, only on a `v*` tag push (or manual `workflow_dispatch`) — deliberately not on every `develop`/`main` push, see the Workflow section above |
 
 ## Updating the Salt module/function list
 
