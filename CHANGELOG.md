@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.5.0] - 2026-09-20
+
 ### Added
 - `saltSyntax.saltVersion` setting (`3008` default / `3006`) and a
   matching `Salt Syntax: Set Salt Version` command, letting state module
