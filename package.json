@@ -101,6 +101,16 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). Disabling this writes explicit `\"[sls]\"` overrides in your settings restoring VS Code's own defaults (both `false`); re-enabling removes those overrides again."
+        },
+        "saltSyntax.jinjaWhitespaceControl": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Include Jinja's `-` whitespace-control marker on the opening side of `{% %}` blocks this extension inserts (e.g. via `if`/`for`/`set` completion) — `{%- if %}` instead of `{% if %}`. Off by default."
+        },
+        "saltSyntax.smartTopLevelDetection": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When completing a module (e.g. typing `file.` and picking `managed`) with some leading indentation, insert the full `{{ sls }}.<state_id>:` block and reset it to the start of the line unless the line directly above is actually a valid, unindented state declaration to nest under. Disable to always use strict indentation instead (0 spaces = full block, any indentation at all = function stub only, nested under whatever is above)."
         }
       }
     },

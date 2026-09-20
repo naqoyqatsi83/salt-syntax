@@ -802,6 +802,46 @@ function stateIdPrefix() {
   return prepend ? '{{ sls }}.' : '';
 }
 
+// A line that's its own unindented, non-comment ":"-terminated key --
+// i.e. something a module.function line could actually nest under.
+function looksLikeStateIdLine(text) {
+  return /^\S[^\n]*:\s*$/.test(text) && !text.trimStart().startsWith('#');
+}
+
+// indent.length === 0 is always top-level, no ambiguity. Otherwise (some
+// accidental/leftover indentation -- common after editing, or inherited
+// from a blank line's auto-indent) this only treats it as "nested under an
+// existing id" when the line directly above actually looks like one; if
+// not, it's still a fresh top-level block, just one that also needs its
+// stray leading whitespace reset to column 0 (see resetIndent in the
+// caller). Gated by saltSyntax.smartTopLevelDetection so strict
+// indentation-only detection (indent.length === 0, full stop) can still be
+// chosen instead.
+function isEffectivelyTopLevel(document, position, indentLength) {
+  if (indentLength === 0) {
+    return true;
+  }
+  const smart = vscode.workspace.getConfiguration('saltSyntax').get('smartTopLevelDetection', true);
+  if (!smart) {
+    return false;
+  }
+  if (position.line === 0) {
+    return true;
+  }
+  return !looksLikeStateIdLine(document.lineAt(position.line - 1).text);
+}
+
+// Off by default (see the comment above JINJA_BLOCK_SNIPPETS). When on,
+// every "{%" this extension generates becomes "{%-" -- leading-trim only,
+// no trailing "-%}", matching the style already used throughout this
+// repo's own example file (e.g. "{%- set tplroot = ... %}") and common
+// Salt-formula convention: it removes the blank line the tag would
+// otherwise leave behind without collapsing the line that follows it.
+function applyJinjaWhitespaceControl(body) {
+  const enabled = vscode.workspace.getConfiguration('saltSyntax').get('jinjaWhitespaceControl', false);
+  return enabled ? body.replace(/\{%(?!-)/g, '{%-') : body;
+}
+
 function insideJinjaTag(linePrefix) {
   const lastOpen = Math.max(
     linePrefix.lastIndexOf('{{'),
@@ -946,7 +986,7 @@ async function activate(context) {
   // the "." trigger character isn't reliably honored by the editor.
   const insertStateBlockCommand = vscode.commands.registerCommand(
     'saltstack-sls.insertStateBlock',
-    async (mod, fn, variant) => {
+    async (mod, fn, variant, resetIndent) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         return;
@@ -958,14 +998,19 @@ async function activate(context) {
         return;
       }
       const modStart = position.character - mod.length - 1;
-      const range = new vscode.Range(position.line, modStart, position.line, position.character);
+      // resetIndent means this was treated as top-level despite some
+      // accidental/leftover leading whitespace (see isEffectivelyTopLevel)
+      // -- delete that whitespace too, so the block starts clean at column 0
+      // instead of inheriting stray indentation.
+      const deleteStart = resetIndent ? 0 : modStart;
+      const range = new vscode.Range(position.line, deleteStart, position.line, position.character);
       const fields = getFields(mod, fn, variant);
       const args = buildArgsBody(fields, '    ', 2);
       const snippet = new vscode.SnippetString(
         `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
       );
       await editor.edit((editBuilder) => editBuilder.delete(range));
-      await editor.insertSnippet(snippet, new vscode.Position(position.line, modStart));
+      await editor.insertSnippet(snippet, new vscode.Position(position.line, deleteStart));
     }
   );
 
@@ -980,7 +1025,8 @@ async function activate(context) {
         if (dotMatch && MODULE_FUNCTIONS[dotMatch[2]]) {
           const indent = dotMatch[1];
           const mod = dotMatch[2];
-          const atTopLevel = indent.length === 0;
+          const atTopLevel = isEffectivelyTopLevel(document, position, indent.length);
+          const resetIndent = atTopLevel && indent.length > 0;
 
           return MODULE_FUNCTIONS[mod].flatMap((fn) =>
             availableVariants(mod, fn).map((variant) => {
@@ -1007,7 +1053,7 @@ async function activate(context) {
                 item.command = {
                   command: 'saltstack-sls.insertStateBlock',
                   title: 'Insert full state block',
-                  arguments: [mod, fn, variant]
+                  arguments: [mod, fn, variant, resetIndent]
                 };
                 const args = buildArgsBody(fields, '    ', 2);
                 item.documentation = new vscode.MarkdownString(
@@ -1104,7 +1150,7 @@ async function activate(context) {
         }
         return JINJA_BLOCK_SNIPPETS.map((s, i) => {
           const item = new vscode.CompletionItem(s.label, vscode.CompletionItemKind.Snippet);
-          item.insertText = new vscode.SnippetString(s.body);
+          item.insertText = new vscode.SnippetString(applyJinjaWhitespaceControl(s.body));
           item.detail = s.detail;
           item.filterText = s.filter;
           item.sortText = `${String(i).padStart(3, '0')}_${s.filter}`;

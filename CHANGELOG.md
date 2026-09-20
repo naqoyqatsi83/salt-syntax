@@ -22,6 +22,24 @@ version heading when that state gets tagged and merged to `main`.
   genuine pre-existing `{#- ... #}` comment) falls through to VS Code's
   normal line-comment command unchanged.
   [#10](https://github.com/naqoyqatsi83/salt-syntax/issues/10)
+- `saltSyntax.jinjaWhitespaceControl` setting (default `false`) to opt
+  every `{% %}` block this extension generates into leading-trim form
+  (`{%- if %}` ... `{%- endif %}`, matching this repo's own example file
+  and common Salt-formula convention) instead of the plain `{% %}` it
+  generates by default.
+  [#11](https://github.com/naqoyqatsi83/salt-syntax/issues/11)
+
+### Fixed
+- Module completion with some leading indentation and nothing valid to
+  nest under (accidental/leftover indentation, common after editing)
+  produced a nested function stub with no `{{ sls }}` id line instead of
+  a full block — the only check was `indent.length === 0`. Now checks
+  whether the line directly above is actually a valid unindented state
+  declaration; if not, it's still treated as a fresh top-level block and
+  the stray indentation is reset to column 0.
+  `saltSyntax.smartTopLevelDetection` (default `true`) can turn this back
+  off for strict indentation-only detection.
+  [#12](https://github.com/naqoyqatsi83/salt-syntax/issues/12)
 
 ## [0.3.3] - 2026-09-19
 

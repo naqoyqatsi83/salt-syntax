@@ -102,9 +102,13 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   `(full)` entry. Data for both variants — and which arguments count as
   mandatory for `basic` — is extracted the same way as the module list
   itself (see below), not hand-written.
-- Type a module name + `.` **under an existing state id** (2–6 space
-  indent) instead inserts just the function stub at that indent, since the
-  id line is already there.
+- Type a module name + `.` **under an existing state id** (some leading
+  indentation, with a valid unindented state declaration directly above to
+  nest under) instead inserts just the function stub at that indent, since
+  the id line is already there. With no valid id line above, any leading
+  indentation is treated as accidental — the full block is inserted anyway,
+  reset to column 0 (`saltSyntax.smartTopLevelDetection`, on by default;
+  disable for strict indentation-only detection instead).
 - Start of a state-function line (2–6 space indent) suggests from all 128
   state modules (`pkg`, `service`, `file`, `user`, `cmd`, `mount`, `lvm`,
   `git`, `win_dacl`, `postgres_user`, `rabbitmq_vhost`, ...).
@@ -115,10 +119,12 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   from the shapes that keyword can take — e.g. typing `if` offers
   `if…endif`, `if…else…endif`, and `if…elif…else…endif` as separate
   choices — to insert the full `{% ... %}` block; you don't have to type the
-  tag delimiters by hand first. Nothing this extension inserts uses Jinja's
-  `-` whitespace-control markers (`{%- ... -%}`) — plain `{% %}` / `{{ }}` /
-  `{# #}` only. The grammar still highlights `-` markers correctly if you
-  type them yourself.
+  tag delimiters by hand first. By default nothing this extension inserts
+  uses Jinja's `-` whitespace-control markers — plain `{% %}` / `{{ }}` /
+  `{# #}` only; the grammar always highlights `-` markers correctly
+  regardless. Set `saltSyntax.jinjaWhitespaceControl` to opt every `{% %}`
+  block this extension generates into leading-trim form instead
+  (`{%- if %}` ... `{%- endif %}`).
 - Inside an already-open `{{ }}` / `{% %}` suggests bare Jinja keywords,
   filters (`default`, `json`, `yaml`, `regex_replace`, ...) and Salt globals
   (`salt`, `grains`, `pillar`, `sls`, `tpldir`, ...). This only reacts to
@@ -189,6 +195,8 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.showWhitespace` | `true` | Render whitespace (`editor.renderWhitespace`) in `.sls` files. |
 | `saltSyntax.enforceLfLineEndings` | `true` | Enforce LF line endings (`files.eol`) in `.sls` files regardless of platform. |
 | `saltSyntax.enforceFinalNewline` | `true` | Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). |
+| `saltSyntax.jinjaWhitespaceControl` | `false` | Include Jinja's `-` whitespace-control marker (leading side only) on `{% %}` blocks this extension inserts — `{%- if %}` instead of `{% if %}`. |
+| `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
 
 The last three are a thin, discoverable wrapper around the editor defaults
 described above — disabling one doesn't just stop *forcing* that behavior,
