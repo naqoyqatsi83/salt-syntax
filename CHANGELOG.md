@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.4.0] - 2026-09-20
+
 ### Added
 - `Ctrl+/`/`Cmd+/` on a single line containing a Jinja tag comments out
   just that tag using Jinja's own comment syntax (`{% x %}` <->
