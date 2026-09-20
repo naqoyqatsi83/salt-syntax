@@ -30,6 +30,11 @@ version heading when that state gets tagged and merged to `main`.
   `main`, then the tag — three identical runs for one release.
   [#13](https://github.com/naqoyqatsi83/salt-syntax/issues/13)
 
+### Fixed
+- `.vscodeignore` now excludes `.claude/**`, which was being packaged
+  into the `.vsix` by accident.
+  [#18](https://github.com/naqoyqatsi83/salt-syntax/issues/18)
+
 ## [0.4.0] - 2026-09-20
 
 ### Added
