@@ -50,36 +50,78 @@ turns the source tree into a `.vsix`.
 
 ## Updating the Salt module/function list
 
-`MODULE_FUNCTIONS`, `FULL_FUNCTION_FIELDS`, and `MANDATORY_FIELDS` in
-`src/extension.js` are extracted from Salt's own source, not hand-written —
-see the comments above each in that file for the exact rules (name-first-
-param filter, `__virtualname__` resolution, `__func_alias__` fixes, the
-handful of confirmed-by-hand exceptions; `FULL_FUNCTION_FIELDS` additionally
+This extension supports two Salt release lines side by side, switched at
+runtime by `saltSyntax.saltVersion` (`activeDataset()` in
+`src/extension.js`): `MODULE_FUNCTIONS_3008` / `FULL_FUNCTION_FIELDS_3008` /
+`MANDATORY_FIELDS_3008` (default), and `MODULE_FUNCTIONS_3006` /
+`FULL_FUNCTION_FIELDS_3006` / `MANDATORY_FIELDS_3006` (Salt's LTS line, which
+still carries hundreds of state modules — mostly third-party cloud/provider
+integrations — that 3007.0 onward split out into separate salt-extensions
+packages). Both are extracted from Salt's own source, not hand-written — see
+the comments above each in that file for the exact rules. `FULL_FUNCTION_FIELDS_*`
 parses each qualifying function's real parameter list and default values
 straight out of its signature, handling both single- and multi-line `def`s;
-`MANDATORY_FIELDS` records which of those parameters have no default at all
+`MANDATORY_FIELDS_*` records which of those parameters have no default at all
 — genuinely required, not just commonly-set — and `getBasicFields()` uses it
 to guarantee the "basic" completion variant never omits one, merging it in
-even for a function with no curated `FUNCTION_FIELDS` entry). To regenerate
-against a newer Salt release:
+even for a function with no curated `FUNCTION_FIELDS` entry (that curated
+dict, plus `DEFAULT_FIELDS`, is shared unversioned across both lines since it
+only covers long-stable core modules like `pkg`/`file`/`service`/`user`).
 
-1. Pick the release tag (e.g. `v3008.3`) — a real, tagged release, not
-   `master`. `master` carries unreleased modules/functions (verified: as of
-   this writing it has `dnfmodule`/`postgres_default_privileges`/`python`
-   and two extra `pkg` functions that don't exist in any tagged release
-   yet) — pinning to a tag is what keeps this list matching the Salt people
-   actually have installed.
+To regenerate one dataset against a newer tag on its line:
+
+1. Pick the release tag (e.g. `v3008.3`, or `v3006.28`) — a real, tagged
+   release, not `master`. `master` carries unreleased modules/functions
+   (verified for 3008: as of this writing it has
+   `dnfmodule`/`postgres_default_privileges`/`python` and two extra `pkg`
+   functions that don't exist in any tagged release yet) — pinning to a tag
+   is what keeps this list matching the Salt people actually have installed.
 2. `GET https://api.github.com/repos/saltstack/salt/contents/salt/states?ref=<tag>`
    for the file list, then download each `salt/states/<file>.py` raw from
    that same tag.
-3. For each file: top-level `def name(...)` where the first parameter is
-   literally `name` = a real state function (this is Salt's actual
-   convention, and it's what filters out internal-only hooks like
-   `mod_watch`/`mod_beacon`/`mod_aggregate`, which Salt calls automatically
-   and are never written as `module.function:` by hand). Apply
-   `__virtualname__` (module's public name) and `__func_alias__`
-   (individual function renames, e.g. `copy_` -> `copy`) where a file
-   defines them.
+3. For each file, parse it (an actual AST parse, e.g. Python's `ast` module —
+   far more reliable than regex, especially for default-value expressions and
+   multi-line `def`s) and apply, in order:
+   - **Primary rule:** a top-level `def name(...)` counts as a real state
+     function only if its first parameter is literally `name` (Salt's actual
+     convention). This is also what filters out internal-only hooks
+     (`mod_init`, `mod_aggregate`, `mod_watch`, `mod_beacon`, ...) *in
+     combination with* an explicit `mod_`-prefix exclusion — some hook
+     functions (e.g. `file.mod_beacon`) do take `name` first too, so the
+     name-first check alone isn't sufficient; exclude any function whose name
+     starts with `mod_` or `_` outright, regardless of its first parameter.
+   - **Tier 2 (also automatic):** if `name` isn't the first parameter but
+     appears anywhere else in the signature, still treat it as real and
+     reorder so `name` leads (Salt still binds the state ID to it) — e.g.
+     `bigip.create_node`'s real signature is
+     `(hostname, username, password, name, address, ...)`.
+   - **Tier 3 (hand-verified only, exactly like the original `module.run` /
+     `postgres_cluster.absent` / `postgres_schema.absent` exceptions):** a
+     function that accepts `name` only via a trailing `**kwargs` catch-all —
+     confirm each one by hand against the real source before adding it, and
+     record what was added and why (see `MODULE_FUNCTIONS_3006`'s own header
+     comment in `extension.js` for the full 3006 list as a template for the
+     next regeneration).
+   - Watch for a public name created via plain assignment rather than `def`
+     (e.g. `stateconf.py`'s `set = context = _no_op`) — an AST function-def
+     scan alone misses these; grep every file for module-level
+     `Name = Name` assignments separately and fold in any aliases found.
+   - Drop a module entirely (don't emit it with an empty function list) if
+     its real public functions are generated by runtime metaprogramming with
+     no static `def`/alias to see at all (e.g. `testinfra.py`'s
+     `_generate_functions()`, which mirrors the `testinfra` execution module
+     into this namespace at import time).
+   - Apply `__virtualname__` (module's public name) and `__func_alias__`
+     (individual function renames, e.g. `copy_` -> `copy`) where a file
+     defines them — except when a file's own `__virtualname__` claims a name
+     another distinct, already-established module already owns and the two
+     are meant to be addressed differently in SLS (e.g. `x509_v2.py` sets
+     `__virtualname__ = "x509"` but is kept as its own `x509_v2` completion
+     target, matching precedent already in the 3008 dataset). When two files
+     are genuine same-name platform or proxy-extension alternates instead
+     (e.g. `win_network.py`/`network.py`, `nxos_upgrade.py`/`nxos.py` — real
+     SLS is written the same way regardless of which one actually loads on a
+     given minion), merge their functions under the one shared name.
 4. Diff against the previous version and manually verify anything that
    changed shape (new/removed modules, function list changes) before
    committing — don't just trust the automated pass blind, the same way the

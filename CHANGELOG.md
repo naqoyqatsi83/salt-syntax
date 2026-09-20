@@ -12,6 +12,17 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- `saltSyntax.saltVersion` setting (`3008` default / `3006`) and a
+  matching `Salt Syntax: Set Salt Version` command, letting state module
+  completions target Salt's 3006.x LTS line instead of 3008.x. 3006.x
+  still ships many state modules (mostly third-party cloud/provider
+  integrations — `boto_*`, `libcloud_*`, `zabbix_*`, `pagerduty_*`, and
+  others) that 3008.x dropped when their dependencies were split out into
+  separate salt-extensions packages, so switching to `3006` unlocks
+  completions for those states (353 modules vs. 128 under `3008`).
+  [#14](https://github.com/naqoyqatsi83/salt-syntax/issues/14)
+
 ### Changed
 - CI (`.github/workflows/build.yml`) now runs only on a `v*` tag push (or
   manual `workflow_dispatch`), not on every `develop`/`main` push. The

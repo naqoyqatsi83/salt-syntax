@@ -111,6 +111,16 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "When completing a module (e.g. typing `file.` and picking `managed`) with some leading indentation, insert the full `{{ sls }}.<state_id>:` block and reset it to the start of the line unless the line directly above is actually a valid, unindented state declaration to nest under. Disable to always use strict indentation instead (0 spaces = full block, any indentation at all = function stub only, nested under whatever is above)."
+        },
+        "saltSyntax.saltVersion": {
+          "type": "string",
+          "enum": ["3008", "3006"],
+          "enumDescriptions": [
+            "Salt 3008.x (Argon) and newer — the current stable line.",
+            "Salt 3006.x — Salt's long-term-support line. Still includes many state modules (mostly third-party cloud/provider integrations such as most boto_*, libcloud_*, zabbix_*, and pagerduty_* states) that 3008.x dropped when their dependencies were split out into separate salt-extensions packages."
+          ],
+          "default": "3008",
+          "markdownDescription": "Which Salt release line's state modules/functions to offer in `module.function:` completions. Pick `3006` if your minions are still on the 3006.x LTS line and you need completions for a state module that 3008.x no longer ships. Can also be switched via the **Salt Syntax: Set Salt Version** command."
         }
       }
     },
@@ -118,6 +128,10 @@
       {
         "command": "saltSyntax.toggleComment",
         "title": "Salt Syntax: Toggle Jinja/Line Comment"
+      },
+      {
+        "command": "saltSyntax.setSaltVersion",
+        "title": "Salt Syntax: Set Salt Version"
       }
     ],
     "keybindings": [

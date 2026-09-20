@@ -64,11 +64,17 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
 - **Type a module name + `.` at the start of a line** (e.g. `file.`) to get
   its real state functions (`managed`, `absent`, ...) — all 128 state
   modules that exist in Salt v3008.2 (the latest stable release) are
-  covered, with function names extracted directly from `salt/states/*.py`
-  at that release tag (not guessed, and not from `master`, which carries
-  unreleased modules/functions — see the comment above `MODULE_FUNCTIONS`
-  in `src/extension.js`), so `module.function` combos that don't actually
-  exist in a released Salt don't show up. Picking one inserts a full block:
+  covered by default, with function names extracted directly from
+  `salt/states/*.py` at that release tag (not guessed, and not from
+  `master`, which carries unreleased modules/functions — see the comment
+  above `MODULE_FUNCTIONS_3008` in `src/extension.js`), so `module.function`
+  combos that don't actually exist in a released Salt don't show up. Set
+  `saltSyntax.saltVersion` to `3006` (or run **Salt Syntax: Set Salt
+  Version**) to complete against Salt's 3006.x LTS line instead — 353
+  modules, including many third-party cloud/provider states (`boto_*`,
+  `libcloud_*`, `zabbix_*`, `pagerduty_*`, and others) that 3008.x dropped
+  when their dependencies were split out into separate salt-extensions
+  packages. Picking one inserts a full block:
 
   ```sls
   {{ sls }}.<state_id>:
@@ -109,9 +115,10 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   indentation is treated as accidental — the full block is inserted anyway,
   reset to column 0 (`saltSyntax.smartTopLevelDetection`, on by default;
   disable for strict indentation-only detection instead).
-- Start of a state-function line (2–6 space indent) suggests from all 128
-  state modules (`pkg`, `service`, `file`, `user`, `cmd`, `mount`, `lvm`,
-  `git`, `win_dacl`, `postgres_user`, `rabbitmq_vhost`, ...).
+- Start of a state-function line (2–6 space indent) suggests from all state
+  modules in the active `saltSyntax.saltVersion` line (`pkg`, `service`,
+  `file`, `user`, `cmd`, `mount`, `lvm`, `git`, `win_dacl`, `postgres_user`,
+  `rabbitmq_vhost`, ...).
 - After `- ` suggests common requisites/args (`require`, `watch`, `onlyif`,
   `unless`, `name`, `names`, `source`, `mode`, ...).
 - Type a bare Jinja keyword anywhere outside a tag (`for`, `if`, `set`,
@@ -197,6 +204,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.enforceFinalNewline` | `true` | Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). |
 | `saltSyntax.jinjaWhitespaceControl` | `false` | Include Jinja's `-` whitespace-control marker (leading side only) on `{% %}` blocks this extension inserts — `{%- if %}` instead of `{% if %}`. |
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
+| `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 
 The last three are a thin, discoverable wrapper around the editor defaults
 described above — disabling one doesn't just stop *forcing* that behavior,
@@ -247,10 +255,11 @@ salt-syntax/
 
 No build step — `src/extension.js` runs as-is. `npm run package` (or
 `npx --yes @vscode/vsce package --no-dependencies`) produces the `.vsix`.
-`MODULE_FUNCTIONS`, `FULL_FUNCTION_FIELDS`, and `MANDATORY_FIELDS` in
+`MODULE_FUNCTIONS_3008`/`MODULE_FUNCTIONS_3006` (and their
+`FULL_FUNCTION_FIELDS_*`/`MANDATORY_FIELDS_*` counterparts) in
 `src/extension.js` are extracted from Salt's own source, not hand-written —
 see [AGENTS.md](AGENTS.md#updating-the-salt-modulefunction-list) for the
-exact rules and how to regenerate them against a newer Salt release.
+exact rules and how to regenerate either one against a newer Salt release.
 
 CI (`.github/workflows/build.yml`) runs only on a `v*` tag push (or manually
 via `workflow_dispatch`): validates every JSON file, checks `extension.js`
