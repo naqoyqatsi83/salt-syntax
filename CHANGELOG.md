@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.6.0] - 2026-09-22
+
 ### Added
 - Non-ASCII check, on by default (`saltSyntax.nonAsciiCheck` to turn it
   off): warns about every non-ASCII character in `.sls` files — smart
