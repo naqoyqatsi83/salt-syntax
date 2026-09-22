@@ -23,6 +23,12 @@ version heading when that state gets tagged and merged to `main`.
   for `editor.codeActionsOnSave`).
   [#16](https://github.com/naqoyqatsi83/salt-syntax/issues/16)
 
+### Fixed
+- RC tags (`vX.Y.Z-rc.N`) now publish as a GitHub pre-release instead of
+  a full release that GitHub marks as **Latest** over the actual latest
+  stable version.
+  [#17](https://github.com/naqoyqatsi83/salt-syntax/issues/17)
+
 ## [0.5.0] - 2026-09-20
 
 ### Added
