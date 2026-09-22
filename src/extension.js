@@ -2753,6 +2753,124 @@ async function syncEditorDefaults() {
   }
 }
 
+// Non-ASCII check (saltSyntax.nonAsciiCheck): older minions -- Python 2
+// based Salt, or any minion whose locale isn't UTF-8 -- can fail to render an
+// SLS file containing a non-ASCII byte anywhere, comments included. The usual
+// culprits are invisible or look-alike characters pasted in from docs, chat
+// or a wiki page (smart quotes, en/em dashes, NBSP), so the explicit table
+// below covers those first; anything else falls back to Unicode NFKD
+// decomposition with combining marks stripped (e -> e, full-width A -> A,
+// the "fi" ligature -> fi). A character neither path turns into pure ASCII
+// (CJK, emoji, ...) is still flagged, just with no automatic replacement.
+const ASCII_REPLACEMENTS = {
+  '‘': "'", '’': "'", '‚': "'", '‛': "'", '′': "'",
+  '“': '"', '”': '"', '„': '"', '‟': '"', '″': '"',
+  '«': '<<', '»': '>>', '‹': '<', '›': '>',
+  '‐': '-', '‑': '-', '‒': '-', '–': '-', '—': '-', '―': '-', '−': '-',
+  '…': '...', '•': '*', '·': '*', '×': 'x', '÷': '/',
+  ' ': ' ', ' ': ' ', ' ': ' ', ' ': ' ', '　': ' ',
+  '​': '', '‌': '', '‍': '', '⁠': '', '﻿': '', '­': '',
+  '©': '(c)', '®': '(r)', '™': '(tm)', '°': 'deg',
+  'ß': 'ss', 'æ': 'ae', 'Æ': 'AE', 'œ': 'oe', 'Œ': 'OE',
+  'ø': 'o', 'Ø': 'O', 'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L',
+  'þ': 'th', 'Þ': 'Th', 'ð': 'd', 'Ð': 'D', 'ı': 'i'
+};
+
+const NON_ASCII_RE = /[^\x00-\x7F]+/g;
+const NON_ASCII_CODE = 'non-ascii';
+
+// ASCII replacement for one code point, or null if there's no sensible one.
+function charToAscii(ch) {
+  if (Object.prototype.hasOwnProperty.call(ASCII_REPLACEMENTS, ch)) {
+    return ASCII_REPLACEMENTS[ch];
+  }
+  // U+2000-U+200A are all just differently-sized spaces.
+  const cp = ch.codePointAt(0);
+  if (cp >= 0x2000 && cp <= 0x200A) {
+    return ' ';
+  }
+  const decomposed = ch.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  return /^[\x00-\x7F]*$/.test(decomposed) ? decomposed : null;
+}
+
+// ASCII replacement for a whole run of non-ASCII text, or null if any
+// character in it has none (a partial fix would just leave the run flagged).
+function textToAscii(text) {
+  let out = '';
+  for (const ch of text) {
+    const ascii = charToAscii(ch);
+    if (ascii === null) {
+      return null;
+    }
+    out += ascii;
+  }
+  return out;
+}
+
+function describeNonAscii(text) {
+  return [...text]
+    .map((ch) => {
+      const hex = ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+      // Invisible characters (NBSP, zero-width, ...) would print as nothing
+      // useful between the quotes, so just show the code point for those.
+      return /\s|\p{M}|[​-‍⁠﻿­]/u.test(ch) ? `U+${hex}` : `'${ch}' U+${hex}`;
+    })
+    .join(', ');
+}
+
+// How a replacement reads in a message/action title -- backticks rather than
+// quotes, since the replacement is often itself a quote character.
+function describeAscii(ascii) {
+  return /^ +$/.test(ascii) ? (ascii.length > 1 ? 'spaces' : 'a plain space') : `\`${ascii}\``;
+}
+
+function nonAsciiCheckEnabled() {
+  return vscode.workspace.getConfiguration('saltSyntax').get('nonAsciiCheck', true);
+}
+
+function findNonAsciiDiagnostics(document) {
+  const diagnostics = [];
+  for (let line = 0; line < document.lineCount; line++) {
+    const text = document.lineAt(line).text;
+    for (const m of text.matchAll(NON_ASCII_RE)) {
+      const range = new vscode.Range(line, m.index, line, m.index + m[0].length);
+      const ascii = textToAscii(m[0]);
+      const fix = ascii === null
+        ? 'No ASCII equivalent -- remove or rewrite it by hand.'
+        : ascii === ''
+          ? 'Quick fix: remove it.'
+          : `Quick fix: replace with ${describeAscii(ascii)}.`;
+      const diagnostic = new vscode.Diagnostic(
+        range,
+        `Non-ASCII character${[...m[0]].length > 1 ? 's' : ''} (${describeNonAscii(m[0])}) can break rendering on older Salt minions (Python 2 / non-UTF-8 locale). ${fix}`,
+        vscode.DiagnosticSeverity.Warning
+      );
+      diagnostic.source = 'Salt Syntax';
+      diagnostic.code = NON_ASCII_CODE;
+      diagnostics.push(diagnostic);
+    }
+  }
+  return diagnostics;
+}
+
+// One WorkspaceEdit replacing every convertible non-ASCII run in the
+// document (runs with no ASCII equivalent are left as-is).
+function buildConvertAllEdit(document) {
+  const edit = new vscode.WorkspaceEdit();
+  let count = 0;
+  for (let line = 0; line < document.lineCount; line++) {
+    const text = document.lineAt(line).text;
+    for (const m of text.matchAll(NON_ASCII_RE)) {
+      const ascii = textToAscii(m[0]);
+      if (ascii !== null) {
+        edit.replace(document.uri, new vscode.Range(line, m.index, line, m.index + m[0].length), ascii);
+        count++;
+      }
+    }
+  }
+  return { edit, count };
+}
+
 async function activate(context) {
   const selector = { language: 'sls' };
 
@@ -2773,6 +2891,87 @@ async function activate(context) {
       }
     })
   );
+
+  // Non-ASCII check: warnings live in their own diagnostic collection,
+  // recomputed on every open/edit (a regex pass per line -- cheap enough for
+  // any realistic .sls file that there's no need to debounce), and cleared
+  // on close or when saltSyntax.nonAsciiCheck is turned off.
+  const nonAsciiDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-non-ascii');
+  const refreshNonAscii = (document) => {
+    if (document.languageId !== 'sls') {
+      return;
+    }
+    if (!nonAsciiCheckEnabled()) {
+      nonAsciiDiagnostics.delete(document.uri);
+      return;
+    }
+    nonAsciiDiagnostics.set(document.uri, findNonAsciiDiagnostics(document));
+  };
+  vscode.workspace.textDocuments.forEach(refreshNonAscii);
+  context.subscriptions.push(
+    nonAsciiDiagnostics,
+    vscode.workspace.onDidOpenTextDocument(refreshNonAscii),
+    vscode.workspace.onDidChangeTextDocument((e) => refreshNonAscii(e.document)),
+    vscode.workspace.onDidCloseTextDocument((document) => nonAsciiDiagnostics.delete(document.uri)),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('saltSyntax.nonAsciiCheck')) {
+        vscode.workspace.textDocuments.forEach(refreshNonAscii);
+      }
+    })
+  );
+
+  // Quick fixes for the non-ASCII warnings: one per diagnostic under the
+  // cursor, plus a whole-file "convert all" (also offered as source.fixAll,
+  // so editor.codeActionsOnSave can run it on save if someone wants that).
+  const nonAsciiActionProvider = vscode.languages.registerCodeActionsProvider(
+    selector,
+    {
+      provideCodeActions(document, range, ctx) {
+        const actions = [];
+        const ours = ctx.diagnostics.filter((d) => d.code === NON_ASCII_CODE);
+        for (const diagnostic of ours) {
+          const ascii = textToAscii(document.getText(diagnostic.range));
+          if (ascii === null) {
+            continue;
+          }
+          const action = new vscode.CodeAction(
+            ascii === '' ? 'Remove non-ASCII character' : `Replace with ASCII ${describeAscii(ascii)}`,
+            vscode.CodeActionKind.QuickFix
+          );
+          action.edit = new vscode.WorkspaceEdit();
+          action.edit.replace(document.uri, diagnostic.range, ascii);
+          action.diagnostics = [diagnostic];
+          action.isPreferred = true;
+          actions.push(action);
+        }
+        const wantsFixAll = ctx.only && vscode.CodeActionKind.SourceFixAll.contains(ctx.only);
+        if (ours.length > 0 || wantsFixAll) {
+          const { edit, count } = buildConvertAllEdit(document);
+          if (count > 0) {
+            const kind = wantsFixAll ? vscode.CodeActionKind.SourceFixAll : vscode.CodeActionKind.QuickFix;
+            const all = new vscode.CodeAction('Convert all non-ASCII characters in file to ASCII', kind);
+            all.edit = edit;
+            actions.push(all);
+          }
+        }
+        return actions;
+      }
+    },
+    { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.SourceFixAll] }
+  );
+
+  const convertToAsciiCommand = vscode.commands.registerCommand('saltSyntax.convertToAscii', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== 'sls') {
+      return;
+    }
+    const { edit, count } = buildConvertAllEdit(editor.document);
+    if (count === 0) {
+      vscode.window.showInformationMessage('Salt Syntax: no convertible non-ASCII characters in this file.');
+      return;
+    }
+    await vscode.workspace.applyEdit(edit);
+  });
 
   // Ctrl+/ override (see package.json's keybindings, scoped to editorLangId
   // == sls so it doesn't affect any other language): comments/uncomments
@@ -3014,6 +3213,8 @@ async function activate(context) {
 
   context.subscriptions.push(
     setSaltVersionCommand,
+    convertToAsciiCommand,
+    nonAsciiActionProvider,
     toggleCommentCommand,
     insertStateBlockCommand,
     stateProvider,

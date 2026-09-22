@@ -164,6 +164,35 @@ state. Anything else — a multi-line selection, a line with no Jinja tag, or
 a genuine pre-existing `{#- ... #}` comment (nothing to toggle) — falls
 straight through to VS Code's normal line-comment behavior, unchanged.
 
+### Non-ASCII check
+
+Older minions — Python 2 based Salt, or any minion running under a
+non-UTF-8 locale — can fail to render an SLS file that contains a non-ASCII
+character *anywhere*, comments included. The usual culprits are look-alike
+or invisible characters pasted in from docs, chat or a wiki: smart quotes
+(`“ ” ‘ ’`), en/em dashes (`– —`), non-breaking and zero-width spaces, and
+accented letters.
+
+Every such character gets a warning (in the editor and the Problems panel)
+naming it and its code point, with a quick fix (`Ctrl+.`) that replaces it
+with an ASCII equivalent — `“` → `"`, `–` → `-`, NBSP → space, zero-width
+characters removed, `é` → `e`, `ß` → `ss`, and so on — plus a
+**Convert all non-ASCII characters in file to ASCII** fix, also available as
+the **Salt Syntax: Convert Non-ASCII Characters to ASCII** command.
+Characters with no sensible ASCII equivalent (CJK, emoji, ...) are still
+flagged, just left for you to rewrite by hand.
+
+On by default; turn it off with `saltSyntax.nonAsciiCheck`. The whole-file
+conversion is also exposed as a `source.fixAll` action, so if you want it
+applied automatically on every save rather than just flagged, add this to
+your settings:
+
+```json
+"[sls]": {
+  "editor.codeActionsOnSave": { "source.fixAll": "explicit" }
+}
+```
+
 ### Snippets
 
 Boilerplate that isn't really "completion" so much as "type a short prefix,
@@ -205,9 +234,10 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.jinjaWhitespaceControl` | `false` | Include Jinja's `-` whitespace-control marker (leading side only) on `{% %}` blocks this extension inserts — `{%- if %}` instead of `{% if %}`. |
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
+| `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 
-The last three are a thin, discoverable wrapper around the editor defaults
-described above — disabling one doesn't just stop *forcing* that behavior,
+`showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a
+thin, discoverable wrapper around the editor defaults described above — disabling one doesn't just stop *forcing* that behavior,
 it actively writes an explicit `"[sls]"` override into your settings
 restoring VS Code's own built-in default for that setting (`selection` /
 `auto` / `false`); re-enabling removes that override again, falling back to

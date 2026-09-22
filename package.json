@@ -112,6 +112,11 @@
           "default": true,
           "markdownDescription": "When completing a module (e.g. typing `file.` and picking `managed`) with some leading indentation, insert the full `{{ sls }}.<state_id>:` block and reset it to the start of the line unless the line directly above is actually a valid, unindented state declaration to nest under. Disable to always use strict indentation instead (0 spaces = full block, any indentation at all = function stub only, nested under whatever is above)."
         },
+        "saltSyntax.nonAsciiCheck": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Warn about non-ASCII characters anywhere in `.sls` files (comments included) — smart quotes, en/em dashes, non-breaking spaces, accented letters and the like, typically pasted in from docs or chat — since older Salt minions (Python 2 based, or running under a non-UTF-8 locale) can fail to render a file containing them. Each warning offers a quick fix replacing it with an ASCII equivalent where one exists; **Salt Syntax: Convert Non-ASCII Characters to ASCII** converts the whole file at once."
+        },
         "saltSyntax.saltVersion": {
           "type": "string",
           "enum": ["3008", "3006"],
@@ -132,6 +137,10 @@
       {
         "command": "saltSyntax.setSaltVersion",
         "title": "Salt Syntax: Set Salt Version"
+      },
+      {
+        "command": "saltSyntax.convertToAscii",
+        "title": "Salt Syntax: Convert Non-ASCII Characters to ASCII"
       }
     ],
     "keybindings": [
