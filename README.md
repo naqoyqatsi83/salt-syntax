@@ -6,6 +6,10 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
 </p>
 
+<p align="center">
+  <img src="images/icon.png" width="128" alt="Salt Syntax icon">
+</p>
+
 <h1 align="center">Salt Syntax</h1>
 
 <p align="center">

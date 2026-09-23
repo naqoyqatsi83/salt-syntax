@@ -45,6 +45,7 @@ turns the source tree into a `.vsix`.
 | `snippets/sls-snippets.json` | Static snippets |
 | `src/extension.js` | Completion providers |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
+| `images/icon.svg` / `icon.png` | Extension icon — edit the SVG, re-render the 256×256 PNG from it (e.g. `@resvg/resvg-js`); only the PNG is packaged |
 | `CHANGELOG.md` | Keep a Changelog, per the Workflow section above |
 | `.github/workflows/build.yml` | CI: validates/packages/releases, only on a `v*` tag push (or manual `workflow_dispatch`) — deliberately not on every `develop`/`main` push, see the Workflow section above |
 

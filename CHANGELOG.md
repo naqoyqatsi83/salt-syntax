@@ -12,6 +12,17 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- Extension icon (`images/icon.png`, SVG source in `images/icon.svg`) and
+  a matching `galleryBanner` for the Marketplace / Open VSX listing.
+  [#21](https://github.com/naqoyqatsi83/salt-syntax/issues/21)
+
+### Fixed
+- The packaged `.vsix` no longer includes `AGENTS.md` or `examples/`
+  (contributor notes and a grammar development sample, not anything the
+  extension uses at runtime), nor the icon's SVG source.
+  [#22](https://github.com/naqoyqatsi83/salt-syntax/issues/22)
+
 ## [0.7.0] - 2026-09-23
 
 ### Added

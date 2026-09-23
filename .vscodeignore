@@ -4,3 +4,6 @@
 .gitignore
 *.vsix
 node_modules/**
+AGENTS.md
+examples/**
+images/icon.svg

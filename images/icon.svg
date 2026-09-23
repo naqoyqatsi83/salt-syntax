@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2440"/>
+      <stop offset="1" stop-color="#0b1020"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#34f5c5" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#34f5c5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9fff3"/>
+      <stop offset="1" stop-color="#8ff5d6"/>
+    </linearGradient>
+    <linearGradient id="left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3fe0b4"/>
+      <stop offset="1" stop-color="#1fb58f"/>
+    </linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#159a7c"/>
+      <stop offset="1" stop-color="#0c6a58"/>
+    </linearGradient>
+    <linearGradient id="brace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f1f5ff"/>
+      <stop offset="1" stop-color="#a9b8e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <circle cx="128" cy="130" r="92" fill="url(#glow)"/>
+  <!-- salt crystal: isometric cube -->
+  <g stroke-linejoin="round">
+    <path d="M128 76 L173 102 L128 128 L83 102 Z" fill="url(#top)"/>
+    <path d="M83 102 L128 128 L128 180 L83 154 Z" fill="url(#left)"/>
+    <path d="M128 128 L173 102 L173 154 L128 180 Z" fill="url(#right)"/>
+    <path d="M83 102 L128 128 L173 102 M128 128 L128 180" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="2"/>
+  </g>
+  <path d="M166 64 Q167.5 72.5 176 74 Q167.5 75.5 166 84 Q164.5 75.5 156 74 Q164.5 72.5 166 64 Z" fill="#ffffff"/>
+  <!-- Jinja braces -->
+  <g fill="none" stroke="url(#brace)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M68 74 C54 74 52 82 52 94 L52 112 C52 122 48 128 38 128 C48 128 52 134 52 144 L52 162 C52 174 54 182 68 182"/>
+    <path d="M188 74 C202 74 204 82 204 94 L204 112 C204 122 208 128 218 128 C208 128 204 134 204 144 L204 162 C204 174 202 182 188 182"/>
+  </g>
+</svg>
