@@ -160,8 +160,37 @@ between, so `{#% x %#}` and `{#{ x }#}` are both valid, ordinary Jinja
 comments, and pressing `Ctrl+/` again strips exactly the two `#`s it added
 (round-trips perfectly, `-` whitespace-control markers included). Multiple
 tags on one line toggle independently, based on each one's own current
-state. Anything else — a multi-line selection, a line with no Jinja tag, or
-a genuine pre-existing `{#- ... #}` comment (nothing to toggle) — falls
+state.
+
+On a **multi-line selection**, `Ctrl+/` line-comments every line with `# `
+as usual — but also turns each `{% ... %}` tag in it into `{#% ... %#}`.
+A YAML `#` alone doesn't stop Jinja: Jinja renders the whole file before
+YAML ever sees it, so a plain `# {% if x %}` / `# {% else %}` would still
+run and change what the "commented-out" block produces. So this:
+
+```sls
+{% if condition %}
+{{ sls }}.state_id:
+  file.managed:
+    - name: /path/to/file
+{% endif %}
+```
+
+becomes:
+
+```sls
+# {#% if condition %#}
+# {{ sls }}.state_id:
+#   file.managed:
+#     - name: /path/to/file
+# {#% endif %#}
+```
+
+`{{ }}` expressions are left as-is — inside a YAML comment their output is
+just more comment text. `Ctrl+/` again on the fully commented block strips
+the `# ` and re-enables the tags. Anything else — multiple cursors, a
+multi-line selection with no `{% %}` tags, a line with no Jinja tag, or a
+genuine pre-existing `{#- ... #}` comment (nothing to toggle) — falls
 straight through to VS Code's normal line-comment behavior, unchanged.
 
 ### Non-ASCII check

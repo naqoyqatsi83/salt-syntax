@@ -2708,6 +2708,38 @@ function toggleJinjaTagText(text) {
   return text[0] + '#' + text.slice(1, -1) + '#' + text[text.length - 1];
 }
 
+// Jinja statement tags, active ({% %}) and toggled off ({#% %#}) -- the ones
+// that change what the rendered file contains. A YAML "# " in front of a
+// line doesn't stop Jinja from executing them (Jinja renders the whole file
+// before YAML ever sees it), so a line-commented block has to neutralize
+// them too. {{ }} expressions are left alone: inside a YAML comment their
+// output is just more comment text.
+const JINJA_STMT_RE = /\{%.*?%\}/g;
+const JINJA_STMT_OFF_RE = /\{#%.*?%#\}/g;
+
+// Line-comment toggle for a multi-line block: if every non-blank line is
+// already #-commented, strip one "# " from each and re-enable any {#% %#}
+// tags; otherwise prefix every non-blank line with "# " (at the block's
+// minimum indent, like VS Code's own line comment) and toggle every {% %}
+// tag off. Returns null when the block has no statement tags at all, so the
+// caller can leave it to VS Code's plain line comment.
+function toggleCommentBlock(lines) {
+  const nonBlank = lines.filter((l) => l.trim() !== '');
+  const hasStmt = (l) => l.search(JINJA_STMT_RE) !== -1 || l.search(JINJA_STMT_OFF_RE) !== -1;
+  if (nonBlank.length === 0 || !nonBlank.some(hasStmt)) {
+    return null;
+  }
+  if (nonBlank.every((l) => /^\s*#/.test(l))) {
+    return lines.map((l) =>
+      l.trim() === '' ? l : l.replace(/^(\s*)# ?/, '$1').replace(JINJA_STMT_OFF_RE, toggleJinjaTagText)
+    );
+  }
+  const indent = Math.min(...nonBlank.map((l) => l.match(/^\s*/)[0].length));
+  return lines.map((l) =>
+    l.trim() === '' ? l : l.slice(0, indent) + '# ' + l.slice(indent).replace(JINJA_STMT_RE, toggleJinjaTagText)
+  );
+}
+
 // Maps each saltSyntax.* toggle to the [sls]-scoped settings it controls and
 // what "off" (opted out of the default) should explicitly set them to.
 // "on" (the default) means *no* override -- it just removes whatever
@@ -2973,13 +3005,6 @@ async function activate(context) {
     await vscode.workspace.applyEdit(edit);
   });
 
-  // Ctrl+/ override (see package.json's keybindings, scoped to editorLangId
-  // == sls so it doesn't affect any other language): comments/uncomments
-  // just the Jinja tag(s) on the current line via toggleJinjaTagText() when
-  // there's a single cursor confined to one line that actually has a Jinja
-  // tag on it. Everything else -- multiple cursors, a multi-line selection,
-  // or a line with no Jinja tag -- falls straight through to VS Code's own
-  // normal line-comment command, unchanged.
   // Quick-pick alternative to hunting down saltSyntax.saltVersion in the
   // settings UI -- writes the same setting, so either path takes effect on
   // the very next completion (see activeDataset()'s live read).
@@ -2998,6 +3023,16 @@ async function activate(context) {
     await vscode.workspace.getConfiguration('saltSyntax').update('saltVersion', picked.value, vscode.ConfigurationTarget.Global);
   });
 
+  // Ctrl+/ override (see package.json's keybindings, scoped to editorLangId
+  // == sls so it doesn't affect any other language), single cursor only:
+  // - a multi-line selection containing Jinja statement tags is
+  //   line-commented via toggleCommentBlock(), which also neutralizes those
+  //   tags (a plain "# " alone doesn't stop Jinja from running them);
+  // - a single line with a Jinja tag on it toggles just that tag via
+  //   toggleJinjaTagText().
+  // Everything else -- multiple cursors, a multi-line selection with no
+  // statement tags, or a line with no Jinja tag -- falls straight through to
+  // VS Code's own normal line-comment command, unchanged.
   const toggleCommentCommand = vscode.commands.registerCommand('saltSyntax.toggleComment', async () => {
     const editor = vscode.window.activeTextEditor;
     const fallThrough = () => vscode.commands.executeCommand('editor.action.commentLine');
@@ -3006,7 +3041,21 @@ async function activate(context) {
     }
     const selection = editor.selection;
     if (selection.start.line !== selection.end.line) {
-      return fallThrough();
+      // Same convention as VS Code's own line comment: a selection ending at
+      // column 0 of a line doesn't include that line.
+      const startLine = selection.start.line;
+      const endLine = selection.end.character === 0 ? selection.end.line - 1 : selection.end.line;
+      const lines = [];
+      for (let i = startLine; i <= endLine; i++) {
+        lines.push(editor.document.lineAt(i).text);
+      }
+      const toggled = toggleCommentBlock(lines);
+      if (!toggled) {
+        return fallThrough();
+      }
+      const range = new vscode.Range(startLine, 0, endLine, lines[lines.length - 1].length);
+      await editor.edit((editBuilder) => editBuilder.replace(range, toggled.join('\n')));
+      return;
     }
     const lineNumber = selection.start.line;
     const lineText = editor.document.lineAt(lineNumber).text;

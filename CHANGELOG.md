@@ -12,6 +12,14 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Fixed
+- `Ctrl+/` on a multi-line selection now also neutralizes every Jinja
+  `{% ... %}` tag in it (`{#% ... %#}`), not just prefixes each line with
+  `# ` — Jinja renders before YAML parses, so a line-commented
+  `{% if %}`/`{% else %}`/`{% endif %}` was still live and changed what
+  the "commented-out" block rendered. Uncommenting restores both.
+  [#19](https://github.com/naqoyqatsi83/salt-syntax/issues/19)
+
 ## [0.6.0] - 2026-09-22
 
 ### Added
