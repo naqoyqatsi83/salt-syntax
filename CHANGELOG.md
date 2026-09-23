@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.7.0] - 2026-09-23
+
 ### Added
 - Cursor on a Jinja block tag highlights every tag of that same block —
   `if`/`elif`/`else`/`endif`, `for`/`else`/`endfor`, `macro`, `call`,
