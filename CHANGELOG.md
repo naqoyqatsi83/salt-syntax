@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.7.1] - 2026-09-23
+
 ### Added
 - Extension icon (`images/icon.png`, SVG source in `images/icon.svg`) and
   a matching `galleryBanner` for the Marketplace / Open VSX listing.
