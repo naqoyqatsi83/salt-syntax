@@ -12,6 +12,15 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- Cursor on a Jinja block tag highlights every tag of that same block —
+  `if`/`elif`/`else`/`endif`, `for`/`else`/`endfor`, `macro`, `call`,
+  `set` blocks, `raw`, and the rest — pairing nested blocks correctly and
+  skipping tags Jinja itself ignores (inside `{# #}`, toggled-off
+  `{#% %#}`, or `{% raw %}`). Same-word highlighting still works
+  everywhere else.
+  [#20](https://github.com/naqoyqatsi83/salt-syntax/issues/20)
+
 ### Fixed
 - `Ctrl+/` on a multi-line selection now also neutralizes every Jinja
   `{% ... %}` tag in it (`{#% ... %#}`), not just prefixes each line with

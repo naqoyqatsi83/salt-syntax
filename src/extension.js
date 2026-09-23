@@ -2740,6 +2740,82 @@ function toggleCommentBlock(lines) {
   );
 }
 
+// Jinja block structure, for highlighting every tag of the block under the
+// cursor (if/elif/else/endif, for/else/endfor, ...). Keys are the opening
+// keyword; `middle` lists the keywords that belong to the innermost open
+// block of that kind rather than starting a new one.
+const JINJA_BLOCKS = {
+  if: { middle: ['elif', 'else'] },
+  for: { middle: ['else'] },
+  macro: { middle: [] },
+  call: { middle: [] },
+  filter: { middle: [] },
+  set: { middle: [] },
+  with: { middle: [] },
+  block: { middle: [] },
+  autoescape: { middle: [] },
+  trans: { middle: ['pluralize'] },
+  raw: { middle: [] }
+};
+
+// Jinja comments (including toggled-off {#% %#} / {#{ }#} tags) and
+// statement tags, in document order. Tags can span lines.
+const JINJA_SCAN_RE = /\{#[\s\S]*?#\}|\{%-?\s*([A-Za-z_]\w*)?([\s\S]*?)-?%\}/g;
+
+// Groups of block tags, each a list of { start, end, keyword } offsets
+// covering the whole tag. Tags inside Jinja comments and {% raw %} blocks
+// are ignored (Jinja ignores them too); tags on YAML #-comment lines are
+// not, since Jinja still runs those. An unclosed block still groups what it
+// has; a stray end/middle tag with no matching opener is just skipped.
+function findJinjaBlockGroups(text) {
+  const groups = [];
+  const stack = [];
+  JINJA_SCAN_RE.lastIndex = 0;
+  let m;
+  while ((m = JINJA_SCAN_RE.exec(text))) {
+    const keyword = m[1];
+    if (keyword === undefined) {
+      continue; // a comment, or a tag with no keyword
+    }
+    const tag = { start: m.index, end: m.index + m[0].length, keyword };
+    if (keyword === 'set' && /=/.test(m[2])) {
+      continue; // inline {% set x = ... %}, not a {% set x %}...{% endset %} block
+    }
+    if (Object.prototype.hasOwnProperty.call(JINJA_BLOCKS, keyword)) {
+      const group = { keyword, tags: [tag] };
+      groups.push(group);
+      if (keyword === 'raw') {
+        const endRaw = /\{%-?\s*endraw\s*-?%\}/g;
+        endRaw.lastIndex = tag.end;
+        const e = endRaw.exec(text);
+        if (e) {
+          group.tags.push({ start: e.index, end: e.index + e[0].length, keyword: 'endraw' });
+          JINJA_SCAN_RE.lastIndex = e.index + e[0].length;
+        } else {
+          break; // unterminated raw: the rest of the file is raw text
+        }
+        continue;
+      }
+      stack.push(group);
+      continue;
+    }
+    const top = stack[stack.length - 1];
+    if (keyword.startsWith('end')) {
+      const opener = keyword.slice(3);
+      // Pop back to the matching opener, closing anything left unclosed
+      // inside it -- same recovery an editor bracket matcher would do.
+      const idx = stack.map((g) => g.keyword).lastIndexOf(opener);
+      if (idx !== -1) {
+        stack[idx].tags.push(tag);
+        stack.length = idx;
+      }
+    } else if (top && JINJA_BLOCKS[top.keyword].middle.includes(keyword)) {
+      top.tags.push(tag);
+    }
+  }
+  return groups;
+}
+
 // Maps each saltSyntax.* toggle to the [sls]-scoped settings it controls and
 // what "off" (opted out of the default) should explicitly set them to.
 // "on" (the default) means *no* override -- it just removes whatever
@@ -3260,7 +3336,40 @@ async function activate(context) {
     '|'
   );
 
+  // Cursor on a Jinja block tag -> highlight every tag of that block (see
+  // findJinjaBlockGroups). Registering any highlight provider replaces VS
+  // Code's built-in same-word occurrence highlighting for the language, so
+  // anywhere else this reproduces that: every whole-word match of the word
+  // under the cursor.
+  const blockHighlightProvider = vscode.languages.registerDocumentHighlightProvider(selector, {
+    provideDocumentHighlights(document, position) {
+      const text = document.getText();
+      const offset = document.offsetAt(position);
+      const toRange = (start, end) => new vscode.Range(document.positionAt(start), document.positionAt(end));
+      for (const group of findJinjaBlockGroups(text)) {
+        if (group.tags.some((t) => offset >= t.start && offset <= t.end)) {
+          return group.tags.map((t) => new vscode.DocumentHighlight(toRange(t.start, t.end), vscode.DocumentHighlightKind.Text));
+        }
+      }
+      const wordRange = document.getWordRangeAtPosition(position);
+      if (!wordRange) {
+        return [];
+      }
+      const word = document.getText(wordRange);
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // A "word character" is anything language-configuration.json's
+      // wordPattern doesn't treat as a separator.
+      const wordChar = "[^\\-`~!@#%^&*()=+\\[{\\]}\\\\|;:'\",.<>/?\\s]";
+      const highlights = [];
+      for (const w of text.matchAll(new RegExp(`(?<!${wordChar})${escaped}(?!${wordChar})`, 'g'))) {
+        highlights.push(new vscode.DocumentHighlight(toRange(w.index, w.index + w[0].length), vscode.DocumentHighlightKind.Text));
+      }
+      return highlights;
+    }
+  });
+
   context.subscriptions.push(
+    blockHighlightProvider,
     setSaltVersionCommand,
     convertToAsciiCommand,
     nonAsciiActionProvider,

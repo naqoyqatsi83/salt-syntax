@@ -138,6 +138,22 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   what you're actually typing (a word, or right after `{{`/`{%`/`|`) — it
   won't re-dump the full list on every space.
 
+### Matching Jinja block highlight
+
+Put the cursor on any Jinja block tag and every tag of that same block
+lights up — `{% if %}` with its own `{% elif %}` / `{% else %}` /
+`{% endif %}`, `{% for %}` with its `{% endfor %}` (and its own
+`{% else %}`, which is a different thing from an `if`'s), `macro`, `call`,
+`filter`, `with`, `block`, `autoescape`, `trans`/`pluralize`, `raw`, and
+block `{% set x %}...{% endset %}`. Nested blocks pair correctly, and tags
+can span lines. Tags Jinja itself ignores — inside a `{# #}` comment,
+toggled off as `{#% %#}`, or inside `{% raw %}` — are ignored here too;
+tags on a YAML `#` comment line are *not*, since Jinja still runs them.
+
+Anywhere else, you get VS Code's usual same-word highlighting. It's
+VS Code's own occurrence highlight, so `editor.occurrencesHighlight`
+turns both off.
+
 ### Smart comment toggle
 
 `Ctrl+/` (`Cmd+/` on macOS) on a single line that contains a Jinja tag
