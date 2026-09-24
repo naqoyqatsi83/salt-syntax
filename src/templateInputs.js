@@ -291,7 +291,12 @@ function register(context, vscode, isSaltLanguage) {
   let timer = null;
   const refresh = () => {
     const editor = vscode.window.activeTextEditor;
-    if (!editor || !isSaltLanguage(editor.document.languageId)) {
+    const isSalt = !!editor && isSaltLanguage(editor.document.languageId);
+    // The view's `when` clause (package.json) reads this, not editorLangId:
+    // editorLangId only exists inside a focused editor's own context, so a
+    // view's `when` -- evaluated at window level -- never sees it.
+    vscode.commands.executeCommand('setContext', 'saltSyntax.activeEditorIsSalt', isSalt);
+    if (!isSalt) {
       groups = [];
       uri = null;
       view.message = 'Open a .sls or Salt Jinja file to see what its Jinja reads.';

@@ -191,7 +191,7 @@
         {
           "id": "saltSyntax.templateInputs",
           "name": "Salt Template Inputs (experimental)",
-          "when": "editorLangId == sls || editorLangId == salt-jinja"
+          "when": "saltSyntax.activeEditorIsSalt"
         }
       ]
     },
