@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.8.0] - 2026-09-24
+
 ### Added
 - Jinja indentation check, on by default (`saltSyntax.jinjaIndentCheck`
   to turn it off): warns when a line-leading `{% %}` tag's indentation
