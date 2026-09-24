@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.9.0] - 2026-09-24
+
 ### Added
 - **Salt Jinja** language for Salt's other Jinja files, with `.jinja`
   (`map.jinja`, macro libraries, ...) associated by default: same
