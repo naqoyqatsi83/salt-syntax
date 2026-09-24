@@ -29,6 +29,14 @@ version heading when that state gets tagged and merged to `main`.
   `saltSyntax.detectJinjaInYaml` turns it off.
   [#27](https://github.com/naqoyqatsi83/salt-syntax/issues/27)
 
+### Fixed
+- A `: ` inside a Jinja tag no longer makes the line highlight as a YAML
+  `key: value` — e.g. `{% set state = {'all_ok': true} %}` had
+  `{% set state = {'all_ok'` colored as a key and `true} %}` as a value.
+  Keys can still contain whole Jinja tags (`{{ sls }}.{{ item }}:`), but
+  the colon ending one must be outside every tag.
+  [#28](https://github.com/naqoyqatsi83/salt-syntax/issues/28)
+
 ## [0.8.0] - 2026-09-24
 
 ### Added
