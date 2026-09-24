@@ -290,6 +290,43 @@ to column 0 after a Jinja tag line instead? Set `saltSyntax.jinjaEnterIndent`
 to `column0`. Enter after any other line — YAML — keeps VS Code's normal
 auto-indent either way.
 
+### Other Salt files: `.jinja`, and YAML with Jinja in it
+
+Salt formulas are more than `.sls`: there's `map.jinja` and macro
+libraries, plus YAML data files (`defaults.yaml`, `osfamilymap.yaml`,
+`parameters/**/*.yaml`, ...) that `import_yaml` renders through Jinja too.
+Those get a second language, **Salt Jinja** — same grammar, same Jinja
+features, minus the ones that only make sense in a state file:
+
+| | `.sls` | Salt Jinja |
+|---|---|---|
+| Highlighting, `Ctrl+/` comment toggle, matching block highlight | ✓ | ✓ |
+| Jinja indentation check, Enter indentation, non-ASCII check | ✓ | ✓ |
+| Jinja keyword / filter / block completion | ✓ | ✓ |
+| `module.` → state function completion, requisites after `- ` | ✓ | — |
+
+- **`.jinja` files** are Salt Jinja automatically.
+- **`.yaml` / `.yml` files** switch to Salt Jinja when they open if a line
+  *starts* with a Jinja `{% %}` or `{# #}` tag — the style Salt's YAML
+  data files use. YAML that only quotes `{{ }}` inside values (Ansible,
+  Helm, GitHub Actions workflows) isn't affected, and neither is a file
+  another extension has already claimed (e.g. Ansible's own language).
+  Switched one that shouldn't be? Pick **YAML** again from the language
+  picker in the status bar — it stays YAML for the rest of the session.
+  Turn detection off entirely with `saltSyntax.detectJinjaInYaml`.
+- **Whole folders**, regardless of content, via VS Code's own
+  `files.associations`:
+
+  ```json
+  "files.associations": {
+    "**/salt/**/*.yaml": "salt-jinja"
+  }
+  ```
+
+The editor defaults and `saltSyntax.*` toggles under
+[Language configuration](#language-configuration) apply to Salt Jinja
+files the same way.
+
 ### Snippets
 
 Boilerplate that isn't really "completion" so much as "type a short prefix,
@@ -337,6 +374,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaEnterIndent` | `followNesting` | Where Enter puts the cursor after a line starting with a `{% %}` tag: `followNesting` (two spaces deeper than the innermost open Jinja block) or `column0`. Other lines keep VS Code's normal auto-indent. Needs `editor.formatOnType`, on by default for `.sls`. |
+| `saltSyntax.detectJinjaInYaml` | `true` | Switch a `.yaml`/`.yml` file to Salt Jinja when a line starts with a `{% %}`/`{# #}` tag — see [Other Salt files](#other-salt-files-jinja-and-yaml-with-jinja-in-it). |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a
 thin, discoverable wrapper around the editor defaults described above — disabling one doesn't just stop *forcing* that behavior,

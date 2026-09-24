@@ -53,6 +53,17 @@
           ".sls"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "salt-jinja",
+        "aliases": [
+          "Salt Jinja",
+          "salt-jinja"
+        ],
+        "extensions": [
+          ".jinja"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -60,6 +71,11 @@
         "language": "sls",
         "scopeName": "source.sls",
         "path": "./syntaxes/sls.tmLanguage.json"
+      },
+      {
+        "language": "salt-jinja",
+        "scopeName": "source.salt-jinja",
+        "path": "./syntaxes/salt-jinja.tmLanguage.json"
       }
     ],
     "snippets": [
@@ -70,6 +86,21 @@
     ],
     "configurationDefaults": {
       "[sls]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.renderWhitespace": "all",
+        "files.insertFinalNewline": true,
+        "files.trimFinalNewlines": true,
+        "files.eol": "\n",
+        "editor.formatOnType": true,
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        }
+      },
+      "[salt-jinja]": {
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
         "editor.detectIndentation": false,
@@ -138,6 +169,11 @@
           "default": "followNesting",
           "markdownDescription": "Where the cursor goes after pressing Enter at the end of a line that starts with a Jinja `{% %}` tag. Enter after any other line (YAML) keeps VS Code's normal auto-indent. Relies on `editor.formatOnType`, which this extension turns on for `.sls` files by default."
         },
+        "saltSyntax.detectJinjaInYaml": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Switch a `.yaml`/`.yml` file to **Salt Jinja** when it opens and a line *starts* with a Jinja `{% %}` or `{# #}` tag — e.g. a formula's `defaults.yaml` or `osfamilymap.yaml` loaded through `import_yaml` — so it gets the same Jinja highlighting, checks and completion as `.jinja` files. YAML that only quotes `{{ }}` inside values (Ansible, Helm, GitHub Actions) isn't affected, and neither is a file another extension already claimed. Switch a file back via the language picker in the status bar; to map whole folders instead, use `files.associations` (e.g. `\"**/salt/**/*.yaml\": \"salt-jinja\"`)."
+        },
         "saltSyntax.saltVersion": {
           "type": "string",
           "enum": ["3008", "3006"],
@@ -169,7 +205,7 @@
         "command": "saltSyntax.toggleComment",
         "key": "ctrl+/",
         "mac": "cmd+/",
-        "when": "editorTextFocus && editorLangId == sls"
+        "when": "editorTextFocus && (editorLangId == sls || editorLangId == salt-jinja)"
       }
     ]
   },

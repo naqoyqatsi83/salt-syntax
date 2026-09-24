@@ -2966,10 +2966,13 @@ const EDITOR_DEFAULT_TOGGLES = [
 
 async function syncEditorDefaults() {
   const saltCfg = vscode.workspace.getConfiguration('saltSyntax');
-  for (const toggle of EDITOR_DEFAULT_TOGGLES) {
+  // Each toggle is written for every language this extension serves, so
+  // .jinja / Jinja-YAML files follow the same choices as .sls ones.
+  const pairs = SALT_LANGUAGES.flatMap((languageId) => EDITOR_DEFAULT_TOGGLES.map((toggle) => ({ languageId, toggle })));
+  for (const { languageId, toggle } of pairs) {
     const key = toggle.setting.split('.')[1];
     const enabled = saltCfg.get(key, true);
-    const cfg = vscode.workspace.getConfiguration(toggle.section, { languageId: 'sls' });
+    const cfg = vscode.workspace.getConfiguration(toggle.section, { languageId });
     const value = enabled ? undefined : toggle.offValue;
 
     // Skip the write entirely when it wouldn't change anything -- avoids
@@ -3110,8 +3113,60 @@ function buildConvertAllEdit(document) {
   return { edit, count };
 }
 
+// Languages this extension serves: `sls` (state files -- everything) and
+// `salt-jinja` (Salt's other Jinja files: .jinja, and YAML files that turn
+// out to contain Jinja -- every Jinja feature, but none of the Salt-state
+// ones like module.function completion, which would only be noise there).
+const SALT_LANGUAGES = ['sls', 'salt-jinja'];
+const isSaltLanguage = (languageId) => SALT_LANGUAGES.includes(languageId);
+
+// saltSyntax.detectJinjaInYaml: a document VS Code opened as plain YAML
+// whose lines include one *starting* with a Jinja statement or comment tag
+// is a Salt-style template (map.jinja's defaults.yaml, osfamilymap.yaml,
+// ...), not just YAML that happens to quote some {{ }} -- Ansible, Helm and
+// GitHub Actions all put {{ }} inside values and never lead a line with
+// {% or {#. Only `yaml` is considered, so a file another extension already
+// claimed (e.g. `ansible`) is left alone.
+const LINE_LEADING_JINJA_RE = /^[ \t]*\{[%#]/m;
+
+// Documents switched this session. Changing a document's language makes VS
+// Code close and reopen it, so without this, picking "YAML" again by hand
+// on a detected file would just get it switched straight back.
+const autoSwitchedToSaltJinja = new Set();
+
+async function maybeSwitchYamlToSaltJinja(document) {
+  if (document.languageId !== 'yaml' || autoSwitchedToSaltJinja.has(document.uri.toString())) {
+    return;
+  }
+  if (!vscode.workspace.getConfiguration('saltSyntax').get('detectJinjaInYaml', true)) {
+    return;
+  }
+  if (!LINE_LEADING_JINJA_RE.test(document.getText())) {
+    return;
+  }
+  autoSwitchedToSaltJinja.add(document.uri.toString());
+  try {
+    await vscode.languages.setTextDocumentLanguage(document, 'salt-jinja');
+  } catch (err) {
+    console.error('Salt Syntax: could not switch', document.uri.toString(), 'to Salt Jinja', err);
+  }
+}
+
 async function activate(context) {
+  // State-only features (module.function / requisite completion, state
+  // block insertion) use `selector`; everything Jinja uses `jinjaSelector`.
   const selector = { language: 'sls' };
+  const jinjaSelector = SALT_LANGUAGES.map((language) => ({ language }));
+
+  vscode.workspace.textDocuments.forEach(maybeSwitchYamlToSaltJinja);
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(maybeSwitchYamlToSaltJinja),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('saltSyntax.detectJinjaInYaml')) {
+        vscode.workspace.textDocuments.forEach(maybeSwitchYamlToSaltJinja);
+      }
+    })
+  );
 
   // Awaited (not fire-and-forget): syncEditorDefaults() writes up to 4
   // settings sequentially, and VS Code lets activate() return a Promise
@@ -3137,7 +3192,7 @@ async function activate(context) {
   // on close or when saltSyntax.nonAsciiCheck is turned off.
   const nonAsciiDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-non-ascii');
   const refreshNonAscii = (document) => {
-    if (document.languageId !== 'sls') {
+    if (!isSaltLanguage(document.languageId)) {
       return;
     }
     if (!nonAsciiCheckEnabled()) {
@@ -3163,7 +3218,7 @@ async function activate(context) {
   // cursor, plus a whole-file "convert all" (also offered as source.fixAll,
   // so editor.codeActionsOnSave can run it on save if someone wants that).
   const nonAsciiActionProvider = vscode.languages.registerCodeActionsProvider(
-    selector,
+    jinjaSelector,
     {
       provideCodeActions(document, range, ctx) {
         const actions = [];
@@ -3201,7 +3256,7 @@ async function activate(context) {
 
   const convertToAsciiCommand = vscode.commands.registerCommand('saltSyntax.convertToAscii', async () => {
     const editor = vscode.window.activeTextEditor;
-    if (!editor || editor.document.languageId !== 'sls') {
+    if (!editor || !isSaltLanguage(editor.document.languageId)) {
       return;
     }
     const { edit, count } = buildConvertAllEdit(editor.document);
@@ -3217,7 +3272,7 @@ async function activate(context) {
   // saltSyntax.jinjaIndentCheck.
   const jinjaIndentDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-jinja-indent');
   const refreshJinjaIndent = (document) => {
-    if (document.languageId !== 'sls') {
+    if (!isSaltLanguage(document.languageId)) {
       return;
     }
     if (!vscode.workspace.getConfiguration('saltSyntax').get('jinjaIndentCheck', true)) {
@@ -3256,7 +3311,7 @@ async function activate(context) {
   // diagnostics, since VS Code hands the provider copies without any extra
   // fields; each fix only rewrites a line's leading whitespace.
   const jinjaIndentActionProvider = vscode.languages.registerCodeActionsProvider(
-    selector,
+    jinjaSelector,
     {
       provideCodeActions(document, range, ctx) {
         const ours = ctx.diagnostics.filter((d) => d.code === JINJA_INDENT_CODE);
@@ -3300,7 +3355,7 @@ async function activate(context) {
   // formatting on "\n", which is why package.json's [sls] defaults turn
   // editor.formatOnType on.
   const jinjaEnterIndentProvider = vscode.languages.registerOnTypeFormattingEditProvider(
-    selector,
+    jinjaSelector,
     {
       provideOnTypeFormattingEdits(document, position, ch) {
         if (ch !== '\n' || position.line === 0) {
@@ -3357,7 +3412,7 @@ async function activate(context) {
   const toggleCommentCommand = vscode.commands.registerCommand('saltSyntax.toggleComment', async () => {
     const editor = vscode.window.activeTextEditor;
     const fallThrough = () => vscode.commands.executeCommand('editor.action.commentLine');
-    if (!editor || editor.document.languageId !== 'sls' || editor.selections.length !== 1) {
+    if (!editor || !isSaltLanguage(editor.document.languageId) || editor.selections.length !== 1) {
       return fallThrough();
     }
     const selection = editor.selection;
@@ -3530,7 +3585,7 @@ async function activate(context) {
 
   // Jinja keywords / filters / globals inside {{ ... }} and {% ... %}.
   const jinjaProvider = vscode.languages.registerCompletionItemProvider(
-    selector,
+    jinjaSelector,
     {
       provideCompletionItems(document, position) {
         const linePrefix = document.lineAt(position).text.slice(0, position.character);
@@ -3606,7 +3661,7 @@ async function activate(context) {
   // Code's built-in same-word occurrence highlighting for the language, so
   // anywhere else this reproduces that: every whole-word match of the word
   // under the cursor.
-  const blockHighlightProvider = vscode.languages.registerDocumentHighlightProvider(selector, {
+  const blockHighlightProvider = vscode.languages.registerDocumentHighlightProvider(jinjaSelector, {
     provideDocumentHighlights(document, position) {
       const text = document.getText();
       const offset = document.offsetAt(position);

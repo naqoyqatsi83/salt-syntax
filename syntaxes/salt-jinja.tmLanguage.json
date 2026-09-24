@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Salt Jinja",
+  "scopeName": "source.salt-jinja",
+  "comment": "Salt's non-state Jinja files (.jinja, and YAML files detected as containing Jinja) are the same YAML + Jinja text as .sls, so this just reuses the SLS grammar under its own scope name -- one grammar to maintain, identical highlighting.",
+  "patterns": [{ "include": "source.sls" }]
+}

@@ -42,8 +42,9 @@ turns the source tree into a `.vsix`.
 | `package.json` | Extension manifest — languages, grammars, snippets, editor defaults, settings |
 | `language-configuration.json` | Comments, brackets, auto-close, indentation |
 | `syntaxes/sls.tmLanguage.json` | TextMate grammar |
+| `syntaxes/salt-jinja.tmLanguage.json` | Salt Jinja language's grammar — just includes `source.sls` under its own scope, so there's one grammar to maintain |
 | `snippets/sls-snippets.json` | Static snippets |
-| `src/extension.js` | Completion providers |
+| `src/extension.js` | Completion, diagnostics, highlight, comment-toggle and formatting providers — `sls` gets everything, `salt-jinja` everything but the state-only completions (`SALT_LANGUAGES` / `jinjaSelector`) |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
 | `images/icon.svg` / `icon.png` | Extension icon — edit the SVG, re-render the 256×256 PNG from it (e.g. `@resvg/resvg-js`); only the PNG is packaged |
 | `CHANGELOG.md` | Keep a Changelog, per the Workflow section above |

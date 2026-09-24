@@ -12,6 +12,23 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- **Salt Jinja** language for Salt's other Jinja files, with `.jinja`
+  (`map.jinja`, macro libraries, ...) associated by default: same
+  grammar, highlighting, `Ctrl+/` toggle, block highlight, Jinja
+  indentation check, Enter indentation, non-ASCII check and Jinja
+  completion as `.sls`, without the state-only completions
+  (`module.function`, requisites). Editor defaults and `saltSyntax.*`
+  toggles apply to it too.
+  [#26](https://github.com/naqoyqatsi83/salt-syntax/issues/26)
+- `.yaml`/`.yml` files with a line starting with a Jinja `{% %}`/`{# #}`
+  tag (e.g. a formula's `defaults.yaml` / `osfamilymap.yaml`) switch to
+  Salt Jinja when opened. YAML quoting `{{ }}` inside values (Ansible,
+  Helm, GitHub Actions) and files another extension claimed are left
+  alone; switching a file back to YAML sticks for the session.
+  `saltSyntax.detectJinjaInYaml` turns it off.
+  [#27](https://github.com/naqoyqatsi83/salt-syntax/issues/27)
+
 ## [0.8.0] - 2026-09-24
 
 ### Added
