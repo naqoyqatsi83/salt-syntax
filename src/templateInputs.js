@@ -4,8 +4,9 @@
 // salt[...] calls whose results it uses, imported files, and Salt-provided
 // context variables. Static analysis only; nothing is rendered or executed.
 //
-// extractTemplateInputs() is pure (no vscode dependency) so it can be tested
-// on its own; register() wires it into a tree view in the Explorer.
+// Pure (no vscode dependency). The rendered preview (src/preview.js) uses it
+// to show which line of the file reads each input; an earlier version of
+// this PoC showed its output as a tree view, superseded by that preview.
 
 // Jinja regions whose code can read inputs: statements and expressions.
 // Comments (incl. toggled-off {#% %#} tags) and {% raw %} bodies are skipped,
@@ -246,81 +247,4 @@ function groupTemplateInputs(inputs) {
   }).filter((c) => c.keys.length > 0);
 }
 
-function register(context, vscode, isSaltLanguage) {
-  const changed = new vscode.EventEmitter();
-  let groups = [];
-  let uri = null;
-
-  const provider = {
-    onDidChangeTreeData: changed.event,
-    getChildren(node) {
-      if (!node) return groups.map((g) => ({ type: 'category', group: g }));
-      if (node.type === 'category') return node.group.keys.map((k) => ({ type: 'key', entry: k }));
-      if (node.type === 'key' && node.entry.occurrences.length > 1) return node.entry.occurrences.map((o) => ({ type: 'occurrence', occ: o }));
-      return [];
-    },
-    getTreeItem(node) {
-      const C = vscode.TreeItemCollapsibleState;
-      const open = (line) => ({ command: 'vscode.open', title: 'Go to line', arguments: [uri, { selection: new vscode.Range(line, 0, line, 0) }] });
-      if (node.type === 'category') {
-        const item = new vscode.TreeItem(node.group.label, C.Expanded);
-        item.description = String(node.group.keys.length);
-        return item;
-      }
-      if (node.type === 'key') {
-        const e = node.entry;
-        const many = e.occurrences.length > 1;
-        const item = new vscode.TreeItem(e.key, many ? C.Collapsed : C.None);
-        const bits = [];
-        if (e.default !== undefined) bits.push(`default ${e.default}`);
-        if (e.dynamic) bits.push('dynamic');
-        bits.push(many ? `${e.occurrences.length}× · lines ${e.occurrences.map((o) => o.line + 1).join(', ')}` : `line ${e.occurrences[0].line + 1}`);
-        item.description = bits.join(' · ');
-        item.tooltip = e.occurrences.map((o) => `line ${o.line + 1}: ${o.text}`).join('\n');
-        if (!many) item.command = open(e.occurrences[0].line);
-        return item;
-      }
-      const item = new vscode.TreeItem(`line ${node.occ.line + 1}`, C.None);
-      item.description = node.occ.text;
-      item.command = open(node.occ.line);
-      return item;
-    }
-  };
-
-  const view = vscode.window.createTreeView('saltSyntax.templateInputs', { treeDataProvider: provider });
-  let timer = null;
-  const refresh = () => {
-    const editor = vscode.window.activeTextEditor;
-    const isSalt = !!editor && isSaltLanguage(editor.document.languageId);
-    // The view's `when` clause (package.json) reads this, not editorLangId:
-    // editorLangId only exists inside a focused editor's own context, so a
-    // view's `when` -- evaluated at window level -- never sees it.
-    vscode.commands.executeCommand('setContext', 'saltSyntax.activeEditorIsSalt', isSalt);
-    if (!isSalt) {
-      groups = [];
-      uri = null;
-      view.message = 'Open a .sls or Salt Jinja file to see what its Jinja reads.';
-    } else {
-      uri = editor.document.uri;
-      groups = groupTemplateInputs(extractTemplateInputs(editor.document.getText()));
-      view.message = groups.length ? undefined : 'No pillar, grains, salt[...] calls or imports found in this file.';
-    }
-    changed.fire();
-  };
-  const refreshSoon = () => {
-    clearTimeout(timer);
-    timer = setTimeout(refresh, 300);
-  };
-  refresh();
-  context.subscriptions.push(
-    view,
-    changed,
-    vscode.window.onDidChangeActiveTextEditor(refresh),
-    vscode.workspace.onDidChangeTextDocument((e) => {
-      if (vscode.window.activeTextEditor && e.document === vscode.window.activeTextEditor.document) refreshSoon();
-    }),
-    vscode.commands.registerCommand('saltSyntax.showTemplateInputs', () => vscode.commands.executeCommand('saltSyntax.templateInputs.focus'))
-  );
-}
-
-module.exports = { extractTemplateInputs, groupTemplateInputs, register, CATEGORIES };
+module.exports = { extractTemplateInputs, groupTemplateInputs, CATEGORIES };

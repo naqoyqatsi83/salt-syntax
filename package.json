@@ -183,22 +183,45 @@
           ],
           "default": "3008",
           "markdownDescription": "Which Salt release line's state modules/functions to offer in `module.function:` completions. Pick `3006` if your minions are still on the 3006.x LTS line and you need completions for a state module that 3008.x no longer ships. Can also be switched via the **Salt Syntax: Set Salt Version** command."
+        },
+        "saltSyntax.preview.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "markdownDescription": "**Experimental.** Python interpreter the rendered preview uses. It needs the `jinja2` and `pyyaml` packages (`pip install jinja2 pyyaml`); Salt itself isn't needed and nothing Salt-side is executed."
+        },
+        "saltSyntax.preview.fileRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "**Experimental.** Salt file roots the rendered preview resolves imports (`from \"x/map.jinja\"`, `import_yaml`, `salt://...`) and `sls`/`tpldir` against, like the master's `file_roots`. Empty: the workspace folder, or with no folder open, the directory above the file's own (i.e. `<root>/<formula>/file.sls`)."
         }
       }
     },
-    "views": {
-      "explorer": [
+    "viewsContainers": {
+      "panel": [
         {
-          "id": "saltSyntax.templateInputs",
-          "name": "Salt Template Inputs (experimental)",
-          "when": "saltSyntax.activeEditorIsSalt"
+          "id": "saltPreview",
+          "title": "Salt Preview",
+          "icon": "images/preview.svg"
+        }
+      ]
+    },
+    "views": {
+      "saltPreview": [
+        {
+          "type": "webview",
+          "id": "saltSyntax.previewInputs",
+          "name": "Inputs (experimental)"
         }
       ]
     },
     "commands": [
       {
-        "command": "saltSyntax.showTemplateInputs",
-        "title": "Salt Syntax: Show Template Inputs (experimental)"
+        "command": "saltSyntax.openRenderedPreview",
+        "title": "Salt Syntax: Open Rendered Preview (experimental)",
+        "icon": "$(open-preview)"
       },
       {
         "command": "saltSyntax.toggleComment",
@@ -219,8 +242,23 @@
         "key": "ctrl+/",
         "mac": "cmd+/",
         "when": "editorTextFocus && (editorLangId == sls || editorLangId == salt-jinja)"
+      },
+      {
+        "command": "saltSyntax.openRenderedPreview",
+        "key": "ctrl+k v",
+        "mac": "cmd+k v",
+        "when": "editorTextFocus && (editorLangId == sls || editorLangId == salt-jinja)"
       }
-    ]
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "saltSyntax.openRenderedPreview",
+          "when": "resourceLangId == sls || resourceLangId == salt-jinja",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "package": "npx --yes @vscode/vsce package --no-dependencies"

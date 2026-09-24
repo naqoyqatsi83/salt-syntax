@@ -8,3 +8,4 @@ AGENTS.md
 examples/**
 images/icon.svg
 docs/**
+**/__pycache__/**

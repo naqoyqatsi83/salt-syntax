@@ -1,9 +1,8 @@
 # Design notes: Jinja render preview (experimental)
 
-Status: **phase 1 proof of concept** on branch
-`experimental/template-inputs-poc` (tracked by #23) — the input inventory
-panel; see [PoC status](#poc-status-phase-1). Everything past phase 1 is
-still just design. Brainstorm originally captured 2026-09-24.
+Status: **proof of concept** on branch `experimental/template-inputs-poc`
+(tracked by #23): a working rendered preview with an inputs panel — see
+[PoC status](#poc-status). Brainstorm originally captured 2026-09-24.
 
 ## Goal
 
@@ -128,46 +127,55 @@ Once rendered to plain YAML, reuse data the extension already ships:
 5. **Optional exact mode** — real Jinja2 (Python or Pyodide), or
    `salt-call` behind the safety opt-in above.
 
-## PoC status (phase 1)
+## PoC status
 
 Implemented on `experimental/template-inputs-poc`:
 
-- `src/templateInputs.js` — `extractTemplateInputs(text)` (pure, no
-  `vscode` dependency) statically finds, inside `{% %}` / `{{ }}` only
-  (never `{# #}`, toggled-off `{#% %#}`, `{% raw %}` bodies or string
-  literals):
-  - **Pillar** — `pillar.get(k, d)`, `salt['pillar.get'](k, d)`,
-    `pillar['a']['b']`, `pillar.a.b` → keys in Salt's `a:b` notation, with
-    defaults; computed keys (`'users:' ~ user`) kept verbatim, flagged
-    *dynamic*
-  - **Grains** — same shapes, plus `grains.filter_by(..., grain=...)`
-    (`os_family` when `grain=` is omitted, Salt's default)
-  - **Config / opts** — `config.get`, `config.option`, `opts[...]`,
-    `opts.get`
-  - **Other `salt[...]` / `salt.mod.fn(...)` calls** — function + args,
-    *dynamic* if any argument is computed
-  - **Imported files** — `import_yaml`/`import_json`/`import_text`,
-    `from … import`, `import`, `include`, `extends`
-  - **Salt context variables** — `sls`, `tpldir`, `saltenv`, ...
-- A **"Salt Template Inputs (experimental)"** tree view in the Explorer for
-  `.sls` / Salt Jinja files: category → key (default, dynamic, line
-  numbers) → each occurrence; clicking jumps to the line. Refreshes on
-  editor switch and (debounced) on edit. Command:
-  *Salt Syntax: Show Template Inputs (experimental)*.
+- **Rendered preview** (`src/preview.js`) — *Salt Syntax: Open Rendered
+  Preview (experimental)*, the preview button in the editor title bar, or
+  `Ctrl+K V`: the rendered YAML opens beside the formula as a read-only
+  virtual document, live-updating (debounced) as the formula is edited or
+  any file is saved. A header comment names the file, `sls`/`tpldir`, how
+  many inputs are answered / defaulted / unknown, and any render error or
+  invalid-YAML output (with its line).
+- **Salt Preview panel** (bottom panel, webview) — every external input
+  the render needed, grouped (grains, pillar, config/opts, other
+  `salt[...]` calls, undefined variables), each with a status dot
+  (answered / code default used / unknown), the line reading it (from the
+  static extractor in `src/templateInputs.js`), and a text field prefilled
+  with the default. Values are YAML. Answers are kept per file in
+  `globalState`; answers the current render didn't use are listed
+  separately.
+- **Renderer** (`src/preview/render.py`) — **real Jinja2** via the user's
+  `python3` (+ `jinja2`, `pyyaml`; setting `saltSyntax.preview.pythonPath`).
+  Emulates Salt's Jinja: `sls`/`tpldir`/`slspath`/`saltenv`... from the
+  path relative to file roots (`saltSyntax.preview.fileRoots`; else the
+  workspace folder; else the file's grandparent dir), `import_yaml` /
+  `import_json` / `import_text` (rendered through Jinja first, as Salt
+  does) and `load_*` blocks, `salt://` and `./relative` imports, `do` and
+  loop-control extensions, Salt's common filters (unknown ones become
+  pass-throughs with a warning). `grains.filter_by` and the merge helpers
+  (`slsutil.merge`, `defaults.merge`, ...) are *computed*; every other
+  external read is a question. Unanswered inputs use the code's default if
+  it has one, else render as `«kind:key»`. Nothing Salt-side is executed.
+- **Render-until-unknown works as designed**: questions only appear once
+  the render actually reaches them (answering `os_family: RedHat` is what
+  brings up `osmajorrelease`; each loop iteration's computed pillar key
+  appears with the map's default).
 
-Findings so far:
+Findings / limits so far:
 
-- **Real formulas read almost nothing directly** — both sample state
-  files here only `from …/map.jinja import …`; every pillar/grains read
-  lives in `map.jinja`. So the panel is only really useful once it
-  **follows imports**: resolve `from`/`import`/`import_yaml` targets
-  within the workspace (needs a file-roots notion — `tpldir`/`tplroot`
-  derivable from the path, as in the preview design) and list their inputs
-  too, labelled "via map.jinja". That's the obvious next step.
-- Static detection covered every shape in the test formula; the dynamic
-  cases (computed keys, computed call arguments) are reported rather than
-  guessed, as intended — which is exactly what the render-until-unknown
-  questionnaire (phase 2) would resolve.
+- A missing import (e.g. a state file whose `map.jinja` isn't under the
+  resolved root) stops the render with a clear error naming the path
+  looked for; set `saltSyntax.preview.fileRoots` or open the formula
+  folder. Rendering around a missing import is a possible refinement.
+- Imported files are read from disk, so unsaved edits to `map.jinja` show
+  up on save, not live.
+- Salt's `pillar` / `grains` objects in templates are plain dicts;
+  `pillar.get('a:b')` here also resolves nested keys, which is more lenient
+  than real Salt (only `salt['pillar.get']` does that).
+- Not yet: profiles (named answer sets per mock minion), branch dimming,
+  rendered-output checks — see the phased plan.
 
 ## Open questions
 
