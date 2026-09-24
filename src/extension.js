@@ -2773,7 +2773,8 @@ const JINJA_SCAN_RE = /\{#[\s\S]*?#\}|\{%-?\s*([A-Za-z_]\w*)?([\s\S]*?)-?%\}/g;
 // Tags inside Jinja comments and {% raw %} blocks are skipped (Jinja
 // ignores them too); tags on YAML #-comment lines are not, since Jinja
 // still runs those. Closing a block pops anything left unclosed inside it
-// -- the same recovery an editor bracket matcher would do.
+// -- the same recovery an editor bracket matcher would do. Returns the
+// blocks still open at the end of `text`, innermost last.
 function walkJinjaTags(text, visit) {
   const stack = [];
   JINJA_SCAN_RE.lastIndex = 0;
@@ -2828,6 +2829,7 @@ function walkJinjaTags(text, visit) {
       visit(tag, 'plain', null, stack);
     }
   }
+  return stack;
 }
 
 const JINJA_BLOCKS_MIDDLE_KEYWORDS = new Set(Object.values(JINJA_BLOCKS).flatMap((b) => b.middle));
@@ -2857,7 +2859,7 @@ function findJinjaBlockGroups(text) {
 const JINJA_INDENT_STEP = 2;
 const JINJA_INDENT_CODE = 'jinja-indent';
 
-function findJinjaIndentIssues(text) {
+function analyzeJinjaIndent(text) {
   const issues = [];
   const lineOf = (offset) => {
     let line = 0;
@@ -2867,7 +2869,7 @@ function findJinjaIndentIssues(text) {
     return line;
   };
   const describe = (group) => `{% ${group.keyword} %} on line ${lineOf(group.tags[0].start) + 1}`;
-  walkJinjaTags(text, (tag, role, group, stack) => {
+  const openBlocks = walkJinjaTags(text, (tag, role, group, stack) => {
     const lineStart = text.lastIndexOf('\n', tag.start - 1) + 1;
     const prefix = text.slice(lineStart, tag.start);
     const atLineStart = /^[ \t]*$/.test(prefix);
@@ -2903,7 +2905,46 @@ function findJinjaIndentIssues(text) {
       message: `Jinja tag indentation doesn't follow block nesting: expected ${expected} space${expected === 1 ? '' : 's'} (${reason}), found ${found}.`
     });
   });
-  return issues;
+  return { issues, openBlocks };
+}
+
+function findJinjaIndentIssues(text) {
+  return analyzeJinjaIndent(text).issues;
+}
+
+// Where a new `{% keyword ... %}` tag starting a line should be indented,
+// given the blocks open at that point (analyzeJinjaIndent's openBlocks), to follow block nesting: level with the block it
+// continues or closes (elif/else/end...), otherwise two spaces deeper than
+// the innermost open block. null at top level, where there's nothing to
+// follow -- the tag keeps whatever indentation it has.
+function expectedJinjaIndentFor(openBlocks, keyword) {
+  const top = openBlocks[openBlocks.length - 1];
+  if (!top) {
+    return null;
+  }
+  if (keyword.startsWith('end')) {
+    const closing = openBlocks.map((g) => g.keyword).lastIndexOf(keyword.slice(3));
+    if (closing !== -1) {
+      return openBlocks[closing].expected;
+    }
+  }
+  if (JINJA_BLOCKS[top.keyword].middle.includes(keyword)) {
+    return top.expected;
+  }
+  return top.expected + JINJA_INDENT_STEP;
+}
+
+// The extra edit a Jinja completion should carry to re-indent its line (see
+// expectedJinjaIndentFor), or undefined when the line is already right or
+// there's no nesting to follow. `leading` is the line's current leading
+// whitespace; only its range is replaced, so this never overlaps the
+// completion's own edit.
+function jinjaReindentEdit(openBlocks, position, leading, keyword) {
+  const expected = expectedJinjaIndentFor(openBlocks, keyword);
+  if (expected === null || (leading.length === expected && !leading.includes('\t'))) {
+    return undefined;
+  }
+  return [vscode.TextEdit.replace(new vscode.Range(position.line, 0, position.line, leading.length), ' '.repeat(expected))];
 }
 
 // Maps each saltSyntax.* toggle to the [sls]-scoped settings it controls and
@@ -3468,11 +3509,28 @@ async function activate(context) {
           return undefined;
         }
 
+        // Leading whitespace, when what's being completed starts its line --
+        // a bare keyword about to become a block snippet, or the first word
+        // right after a line-leading "{%" -- so the completion can also move
+        // the line to where Jinja nesting says it belongs.
+        const leading = linePrefix.match(/^[ \t]*/)[0];
+        const tagStartsLine = /^[ \t]*\{%-?\s*[A-Za-z_]*$/.test(linePrefix);
+        const wordStartsLine = /^[ \t]*[A-Za-z_][A-Za-z0-9_]*$/.test(linePrefix);
+        // Blocks open above this line, parsed once per request (and only when
+        // a re-indent is possible at all).
+        const openBlocks = tagStartsLine || wordStartsLine
+          ? analyzeJinjaIndent(document.getText(new vscode.Range(0, 0, position.line, 0))).openBlocks
+          : [];
+
         if (insideJinjaTag(linePrefix)) {
           const items = [];
-          JINJA_KEYWORDS.forEach((kw) =>
-            items.push(makeItem(kw, vscode.CompletionItemKind.Keyword, kw, 'Jinja keyword'))
-          );
+          JINJA_KEYWORDS.forEach((kw) => {
+            const item = makeItem(kw, vscode.CompletionItemKind.Keyword, kw, 'Jinja keyword');
+            if (tagStartsLine) {
+              item.additionalTextEdits = jinjaReindentEdit(openBlocks, position, leading, kw);
+            }
+            items.push(item);
+          });
           JINJA_FILTERS.forEach((f) =>
             items.push(makeItem(f, vscode.CompletionItemKind.Function, f, 'Jinja filter'))
           );
@@ -3496,6 +3554,9 @@ async function activate(context) {
           item.detail = s.detail;
           item.filterText = s.filter;
           item.sortText = `${String(i).padStart(3, '0')}_${s.filter}`;
+          if (wordStartsLine) {
+            item.additionalTextEdits = jinjaReindentEdit(openBlocks, position, leading, s.filter);
+          }
           return item;
         });
       }

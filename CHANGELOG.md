@@ -18,7 +18,9 @@ version heading when that state gets tagged and merged to `main`.
   contradicts its nesting — every tag inside a block two spaces deeper
   than the block's opening tag, and a block's `elif`/`else`/`end...` tags
   level with it — with quick fixes to re-indent one tag or every flagged
-  tag in the file.
+  tag in the file. Jinja completion follows the same rule: a block,
+  statement or keyword it inserts at the start of a line also moves that
+  line to the right nesting depth.
   [#24](https://github.com/naqoyqatsi83/salt-syntax/issues/24)
 
 ## [0.7.1] - 2026-09-23

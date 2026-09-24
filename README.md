@@ -273,6 +273,15 @@ Each warning has a quick fix (`Ctrl+.`) to re-indent that tag, plus one to
 re-indent every flagged tag in the file. On by default; turn it off with
 `saltSyntax.jinjaIndentCheck`.
 
+Jinja completion follows the same rule as you type, so what it inserts is
+never what the check then flags: picking a block or statement (`set`,
+`if`, `for`, ...) on a line of its own, or a keyword right after a
+line-leading `{%`, also moves that line to where the nesting says it
+belongs — two spaces deeper than the enclosing block, or level with it for
+`elif`/`else`/`end...`. At the top level there's nothing to follow, so the
+line keeps its indentation. Pressing Enter doesn't do this: the next line
+may just as well be YAML, which has its own indentation.
+
 ### Snippets
 
 Boilerplate that isn't really "completion" so much as "type a short prefix,
