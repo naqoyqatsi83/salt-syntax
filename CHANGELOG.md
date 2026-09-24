@@ -22,6 +22,13 @@ version heading when that state gets tagged and merged to `main`.
   statement or keyword it inserts at the start of a line also moves that
   line to the right nesting depth.
   [#24](https://github.com/naqoyqatsi83/salt-syntax/issues/24)
+- Enter at the end of a line starting with a Jinja `{% %}` tag puts the
+  cursor where the next tag belongs — two spaces deeper than the innermost
+  open block — instead of VS Code's generic auto-indent (which for `.sls`
+  even dedented a level). `saltSyntax.jinjaEnterIndent` = `column0` always
+  goes to column 0 instead; Enter after YAML lines is unaffected. Turns on
+  `editor.formatOnType` for `.sls` files.
+  [#25](https://github.com/naqoyqatsi83/salt-syntax/issues/25)
 
 ## [0.7.1] - 2026-09-23
 

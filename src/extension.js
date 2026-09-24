@@ -3291,6 +3291,41 @@ async function activate(context) {
     { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
   );
 
+  // Enter after a line starting with a {% %} tag: put the new (blank) line
+  // where the next tag would belong under the indentation check's nesting
+  // rule -- two spaces deeper than the innermost open block, or the tag's
+  // own indentation at top level -- or at column 0, per
+  // saltSyntax.jinjaEnterIndent. Enter anywhere else (YAML lines, or
+  // splitting a line) keeps VS Code's normal auto-indent. Runs as on-type
+  // formatting on "\n", which is why package.json's [sls] defaults turn
+  // editor.formatOnType on.
+  const jinjaEnterIndentProvider = vscode.languages.registerOnTypeFormattingEditProvider(
+    selector,
+    {
+      provideOnTypeFormattingEdits(document, position, ch) {
+        if (ch !== '\n' || position.line === 0) {
+          return [];
+        }
+        const current = document.lineAt(position.line).text;
+        const previous = document.lineAt(position.line - 1).text;
+        if (current.trim() !== '' || !/^[ \t]*\{%/.test(previous)) {
+          return [];
+        }
+        let target = 0;
+        if (vscode.workspace.getConfiguration('saltSyntax').get('jinjaEnterIndent', 'followNesting') !== 'column0') {
+          const { openBlocks } = analyzeJinjaIndent(document.getText(new vscode.Range(0, 0, position.line, 0)));
+          const top = openBlocks[openBlocks.length - 1];
+          target = top ? top.expected + JINJA_INDENT_STEP : previous.match(/^[ \t]*/)[0].length;
+        }
+        if (current === ' '.repeat(target)) {
+          return [];
+        }
+        return [vscode.TextEdit.replace(new vscode.Range(position.line, 0, position.line, current.length), ' '.repeat(target))];
+      }
+    },
+    '\n'
+  );
+
   // Quick-pick alternative to hunting down saltSyntax.saltVersion in the
   // settings UI -- writes the same setting, so either path takes effect on
   // the very next completion (see activeDataset()'s live read).
@@ -3601,6 +3636,7 @@ async function activate(context) {
   context.subscriptions.push(
     blockHighlightProvider,
     jinjaIndentActionProvider,
+    jinjaEnterIndentProvider,
     setSaltVersionCommand,
     convertToAsciiCommand,
     nonAsciiActionProvider,

@@ -77,6 +77,7 @@
         "files.insertFinalNewline": true,
         "files.trimFinalNewlines": true,
         "files.eol": "\n",
+        "editor.formatOnType": true,
         "editor.quickSuggestions": {
           "other": true,
           "comments": false,
@@ -126,6 +127,16 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Warn when a Jinja `{% %}` tag's indentation doesn't follow block nesting: every tag inside a block should be indented two spaces deeper than the block's opening tag, and a block's own `elif`/`else`/`end...` tags level with its opening tag — so an `{% if %}` inside a `{% for %}` can't sit at column 0 and read as if it were outside the loop. Only tags that start their line are checked; each warning offers a quick fix to re-indent it, or every flagged tag in the file."
+        },
+        "saltSyntax.jinjaEnterIndent": {
+          "type": "string",
+          "enum": ["followNesting", "column0"],
+          "enumDescriptions": [
+            "Indent the new line two spaces deeper than the innermost open Jinja block (top level: same indentation as the tag line), so the next tag lands where the Jinja indentation check expects it.",
+            "Always start the new line at column 0."
+          ],
+          "default": "followNesting",
+          "markdownDescription": "Where the cursor goes after pressing Enter at the end of a line that starts with a Jinja `{% %}` tag. Enter after any other line (YAML) keeps VS Code's normal auto-indent. Relies on `editor.formatOnType`, which this extension turns on for `.sls` files by default."
         },
         "saltSyntax.saltVersion": {
           "type": "string",

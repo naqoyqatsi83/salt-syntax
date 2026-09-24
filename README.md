@@ -279,8 +279,16 @@ never what the check then flags: picking a block or statement (`set`,
 line-leading `{%`, also moves that line to where the nesting says it
 belongs — two spaces deeper than the enclosing block, or level with it for
 `elif`/`else`/`end...`. At the top level there's nothing to follow, so the
-line keeps its indentation. Pressing Enter doesn't do this: the next line
-may just as well be YAML, which has its own indentation.
+line keeps its indentation.
+
+Pressing Enter at the end of a line that starts with a `{% %}` tag works
+the same way: the new line lands where the next tag would belong — two
+spaces deeper than the innermost open block, so Enter after a nested
+`{% if %}` inside a `{% for %}` puts you inside both, and after an
+`{% endif %}` back at its enclosing level. Prefer the cursor to always go
+to column 0 after a Jinja tag line instead? Set `saltSyntax.jinjaEnterIndent`
+to `column0`. Enter after any other line — YAML — keeps VS Code's normal
+auto-indent either way.
 
 ### Snippets
 
@@ -306,6 +314,9 @@ tabs) — set as this extension's editor defaults for `.sls` files, along with:
 - `files.insertFinalNewline` / `files.trimFinalNewlines` — every save ends
   with exactly one trailing blank line, no more, no less.
 - `files.eol: "\n"` — LF line endings, regardless of platform.
+- `editor.formatOnType: true` — lets Enter after a Jinja tag line follow
+  block nesting (see [Jinja indentation check](#jinja-indentation-check)).
+  This extension's only on-type formatting, so nothing else changes.
 
 All of these are per-language defaults (`[sls]` in VS Code settings), so
 they don't affect any other file type. The last three also have dedicated
@@ -325,6 +336,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
+| `saltSyntax.jinjaEnterIndent` | `followNesting` | Where Enter puts the cursor after a line starting with a `{% %}` tag: `followNesting` (two spaces deeper than the innermost open Jinja block) or `column0`. Other lines keep VS Code's normal auto-indent. Needs `editor.formatOnType`, on by default for `.sls`. |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a
 thin, discoverable wrapper around the editor defaults described above — disabling one doesn't just stop *forcing* that behavior,
