@@ -122,6 +122,11 @@
           "default": true,
           "markdownDescription": "Warn about non-ASCII characters anywhere in `.sls` files (comments included) — smart quotes, en/em dashes, non-breaking spaces, accented letters and the like, typically pasted in from docs or chat — since older Salt minions (Python 2 based, or running under a non-UTF-8 locale) can fail to render a file containing them. Each warning offers a quick fix replacing it with an ASCII equivalent where one exists; **Salt Syntax: Convert Non-ASCII Characters to ASCII** converts the whole file at once."
         },
+        "saltSyntax.jinjaIndentCheck": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Warn when a Jinja `{% %}` tag's indentation doesn't follow block nesting: every tag inside a block should be indented two spaces deeper than the block's opening tag, and a block's own `elif`/`else`/`end...` tags level with its opening tag — so an `{% if %}` inside a `{% for %}` can't sit at column 0 and read as if it were outside the loop. Only tags that start their line are checked; each warning offers a quick fix to re-indent it, or every flagged tag in the file."
+        },
         "saltSyntax.saltVersion": {
           "type": "string",
           "enum": ["3008", "3006"],

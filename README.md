@@ -242,6 +242,37 @@ your settings:
 }
 ```
 
+### Jinja indentation check
+
+Jinja doesn't care how its tags are indented, but a reader does: an
+`{% if %}` inside a `{% for %}` written at column 0 reads as if it were
+outside the loop. So every line starting with a `{% %}` tag whose
+indentation contradicts its nesting gets a warning:
+
+```sls
+{% for item in items %}
+{% if item.enabled %}      {# ⚠ expected 2 spaces (inside {% for %} on line 1) #}
+  ...
+{% endif %}                {# ⚠ expected 2 spaces (level with its {% if %} on line 2) #}
+{% endfor %}
+```
+
+The rule: every tag inside a block sits two spaces deeper than the block's
+opening tag — block tags and everything else alike (`set`, `include`,
+`do`, ...) — and a block's own `elif`/`else`/`end...` tags sit level with
+its opening tag. Nesting is measured from where each opening tag *should*
+be, so one misplaced `{% if %}` flags its `else`/`endif` too, all at once.
+A top-level tag sets its own baseline, so Jinja inside an indented YAML
+block (`contents: |`) nests from wherever it starts. Only tags that start
+their line are checked (`- name: {% if x %}a{% endif %}` is left alone),
+and tags Jinja itself ignores — inside `{# #}`, toggled off as `{#% %#}`,
+or inside `{% raw %}` — don't count. YAML lines between tags aren't
+affected; YAML has its own indentation rules.
+
+Each warning has a quick fix (`Ctrl+.`) to re-indent that tag, plus one to
+re-indent every flagged tag in the file. On by default; turn it off with
+`saltSyntax.jinjaIndentCheck`.
+
 ### Snippets
 
 Boilerplate that isn't really "completion" so much as "type a short prefix,
@@ -284,6 +315,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
+| `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a
 thin, discoverable wrapper around the editor defaults described above — disabling one doesn't just stop *forcing* that behavior,

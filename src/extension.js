@@ -2762,13 +2762,19 @@ const JINJA_BLOCKS = {
 // statement tags, in document order. Tags can span lines.
 const JINJA_SCAN_RE = /\{#[\s\S]*?#\}|\{%-?\s*([A-Za-z_]\w*)?([\s\S]*?)-?%\}/g;
 
-// Groups of block tags, each a list of { start, end, keyword } offsets
-// covering the whole tag. Tags inside Jinja comments and {% raw %} blocks
-// are ignored (Jinja ignores them too); tags on YAML #-comment lines are
-// not, since Jinja still runs those. An unclosed block still groups what it
-// has; a stray end/middle tag with no matching opener is just skipped.
-function findJinjaBlockGroups(text) {
-  const groups = [];
+// Walks every Jinja statement tag in document order, tracking block
+// nesting, and calls visit(tag, role, group, stack) for each, where tag is
+// { start, end, keyword } (offsets covering the whole tag) and role is:
+// - 'open':   opens `group` (stack = the blocks it's nested in)
+// - 'middle': elif/else/... belonging to `group`, the innermost open block
+// - 'end':    closes `group` (stack = the blocks still open around it)
+// - 'plain':  any other tag (inline set, include, do, ...), inside `stack`
+// - 'stray':  an end/middle tag with no matching open block
+// Tags inside Jinja comments and {% raw %} blocks are skipped (Jinja
+// ignores them too); tags on YAML #-comment lines are not, since Jinja
+// still runs those. Closing a block pops anything left unclosed inside it
+// -- the same recovery an editor bracket matcher would do.
+function walkJinjaTags(text, visit) {
   const stack = [];
   JINJA_SCAN_RE.lastIndex = 0;
   let m;
@@ -2779,21 +2785,24 @@ function findJinjaBlockGroups(text) {
     }
     const tag = { start: m.index, end: m.index + m[0].length, keyword };
     if (keyword === 'set' && /=/.test(m[2])) {
-      continue; // inline {% set x = ... %}, not a {% set x %}...{% endset %} block
+      // inline {% set x = ... %}, not a {% set x %}...{% endset %} block
+      visit(tag, 'plain', null, stack);
+      continue;
     }
     if (Object.prototype.hasOwnProperty.call(JINJA_BLOCKS, keyword)) {
       const group = { keyword, tags: [tag] };
-      groups.push(group);
+      visit(tag, 'open', group, stack);
       if (keyword === 'raw') {
         const endRaw = /\{%-?\s*endraw\s*-?%\}/g;
         endRaw.lastIndex = tag.end;
         const e = endRaw.exec(text);
-        if (e) {
-          group.tags.push({ start: e.index, end: e.index + e[0].length, keyword: 'endraw' });
-          JINJA_SCAN_RE.lastIndex = e.index + e[0].length;
-        } else {
+        if (!e) {
           break; // unterminated raw: the rest of the file is raw text
         }
+        const endTag = { start: e.index, end: e.index + e[0].length, keyword: 'endraw' };
+        group.tags.push(endTag);
+        visit(endTag, 'end', group, stack);
+        JINJA_SCAN_RE.lastIndex = endTag.end;
         continue;
       }
       stack.push(group);
@@ -2801,19 +2810,100 @@ function findJinjaBlockGroups(text) {
     }
     const top = stack[stack.length - 1];
     if (keyword.startsWith('end')) {
-      const opener = keyword.slice(3);
-      // Pop back to the matching opener, closing anything left unclosed
-      // inside it -- same recovery an editor bracket matcher would do.
-      const idx = stack.map((g) => g.keyword).lastIndexOf(opener);
-      if (idx !== -1) {
-        stack[idx].tags.push(tag);
-        stack.length = idx;
+      const idx = stack.map((g) => g.keyword).lastIndexOf(keyword.slice(3));
+      if (idx === -1) {
+        visit(tag, 'stray', null, stack);
+        continue;
       }
+      const group = stack[idx];
+      group.tags.push(tag);
+      stack.length = idx;
+      visit(tag, 'end', group, stack);
     } else if (top && JINJA_BLOCKS[top.keyword].middle.includes(keyword)) {
       top.tags.push(tag);
+      visit(tag, 'middle', top, stack);
+    } else if (JINJA_BLOCKS_MIDDLE_KEYWORDS.has(keyword)) {
+      visit(tag, 'stray', null, stack);
+    } else {
+      visit(tag, 'plain', null, stack);
     }
   }
+}
+
+const JINJA_BLOCKS_MIDDLE_KEYWORDS = new Set(Object.values(JINJA_BLOCKS).flatMap((b) => b.middle));
+
+// Groups of block tags (see walkJinjaTags), each { keyword, tags }. An
+// unclosed block still groups what it has.
+function findJinjaBlockGroups(text) {
+  const groups = [];
+  walkJinjaTags(text, (tag, role, group) => {
+    if (role === 'open') {
+      groups.push(group);
+    }
+  });
   return groups;
+}
+
+// Jinja indentation check (saltSyntax.jinjaIndentCheck): a tag that starts
+// its line must sit two spaces deeper than the block it's in, and a block's
+// middle/closing tags (elif/else/endif, endfor, ...) level with its opening
+// tag. Nesting is measured against where each block's opening tag *should*
+// be, not where it is, so one misplaced opener flags its whole block in one
+// pass instead of one tag per fix. A top-level tag sets its own baseline
+// (no expectation), so Jinja inside an indented YAML block scalar
+// (`contents: |`) nests relative to wherever it starts. Tags that don't
+// start their line (`- name: {% if x %}a{% endif %}`) aren't checked.
+// Returns [{ line, actual, expected, tabs, message }].
+const JINJA_INDENT_STEP = 2;
+const JINJA_INDENT_CODE = 'jinja-indent';
+
+function findJinjaIndentIssues(text) {
+  const issues = [];
+  const lineOf = (offset) => {
+    let line = 0;
+    for (let i = text.indexOf('\n'); i !== -1 && i < offset; i = text.indexOf('\n', i + 1)) {
+      line++;
+    }
+    return line;
+  };
+  const describe = (group) => `{% ${group.keyword} %} on line ${lineOf(group.tags[0].start) + 1}`;
+  walkJinjaTags(text, (tag, role, group, stack) => {
+    const lineStart = text.lastIndexOf('\n', tag.start - 1) + 1;
+    const prefix = text.slice(lineStart, tag.start);
+    const atLineStart = /^[ \t]*$/.test(prefix);
+    const parent = stack[stack.length - 1];
+    let expected = null;
+    let reason = '';
+    if (role === 'open' || role === 'plain') {
+      if (parent) {
+        expected = parent.expected + JINJA_INDENT_STEP;
+        reason = `inside ${describe(parent)}`;
+      }
+      if (role === 'open') {
+        // A top-level (or mid-line) opener anchors its block where it is.
+        group.expected = expected !== null ? expected : text.slice(lineStart).match(/^[ \t]*/)[0].length;
+      }
+    } else if (role === 'middle' || role === 'end') {
+      expected = group.expected;
+      reason = `level with its ${describe(group)}`;
+    }
+    if (expected === null || !atLineStart) {
+      return;
+    }
+    const tabs = prefix.includes('\t');
+    if (prefix.length === expected && !tabs) {
+      return;
+    }
+    const found = tabs ? 'tab indentation' : `${prefix.length} space${prefix.length === 1 ? '' : 's'}`;
+    issues.push({
+      line: lineOf(tag.start),
+      actual: prefix.length,
+      expected,
+      tabs,
+      message: `Jinja tag indentation doesn't follow block nesting: expected ${expected} space${expected === 1 ? '' : 's'} (${reason}), found ${found}.`
+    });
+  });
+  return issues;
 }
 
 // Maps each saltSyntax.* toggle to the [sls]-scoped settings it controls and
@@ -3080,6 +3170,85 @@ async function activate(context) {
     }
     await vscode.workspace.applyEdit(edit);
   });
+
+  // Jinja indentation check (see findJinjaIndentIssues): same lifecycle as
+  // the non-ASCII check, in its own collection, governed by
+  // saltSyntax.jinjaIndentCheck.
+  const jinjaIndentDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-jinja-indent');
+  const refreshJinjaIndent = (document) => {
+    if (document.languageId !== 'sls') {
+      return;
+    }
+    if (!vscode.workspace.getConfiguration('saltSyntax').get('jinjaIndentCheck', true)) {
+      jinjaIndentDiagnostics.delete(document.uri);
+      return;
+    }
+    jinjaIndentDiagnostics.set(
+      document.uri,
+      findJinjaIndentIssues(document.getText()).map((issue) => {
+        const d = new vscode.Diagnostic(
+          new vscode.Range(issue.line, 0, issue.line, document.lineAt(issue.line).text.length),
+          issue.message,
+          vscode.DiagnosticSeverity.Warning
+        );
+        d.source = 'Salt Syntax';
+        d.code = JINJA_INDENT_CODE;
+        return d;
+      })
+    );
+  };
+  vscode.workspace.textDocuments.forEach(refreshJinjaIndent);
+  context.subscriptions.push(
+    jinjaIndentDiagnostics,
+    vscode.workspace.onDidOpenTextDocument(refreshJinjaIndent),
+    vscode.workspace.onDidChangeTextDocument((e) => refreshJinjaIndent(e.document)),
+    vscode.workspace.onDidCloseTextDocument((document) => jinjaIndentDiagnostics.delete(document.uri)),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('saltSyntax.jinjaIndentCheck')) {
+        vscode.workspace.textDocuments.forEach(refreshJinjaIndent);
+      }
+    })
+  );
+
+  // Quick fixes: re-indent the tag(s) under the cursor, or every flagged
+  // tag in the file. Issues are recomputed rather than read back off the
+  // diagnostics, since VS Code hands the provider copies without any extra
+  // fields; each fix only rewrites a line's leading whitespace.
+  const jinjaIndentActionProvider = vscode.languages.registerCodeActionsProvider(
+    selector,
+    {
+      provideCodeActions(document, range, ctx) {
+        const ours = ctx.diagnostics.filter((d) => d.code === JINJA_INDENT_CODE);
+        if (ours.length === 0) {
+          return [];
+        }
+        const issues = findJinjaIndentIssues(document.getText());
+        const reindent = (edit, issue) =>
+          edit.replace(document.uri, new vscode.Range(issue.line, 0, issue.line, issue.actual), ' '.repeat(issue.expected));
+        const actions = [];
+        for (const diagnostic of ours) {
+          const issue = issues.find((i) => i.line === diagnostic.range.start.line);
+          if (!issue) {
+            continue;
+          }
+          const action = new vscode.CodeAction(`Re-indent Jinja tag to ${issue.expected} spaces`, vscode.CodeActionKind.QuickFix);
+          action.edit = new vscode.WorkspaceEdit();
+          reindent(action.edit, issue);
+          action.diagnostics = [diagnostic];
+          action.isPreferred = true;
+          actions.push(action);
+        }
+        if (issues.length > 1) {
+          const all = new vscode.CodeAction('Re-indent all Jinja tags in file to follow block nesting', vscode.CodeActionKind.QuickFix);
+          all.edit = new vscode.WorkspaceEdit();
+          issues.forEach((issue) => reindent(all.edit, issue));
+          actions.push(all);
+        }
+        return actions;
+      }
+    },
+    { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+  );
 
   // Quick-pick alternative to hunting down saltSyntax.saltVersion in the
   // settings UI -- writes the same setting, so either path takes effect on
@@ -3370,6 +3539,7 @@ async function activate(context) {
 
   context.subscriptions.push(
     blockHighlightProvider,
+    jinjaIndentActionProvider,
     setSaltVersionCommand,
     convertToAsciiCommand,
     nonAsciiActionProvider,
