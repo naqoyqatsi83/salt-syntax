@@ -3158,6 +3158,9 @@ async function activate(context) {
   const selector = { language: 'sls' };
   const jinjaSelector = SALT_LANGUAGES.map((language) => ({ language }));
 
+  // EXPERIMENTAL (#23): "Salt Template Inputs" view -- see src/templateInputs.js.
+  require('./templateInputs').register(context, vscode, isSaltLanguage);
+
   vscode.workspace.textDocuments.forEach(maybeSwitchYamlToSaltJinja);
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument(maybeSwitchYamlToSaltJinja),

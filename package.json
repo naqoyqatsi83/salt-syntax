@@ -186,7 +186,20 @@
         }
       }
     },
+    "views": {
+      "explorer": [
+        {
+          "id": "saltSyntax.templateInputs",
+          "name": "Salt Template Inputs (experimental)",
+          "when": "editorLangId == sls || editorLangId == salt-jinja"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "saltSyntax.showTemplateInputs",
+        "title": "Salt Syntax: Show Template Inputs (experimental)"
+      },
       {
         "command": "saltSyntax.toggleComment",
         "title": "Salt Syntax: Toggle Jinja/Line Comment"
