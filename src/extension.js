@@ -2984,11 +2984,20 @@ function jinjaReindentEdit(openBlocks, position, leading, keyword) {
 // is set), so "off" has to write a real value: VS Code's own built-in
 // default for that setting, i.e. what a vanilla install with no Salt Syntax
 // preference would use.
+// The indentation trio is the exception: `onValue` makes "on" write a real
+// value too, instead of just clearing back to configurationDefaults --
+// unlike the purely cosmetic toggles above, a generic (non-language)
+// editor.tabSize a user has set for every other language would otherwise
+// beat the weaker configurationDefaults layer here, and YAML is
+// indentation-sensitive enough that this one can't be left to lose that fight.
 const EDITOR_DEFAULT_TOGGLES = [
   { setting: 'saltSyntax.showWhitespace', section: 'editor', key: 'renderWhitespace', offValue: 'selection' },
   { setting: 'saltSyntax.enforceLfLineEndings', section: 'files', key: 'eol', offValue: 'auto' },
   { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'insertFinalNewline', offValue: false },
-  { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'trimFinalNewlines', offValue: false }
+  { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'trimFinalNewlines', offValue: false },
+  { setting: 'saltSyntax.enforceIndentSize', section: 'editor', key: 'tabSize', onValue: 2, offValue: 4 },
+  { setting: 'saltSyntax.enforceIndentSize', section: 'editor', key: 'insertSpaces', onValue: true, offValue: true },
+  { setting: 'saltSyntax.enforceIndentSize', section: 'editor', key: 'detectIndentation', onValue: false, offValue: true }
 ];
 
 async function syncEditorDefaults() {
@@ -3000,7 +3009,7 @@ async function syncEditorDefaults() {
     const key = toggle.setting.split('.')[1];
     const enabled = saltCfg.get(key, true);
     const cfg = vscode.workspace.getConfiguration(toggle.section, { languageId });
-    const value = enabled ? undefined : toggle.offValue;
+    const value = enabled ? toggle.onValue : toggle.offValue;
 
     // Skip the write entirely when it wouldn't change anything -- avoids
     // touching settings.json on every single activation when nothing's
@@ -3195,7 +3204,7 @@ async function activate(context) {
     })
   );
 
-  // Awaited (not fire-and-forget): syncEditorDefaults() writes up to 4
+  // Awaited (not fire-and-forget): syncEditorDefaults() writes up to 7
   // settings sequentially, and VS Code lets activate() return a Promise
   // precisely so setup like this can complete before the extension is
   // considered active, rather than racing document opens or a rapid second
@@ -3206,7 +3215,8 @@ async function activate(context) {
       if (
         e.affectsConfiguration('saltSyntax.showWhitespace') ||
         e.affectsConfiguration('saltSyntax.enforceLfLineEndings') ||
-        e.affectsConfiguration('saltSyntax.enforceFinalNewline')
+        e.affectsConfiguration('saltSyntax.enforceFinalNewline') ||
+        e.affectsConfiguration('saltSyntax.enforceIndentSize')
       ) {
         await syncEditorDefaults();
       }

@@ -17,6 +17,17 @@ version heading when that state gets tagged and merged to `main`.
   `import_json`, `import_text`, `load_yaml`, `load_json`, `load_text` --
   which previously offered nothing while every vanilla Jinja tag did.
   ([#29](https://github.com/naqoyqatsi83/salt-syntax/issues/29))
+- `saltSyntax.enforceIndentSize` setting, actively enforcing 2-space YAML
+  indentation in `.sls`/`.jinja` files the same robust way this extension
+  already enforced line endings and trailing newlines.
+
+### Fixed
+- `.sls`/`.jinja` files could open with 4-space indentation instead of 2:
+  the `configurationDefaults` declaration alone wasn't reliably winning
+  over other editor.tabSize settings, so it's now actively re-asserted
+  the same way this extension already handles line endings and trailing
+  newlines (see `saltSyntax.enforceIndentSize` above).
+  ([#30](https://github.com/naqoyqatsi83/salt-syntax/issues/30))
 
 ## [0.9.0] - 2026-09-24
 
