@@ -1160,10 +1160,29 @@ const MANDATORY_FIELDS_3006 = {
 // Picks which argument set a completion item should use.
 function getFields(mod, fn, variant, dataset) {
   const key = `${mod}.${fn}`;
-  if (variant === 'full' && dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0) {
-    return dataset.fullFunctionFields[key];
+  if (variant === 'full') {
+    // test.* is the one module actually used bare in practice (see
+    // isBareTestBasic below) -- its "full" variant explicitly lists `name`
+    // (every other module's "full" leaves it out, since it's assumed to
+    // already be covered by "basic") since "basic" no longer shows it at all.
+    if (mod === 'test') {
+      return [['name', 'name'], ...(dataset.fullFunctionFields[key] || [])];
+    }
+    if (dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0) {
+      return dataset.fullFunctionFields[key];
+    }
   }
   return getBasicFields(mod, fn, dataset);
+}
+
+// test.* states (nop, succeed_with_changes, fail_without_changes, ...) are
+// deliberately side-effect-free placeholder/debug states, always written
+// bare in real SLS (`{{ sls }}.id:\n  test.nop`, no args at all -- `name`
+// comes from the ID) -- unlike every other module, where "basic" still
+// means "just name" but real usage always fills in more. See AGENTS.md/the
+// module dataset section for why this isn't extended to other modules.
+function isBareTestBasic(mod, variant) {
+  return mod === 'test' && variant === 'basic';
 }
 
 // "basic" = the curated common set (or just `name` if nothing's curated for
@@ -1196,7 +1215,10 @@ function getBasicFields(mod, fn, dataset) {
 function availableVariants(mod, fn, dataset) {
   const key = `${mod}.${fn}`;
   const variants = ['basic'];
-  if (dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0) {
+  // test.* always gets a "full" variant (see isBareTestBasic) even when
+  // there's no dataset.fullFunctionFields entry, since its "basic" no
+  // longer has a `- name:` line for "full" to be the only way to see one.
+  if (mod === 'test' || (dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0)) {
     variants.push('full');
   }
   return variants;
@@ -3513,10 +3535,10 @@ async function activate(context) {
       // instead of inheriting stray indentation.
       const deleteStart = resetIndent ? 0 : modStart;
       const range = new vscode.Range(position.line, deleteStart, position.line, position.character);
-      const fields = getFields(mod, fn, variant, activeDataset());
-      const args = buildArgsBody(fields, '    ', 2);
       const snippet = new vscode.SnippetString(
-        `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
+        isBareTestBasic(mod, variant)
+          ? `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}\n$0`
+          : `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}:\n${buildArgsBody(getFields(mod, fn, variant, activeDataset()), '    ', 2).text}`
       );
       await editor.edit((editBuilder) => editBuilder.delete(range));
       await editor.insertSnippet(snippet, new vscode.Position(position.line, deleteStart));
@@ -3565,10 +3587,13 @@ async function activate(context) {
                   title: 'Insert full state block',
                   arguments: [mod, fn, variant, resetIndent]
                 };
-                const args = buildArgsBody(fields, '    ', 2);
-                item.documentation = new vscode.MarkdownString(
-                  `Inserts a full state block:\n\n\`\`\`sls\n${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
-                );
+                const preview = isBareTestBasic(mod, variant)
+                  ? `${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}`
+                  : `${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}:\n${buildArgsBody(fields, '    ', 2).text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}`;
+                item.documentation = new vscode.MarkdownString(`Inserts a full state block:\n\n\`\`\`sls\n${preview}\n\`\`\``);
+              } else if (isBareTestBasic(mod, variant)) {
+                // Already indented under an existing state id: bare, no args at all.
+                item.insertText = new vscode.SnippetString(`${fn}\n$0`);
               } else {
                 // Already indented under an existing state id: just the function stub.
                 const args = buildArgsBody(fields, '  ', 1);

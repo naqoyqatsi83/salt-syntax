@@ -20,6 +20,12 @@ version heading when that state gets tagged and merged to `main`.
 - `saltSyntax.enforceIndentSize` setting, actively enforcing 2-space YAML
   indentation in `.sls`/`.jinja` files the same robust way this extension
   already enforced line endings and trailing newlines.
+- `test.*` completions (`nop`, `succeed_with_changes`, `fail_without_changes`,
+  ...): "basic" now inserts the true bare form real-world SLS always uses
+  for these deliberately side-effect-free states -- no `- name:`, no colon
+  at all -- and "full" is now offered for every `test.*` function and
+  explicitly includes `name`.
+  ([#31](https://github.com/naqoyqatsi83/salt-syntax/issues/31))
 
 ### Fixed
 - `.sls`/`.jinja` files could open with 4-space indentation instead of 2:
