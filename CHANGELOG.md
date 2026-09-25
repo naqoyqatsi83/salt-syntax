@@ -26,6 +26,11 @@ version heading when that state gets tagged and merged to `main`.
   at all -- and "full" is now offered for every `test.*` function and
   explicitly includes `name`.
   ([#31](https://github.com/naqoyqatsi83/salt-syntax/issues/31))
+- Completion for `do`/`break`/`continue` -- optional Jinja2 extensions
+  (`jinja2.ext.do`, `jinja2.ext.loopcontrols`) that Salt's own Jinja
+  environment always enables, so they're valid in real `.sls`/`.jinja`
+  files despite not being core Jinja2 syntax.
+  ([#32](https://github.com/naqoyqatsi83/salt-syntax/issues/32))
 
 ### Fixed
 - `.sls`/`.jinja` files could open with 4-space indentation instead of 2:

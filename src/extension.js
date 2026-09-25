@@ -2592,7 +2592,12 @@ const JINJA_KEYWORDS = [
   'if', 'elif', 'else', 'endif', 'for', 'endfor', 'in', 'is', 'not', 'and', 'or',
   'set', 'endset', 'block', 'endblock', 'extends', 'include', 'import', 'from',
   'with context', 'without context', 'macro', 'endmacro', 'call', 'endcall',
-  'filter', 'endfilter', 'with', 'endwith', 'raw', 'endraw', 'trans', 'endtrans'
+  'filter', 'endfilter', 'with', 'endwith', 'raw', 'endraw', 'trans', 'endtrans',
+  // Optional Jinja2 extensions (not core syntax on their own), but ones Salt's
+  // own Jinja environment always enables (salt/utils/templates.py, verified
+  // against the same v3008.2 tag): jinja2.ext.do (`do`) and
+  // jinja2.ext.loopcontrols (`break`/`continue` inside a `for`).
+  'do', 'break', 'continue'
 ];
 
 // Salt's own Jinja extension (salt.utils.jinja.SerializerExtension, verified
@@ -2643,6 +2648,9 @@ const JINJA_BLOCK_SNIPPETS = [
   { label: 'include', filter: 'include', detail: 'Jinja include', body: '{% include "${1:template}" %}' },
   { label: 'raw … endraw', filter: 'raw', detail: 'Jinja raw block', body: '{% raw %}\n  $0\n{% endraw %}' },
   { label: 'trans … endtrans', filter: 'trans', detail: 'Jinja trans block', body: '{% trans %}$0{% endtrans %}' },
+  { label: 'do', filter: 'do', detail: 'Jinja do statement (jinja2.ext.do)', body: '{% do ${1:expression} %}' },
+  { label: 'break', filter: 'break', detail: 'Jinja loop break (jinja2.ext.loopcontrols)', body: '{% break %}' },
+  { label: 'continue', filter: 'continue', detail: 'Jinja loop continue (jinja2.ext.loopcontrols)', body: '{% continue %}' },
   { label: 'load_yaml … endload', filter: 'load_yaml', detail: 'Salt: load_yaml block', body: '{% load_yaml as ${1:name} %}\n  $0\n{% endload %}' },
   { label: 'load_json … endload', filter: 'load_json', detail: 'Salt: load_json block', body: '{% load_json as ${1:name} %}\n  $0\n{% endload %}' },
   { label: 'load_text … endload', filter: 'load_text', detail: 'Salt: load_text block', body: '{% load_text as ${1:name} %}\n  $0\n{% endload %}' },
