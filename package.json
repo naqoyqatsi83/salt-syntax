@@ -139,6 +139,11 @@
           "default": true,
           "markdownDescription": "Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). Disabling this writes explicit `\"[sls]\"` overrides in your settings restoring VS Code's own defaults (both `false`); re-enabling removes those overrides again."
         },
+        "saltSyntax.enforceIndentSize": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enforce 2-space indentation (`editor.tabSize`, `editor.insertSpaces`, `editor.detectIndentation`) in `.sls` files, since YAML is indentation-sensitive and doesn't allow tabs at all. Unlike this extension's other `\"[sls]\"` defaults, this one always writes an explicit `\"[sls]\"` override rather than just a weaker language default, so it still wins over a `editor.tabSize` you've set for every other language. Disabling this writes an explicit `\"[sls]\"` override restoring VS Code's own defaults (tab size `4`, auto-detected indentation); re-enabling switches that override back to the enforced 2-space values."
+        },
         "saltSyntax.jinjaWhitespaceControl": {
           "type": "boolean",
           "default": false,

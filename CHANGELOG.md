@@ -12,6 +12,54 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.9.1] - 2026-09-26
+
+### Added
+- Completion for Salt's own Jinja serializer tags -- `import_yaml`,
+  `import_json`, `import_text`, `load_yaml`, `load_json`, `load_text` --
+  which previously offered nothing while every vanilla Jinja tag did.
+  ([#29](https://github.com/naqoyqatsi83/salt-syntax/issues/29))
+- `saltSyntax.enforceIndentSize` setting, actively enforcing 2-space YAML
+  indentation in `.sls`/`.jinja` files the same robust way this extension
+  already enforced line endings and trailing newlines.
+- `test.*` completions (`nop`, `succeed_with_changes`, `fail_without_changes`,
+  ...): "basic" now inserts the true bare form real-world SLS always uses
+  for these deliberately side-effect-free states -- no `- name:`, no colon
+  at all -- and "full" is now offered for every `test.*` function and
+  explicitly includes `name`.
+  ([#31](https://github.com/naqoyqatsi83/salt-syntax/issues/31))
+- Completion for `do`/`break`/`continue` -- optional Jinja2 extensions
+  (`jinja2.ext.do`, `jinja2.ext.loopcontrols`) that Salt's own Jinja
+  environment always enables, so they're valid in real `.sls`/`.jinja`
+  files despite not being core Jinja2 syntax.
+  ([#32](https://github.com/naqoyqatsi83/salt-syntax/issues/32))
+
+### Fixed
+- A YAML comment containing a colon (e.g. `  # Detect something bla:`) got
+  misread as a key line instead of a comment -- `yaml-comment` couldn't
+  start matching as early (column 0) as `plain-key-line`/`dash-key-line`
+  could for an indented comment, so they won that position race whenever
+  the comment's text happened to contain a colon.
+  ([#34](https://github.com/naqoyqatsi83/salt-syntax/issues/34))
+- `plain-key-line` (a bare top-level `key: value` line, as opposed to a
+  `- key: value` state-arg line) never scoped its value at all -- an
+  off-by-one in which capture group was the value meant no quote/boolean/
+  numeric/Jinja highlighting on that line, found while investigating #34.
+  ([#35](https://github.com/naqoyqatsi83/salt-syntax/issues/35))
+- A colon inside a YAML block scalar (`|`/`>`, e.g. a multi-line `cmd.run`
+  shell command containing a quoted string) got misread as a new YAML key,
+  since the grammar re-parsed every line independently with no concept of
+  block scalars at all. Added `block-scalar-dash`/`block-scalar-plain`
+  grammar rules that keep a block scalar's content as inert text (Jinja
+  tags inside it still highlight).
+  ([#33](https://github.com/naqoyqatsi83/salt-syntax/issues/33))
+- `.sls`/`.jinja` files could open with 4-space indentation instead of 2:
+  the `configurationDefaults` declaration alone wasn't reliably winning
+  over other editor.tabSize settings, so it's now actively re-asserted
+  the same way this extension already handles line endings and trailing
+  newlines (see `saltSyntax.enforceIndentSize` above).
+  ([#30](https://github.com/naqoyqatsi83/salt-syntax/issues/30))
+
 ## [0.9.0] - 2026-09-24
 
 ### Added

@@ -1160,10 +1160,29 @@ const MANDATORY_FIELDS_3006 = {
 // Picks which argument set a completion item should use.
 function getFields(mod, fn, variant, dataset) {
   const key = `${mod}.${fn}`;
-  if (variant === 'full' && dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0) {
-    return dataset.fullFunctionFields[key];
+  if (variant === 'full') {
+    // test.* is the one module actually used bare in practice (see
+    // isBareTestBasic below) -- its "full" variant explicitly lists `name`
+    // (every other module's "full" leaves it out, since it's assumed to
+    // already be covered by "basic") since "basic" no longer shows it at all.
+    if (mod === 'test') {
+      return [['name', 'name'], ...(dataset.fullFunctionFields[key] || [])];
+    }
+    if (dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0) {
+      return dataset.fullFunctionFields[key];
+    }
   }
   return getBasicFields(mod, fn, dataset);
+}
+
+// test.* states (nop, succeed_with_changes, fail_without_changes, ...) are
+// deliberately side-effect-free placeholder/debug states, always written
+// bare in real SLS (`{{ sls }}.id:\n  test.nop`, no args at all -- `name`
+// comes from the ID) -- unlike every other module, where "basic" still
+// means "just name" but real usage always fills in more. See AGENTS.md/the
+// module dataset section for why this isn't extended to other modules.
+function isBareTestBasic(mod, variant) {
+  return mod === 'test' && variant === 'basic';
 }
 
 // "basic" = the curated common set (or just `name` if nothing's curated for
@@ -1196,7 +1215,10 @@ function getBasicFields(mod, fn, dataset) {
 function availableVariants(mod, fn, dataset) {
   const key = `${mod}.${fn}`;
   const variants = ['basic'];
-  if (dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0) {
+  // test.* always gets a "full" variant (see isBareTestBasic) even when
+  // there's no dataset.fullFunctionFields entry, since its "basic" no
+  // longer has a `- name:` line for "full" to be the only way to see one.
+  if (mod === 'test' || (dataset.fullFunctionFields[key] && dataset.fullFunctionFields[key].length > 0)) {
     variants.push('full');
   }
   return variants;
@@ -2570,7 +2592,21 @@ const JINJA_KEYWORDS = [
   'if', 'elif', 'else', 'endif', 'for', 'endfor', 'in', 'is', 'not', 'and', 'or',
   'set', 'endset', 'block', 'endblock', 'extends', 'include', 'import', 'from',
   'with context', 'without context', 'macro', 'endmacro', 'call', 'endcall',
-  'filter', 'endfilter', 'with', 'endwith', 'raw', 'endraw', 'trans', 'endtrans'
+  'filter', 'endfilter', 'with', 'endwith', 'raw', 'endraw', 'trans', 'endtrans',
+  // Optional Jinja2 extensions (not core syntax on their own), but ones Salt's
+  // own Jinja environment always enables (salt/utils/templates.py, verified
+  // against the same v3008.2 tag): jinja2.ext.do (`do`) and
+  // jinja2.ext.loopcontrols (`break`/`continue` inside a `for`).
+  'do', 'break', 'continue'
+];
+
+// Salt's own Jinja extension (salt.utils.jinja.SerializerExtension, verified
+// against the same v3008.2 tag as the module dataset above), not vanilla
+// Jinja2: three block tags all closed by the shared `endload`, and three
+// single-tag `import_*` forms that load an external file the same way.
+const SALT_JINJA_TAGS = [
+  'load_yaml', 'load_json', 'load_text', 'endload',
+  'import_yaml', 'import_json', 'import_text'
 ];
 
 const JINJA_FILTERS = [
@@ -2611,7 +2647,16 @@ const JINJA_BLOCK_SNIPPETS = [
   { label: 'import … as', filter: 'import', detail: 'Jinja import', body: '{% import "${1:template}" as ${2:name} with context %}' },
   { label: 'include', filter: 'include', detail: 'Jinja include', body: '{% include "${1:template}" %}' },
   { label: 'raw … endraw', filter: 'raw', detail: 'Jinja raw block', body: '{% raw %}\n  $0\n{% endraw %}' },
-  { label: 'trans … endtrans', filter: 'trans', detail: 'Jinja trans block', body: '{% trans %}$0{% endtrans %}' }
+  { label: 'trans … endtrans', filter: 'trans', detail: 'Jinja trans block', body: '{% trans %}$0{% endtrans %}' },
+  { label: 'do', filter: 'do', detail: 'Jinja do statement (jinja2.ext.do)', body: '{% do ${1:expression} %}' },
+  { label: 'break', filter: 'break', detail: 'Jinja loop break (jinja2.ext.loopcontrols)', body: '{% break %}' },
+  { label: 'continue', filter: 'continue', detail: 'Jinja loop continue (jinja2.ext.loopcontrols)', body: '{% continue %}' },
+  { label: 'load_yaml … endload', filter: 'load_yaml', detail: 'Salt: load_yaml block', body: '{% load_yaml as ${1:name} %}\n  $0\n{% endload %}' },
+  { label: 'load_json … endload', filter: 'load_json', detail: 'Salt: load_json block', body: '{% load_json as ${1:name} %}\n  $0\n{% endload %}' },
+  { label: 'load_text … endload', filter: 'load_text', detail: 'Salt: load_text block', body: '{% load_text as ${1:name} %}\n  $0\n{% endload %}' },
+  { label: 'import_yaml', filter: 'import_yaml', detail: 'Salt: import_yaml statement', body: '{% import_yaml "${1:file.yml}" as ${2:name} %}' },
+  { label: 'import_json', filter: 'import_json', detail: 'Salt: import_json statement', body: '{% import_json "${1:file.json}" as ${2:name} %}' },
+  { label: 'import_text', filter: 'import_text', detail: 'Salt: import_text statement', body: '{% import_text "${1:file.txt}" as ${2:name} %}' }
 ];
 
 function makeItem(label, kind, insertText, detail) {
@@ -2755,8 +2800,20 @@ const JINJA_BLOCKS = {
   block: { middle: [] },
   autoescape: { middle: [] },
   trans: { middle: ['pluralize'] },
-  raw: { middle: [] }
+  raw: { middle: [] },
+  // Salt's SerializerExtension (see SALT_JINJA_TAGS above): all three share
+  // one closing tag, `endload`, rather than each getting their own `end*`.
+  load_yaml: { middle: [], close: 'endload' },
+  load_json: { middle: [], close: 'endload' },
+  load_text: { middle: [], close: 'endload' }
 };
+
+// The tag that closes an open block of this kind -- `end` + keyword for every
+// plain Jinja block, except Salt's load_yaml/load_json/load_text, which all
+// share the single `endload` tag (see JINJA_BLOCKS above).
+function closeKeywordFor(openKeyword) {
+  return JINJA_BLOCKS[openKeyword].close || `end${openKeyword}`;
+}
 
 // Jinja comments (including toggled-off {#% %#} / {#{ }#} tags) and
 // statement tags, in document order. Tags can span lines.
@@ -2811,7 +2868,7 @@ function walkJinjaTags(text, visit) {
     }
     const top = stack[stack.length - 1];
     if (keyword.startsWith('end')) {
-      const idx = stack.map((g) => g.keyword).lastIndexOf(keyword.slice(3));
+      const idx = stack.map((g) => closeKeywordFor(g.keyword)).lastIndexOf(keyword);
       if (idx === -1) {
         visit(tag, 'stray', null, stack);
         continue;
@@ -2923,7 +2980,7 @@ function expectedJinjaIndentFor(openBlocks, keyword) {
     return null;
   }
   if (keyword.startsWith('end')) {
-    const closing = openBlocks.map((g) => g.keyword).lastIndexOf(keyword.slice(3));
+    const closing = openBlocks.map((g) => closeKeywordFor(g.keyword)).lastIndexOf(keyword);
     if (closing !== -1) {
       return openBlocks[closing].expected;
     }
@@ -2957,11 +3014,20 @@ function jinjaReindentEdit(openBlocks, position, leading, keyword) {
 // is set), so "off" has to write a real value: VS Code's own built-in
 // default for that setting, i.e. what a vanilla install with no Salt Syntax
 // preference would use.
+// The indentation trio is the exception: `onValue` makes "on" write a real
+// value too, instead of just clearing back to configurationDefaults --
+// unlike the purely cosmetic toggles above, a generic (non-language)
+// editor.tabSize a user has set for every other language would otherwise
+// beat the weaker configurationDefaults layer here, and YAML is
+// indentation-sensitive enough that this one can't be left to lose that fight.
 const EDITOR_DEFAULT_TOGGLES = [
   { setting: 'saltSyntax.showWhitespace', section: 'editor', key: 'renderWhitespace', offValue: 'selection' },
   { setting: 'saltSyntax.enforceLfLineEndings', section: 'files', key: 'eol', offValue: 'auto' },
   { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'insertFinalNewline', offValue: false },
-  { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'trimFinalNewlines', offValue: false }
+  { setting: 'saltSyntax.enforceFinalNewline', section: 'files', key: 'trimFinalNewlines', offValue: false },
+  { setting: 'saltSyntax.enforceIndentSize', section: 'editor', key: 'tabSize', onValue: 2, offValue: 4 },
+  { setting: 'saltSyntax.enforceIndentSize', section: 'editor', key: 'insertSpaces', onValue: true, offValue: true },
+  { setting: 'saltSyntax.enforceIndentSize', section: 'editor', key: 'detectIndentation', onValue: false, offValue: true }
 ];
 
 async function syncEditorDefaults() {
@@ -2973,7 +3039,7 @@ async function syncEditorDefaults() {
     const key = toggle.setting.split('.')[1];
     const enabled = saltCfg.get(key, true);
     const cfg = vscode.workspace.getConfiguration(toggle.section, { languageId });
-    const value = enabled ? undefined : toggle.offValue;
+    const value = enabled ? toggle.onValue : toggle.offValue;
 
     // Skip the write entirely when it wouldn't change anything -- avoids
     // touching settings.json on every single activation when nothing's
@@ -3171,7 +3237,7 @@ async function activate(context) {
     })
   );
 
-  // Awaited (not fire-and-forget): syncEditorDefaults() writes up to 4
+  // Awaited (not fire-and-forget): syncEditorDefaults() writes up to 7
   // settings sequentially, and VS Code lets activate() return a Promise
   // precisely so setup like this can complete before the extension is
   // considered active, rather than racing document opens or a rapid second
@@ -3182,7 +3248,8 @@ async function activate(context) {
       if (
         e.affectsConfiguration('saltSyntax.showWhitespace') ||
         e.affectsConfiguration('saltSyntax.enforceLfLineEndings') ||
-        e.affectsConfiguration('saltSyntax.enforceFinalNewline')
+        e.affectsConfiguration('saltSyntax.enforceFinalNewline') ||
+        e.affectsConfiguration('saltSyntax.enforceIndentSize')
       ) {
         await syncEditorDefaults();
       }
@@ -3479,10 +3546,10 @@ async function activate(context) {
       // instead of inheriting stray indentation.
       const deleteStart = resetIndent ? 0 : modStart;
       const range = new vscode.Range(position.line, deleteStart, position.line, position.character);
-      const fields = getFields(mod, fn, variant, activeDataset());
-      const args = buildArgsBody(fields, '    ', 2);
       const snippet = new vscode.SnippetString(
-        `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}:\n${args.text}`
+        isBareTestBasic(mod, variant)
+          ? `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}\n$0`
+          : `${stateIdPrefix()}\${1:state_id}:\n  ${mod}.${fn}:\n${buildArgsBody(getFields(mod, fn, variant, activeDataset()), '    ', 2).text}`
       );
       await editor.edit((editBuilder) => editBuilder.delete(range));
       await editor.insertSnippet(snippet, new vscode.Position(position.line, deleteStart));
@@ -3531,10 +3598,13 @@ async function activate(context) {
                   title: 'Insert full state block',
                   arguments: [mod, fn, variant, resetIndent]
                 };
-                const args = buildArgsBody(fields, '    ', 2);
-                item.documentation = new vscode.MarkdownString(
-                  `Inserts a full state block:\n\n\`\`\`sls\n${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}:\n${args.text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}\n\`\`\``
-                );
+                const preview = isBareTestBasic(mod, variant)
+                  ? `${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}`
+                  : `${stateIdPrefix()}<state_id>:\n  ${mod}.${fn}:\n${buildArgsBody(fields, '    ', 2).text.replace(/\$\{\d+:?([^}]*)\}/g, '$1').replace(/\$0/g, '')}`;
+                item.documentation = new vscode.MarkdownString(`Inserts a full state block:\n\n\`\`\`sls\n${preview}\n\`\`\``);
+              } else if (isBareTestBasic(mod, variant)) {
+                // Already indented under an existing state id: bare, no args at all.
+                item.insertText = new vscode.SnippetString(`${fn}\n$0`);
               } else {
                 // Already indented under an existing state id: just the function stub.
                 const args = buildArgsBody(fields, '  ', 1);
@@ -3617,8 +3687,9 @@ async function activate(context) {
 
         if (insideJinjaTag(linePrefix)) {
           const items = [];
-          JINJA_KEYWORDS.forEach((kw) => {
-            const item = makeItem(kw, vscode.CompletionItemKind.Keyword, kw, 'Jinja keyword');
+          [...JINJA_KEYWORDS, ...SALT_JINJA_TAGS].forEach((kw) => {
+            const detail = SALT_JINJA_TAGS.includes(kw) ? 'Salt Jinja tag' : 'Jinja keyword';
+            const item = makeItem(kw, vscode.CompletionItemKind.Keyword, kw, detail);
             if (tagStartsLine) {
               item.additionalTextEdits = jinjaReindentEdit(openBlocks, position, leading, kw);
             }
