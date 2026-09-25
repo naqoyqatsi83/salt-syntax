@@ -2573,6 +2573,15 @@ const JINJA_KEYWORDS = [
   'filter', 'endfilter', 'with', 'endwith', 'raw', 'endraw', 'trans', 'endtrans'
 ];
 
+// Salt's own Jinja extension (salt.utils.jinja.SerializerExtension, verified
+// against the same v3008.2 tag as the module dataset above), not vanilla
+// Jinja2: three block tags all closed by the shared `endload`, and three
+// single-tag `import_*` forms that load an external file the same way.
+const SALT_JINJA_TAGS = [
+  'load_yaml', 'load_json', 'load_text', 'endload',
+  'import_yaml', 'import_json', 'import_text'
+];
+
 const JINJA_FILTERS = [
   'default', 'json', 'yaml', 'tojson', 'upper', 'lower', 'replace', 'join',
   'indent', 'list', 'length', 'trim', 'title', 'capitalize', 'wordwrap',
@@ -2611,7 +2620,13 @@ const JINJA_BLOCK_SNIPPETS = [
   { label: 'import … as', filter: 'import', detail: 'Jinja import', body: '{% import "${1:template}" as ${2:name} with context %}' },
   { label: 'include', filter: 'include', detail: 'Jinja include', body: '{% include "${1:template}" %}' },
   { label: 'raw … endraw', filter: 'raw', detail: 'Jinja raw block', body: '{% raw %}\n  $0\n{% endraw %}' },
-  { label: 'trans … endtrans', filter: 'trans', detail: 'Jinja trans block', body: '{% trans %}$0{% endtrans %}' }
+  { label: 'trans … endtrans', filter: 'trans', detail: 'Jinja trans block', body: '{% trans %}$0{% endtrans %}' },
+  { label: 'load_yaml … endload', filter: 'load_yaml', detail: 'Salt: load_yaml block', body: '{% load_yaml as ${1:name} %}\n  $0\n{% endload %}' },
+  { label: 'load_json … endload', filter: 'load_json', detail: 'Salt: load_json block', body: '{% load_json as ${1:name} %}\n  $0\n{% endload %}' },
+  { label: 'load_text … endload', filter: 'load_text', detail: 'Salt: load_text block', body: '{% load_text as ${1:name} %}\n  $0\n{% endload %}' },
+  { label: 'import_yaml', filter: 'import_yaml', detail: 'Salt: import_yaml statement', body: '{% import_yaml "${1:file.yml}" as ${2:name} %}' },
+  { label: 'import_json', filter: 'import_json', detail: 'Salt: import_json statement', body: '{% import_json "${1:file.json}" as ${2:name} %}' },
+  { label: 'import_text', filter: 'import_text', detail: 'Salt: import_text statement', body: '{% import_text "${1:file.txt}" as ${2:name} %}' }
 ];
 
 function makeItem(label, kind, insertText, detail) {
@@ -2755,8 +2770,20 @@ const JINJA_BLOCKS = {
   block: { middle: [] },
   autoescape: { middle: [] },
   trans: { middle: ['pluralize'] },
-  raw: { middle: [] }
+  raw: { middle: [] },
+  // Salt's SerializerExtension (see SALT_JINJA_TAGS above): all three share
+  // one closing tag, `endload`, rather than each getting their own `end*`.
+  load_yaml: { middle: [], close: 'endload' },
+  load_json: { middle: [], close: 'endload' },
+  load_text: { middle: [], close: 'endload' }
 };
+
+// The tag that closes an open block of this kind -- `end` + keyword for every
+// plain Jinja block, except Salt's load_yaml/load_json/load_text, which all
+// share the single `endload` tag (see JINJA_BLOCKS above).
+function closeKeywordFor(openKeyword) {
+  return JINJA_BLOCKS[openKeyword].close || `end${openKeyword}`;
+}
 
 // Jinja comments (including toggled-off {#% %#} / {#{ }#} tags) and
 // statement tags, in document order. Tags can span lines.
@@ -2811,7 +2838,7 @@ function walkJinjaTags(text, visit) {
     }
     const top = stack[stack.length - 1];
     if (keyword.startsWith('end')) {
-      const idx = stack.map((g) => g.keyword).lastIndexOf(keyword.slice(3));
+      const idx = stack.map((g) => closeKeywordFor(g.keyword)).lastIndexOf(keyword);
       if (idx === -1) {
         visit(tag, 'stray', null, stack);
         continue;
@@ -2923,7 +2950,7 @@ function expectedJinjaIndentFor(openBlocks, keyword) {
     return null;
   }
   if (keyword.startsWith('end')) {
-    const closing = openBlocks.map((g) => g.keyword).lastIndexOf(keyword.slice(3));
+    const closing = openBlocks.map((g) => closeKeywordFor(g.keyword)).lastIndexOf(keyword);
     if (closing !== -1) {
       return openBlocks[closing].expected;
     }
@@ -3614,8 +3641,9 @@ async function activate(context) {
 
         if (insideJinjaTag(linePrefix)) {
           const items = [];
-          JINJA_KEYWORDS.forEach((kw) => {
-            const item = makeItem(kw, vscode.CompletionItemKind.Keyword, kw, 'Jinja keyword');
+          [...JINJA_KEYWORDS, ...SALT_JINJA_TAGS].forEach((kw) => {
+            const detail = SALT_JINJA_TAGS.includes(kw) ? 'Salt Jinja tag' : 'Jinja keyword';
+            const item = makeItem(kw, vscode.CompletionItemKind.Keyword, kw, detail);
             if (tagStartsLine) {
               item.additionalTextEdits = jinjaReindentEdit(openBlocks, position, leading, kw);
             }

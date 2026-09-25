@@ -12,6 +12,12 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- Completion for Salt's own Jinja serializer tags -- `import_yaml`,
+  `import_json`, `import_text`, `load_yaml`, `load_json`, `load_text` --
+  which previously offered nothing while every vanilla Jinja tag did.
+  ([#29](https://github.com/naqoyqatsi83/salt-syntax/issues/29))
+
 ## [0.9.0] - 2026-09-24
 
 ### Added
