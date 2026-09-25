@@ -33,6 +33,13 @@ version heading when that state gets tagged and merged to `main`.
   ([#32](https://github.com/naqoyqatsi83/salt-syntax/issues/32))
 
 ### Fixed
+- A colon inside a YAML block scalar (`|`/`>`, e.g. a multi-line `cmd.run`
+  shell command containing a quoted string) got misread as a new YAML key,
+  since the grammar re-parsed every line independently with no concept of
+  block scalars at all. Added `block-scalar-dash`/`block-scalar-plain`
+  grammar rules that keep a block scalar's content as inert text (Jinja
+  tags inside it still highlight).
+  ([#33](https://github.com/naqoyqatsi83/salt-syntax/issues/33))
 - `.sls`/`.jinja` files could open with 4-space indentation instead of 2:
   the `configurationDefaults` declaration alone wasn't reliably winning
   over other editor.tabSize settings, so it's now actively re-asserted

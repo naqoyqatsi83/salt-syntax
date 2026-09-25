@@ -10,6 +10,8 @@
     { "include": "#jinja-statement" },
     { "include": "#jinja-expression" },
     { "include": "#yaml-comment" },
+    { "include": "#block-scalar-dash" },
+    { "include": "#block-scalar-plain" },
     { "include": "#dash-key-line" },
     { "include": "#plain-list-item" },
     { "include": "#plain-key-line" },
@@ -27,6 +29,38 @@
     "yaml-comment": {
       "match": "(^|\\s)(#.*)$",
       "captures": { "2": { "name": "comment.line.number-sign.sls" } }
+    },
+
+    "block-scalar-dash": {
+      "comment": "- key: | / - key: >  (a YAML block scalar as a state-arg's value, e.g. a multi-line shell command for cmd.run). Everything more indented than the dash (or blank) is inert literal text, not YAML structure -- a colon inside a quoted string, or a leading '-', doesn't get misread as a new key/list item the way it would if each line were re-parsed on its own. Jinja tags inside the block still highlight (common for Jinja-driven indentation via the `indent` filter, which is why the while condition below lets a less-indented line end the block rather than erroring: that line is meant to be plain Jinja, not scalar content).",
+      "begin": "^(\\s*)(-)(\\s+)((?:\\{%.*?%\\}|\\{\\{.*?\\}\\}|\\{#.*?#\\}|[^\\n{]|\\{(?![%{#]))+?)(:)(\\s+)([|>][+\\-0-9]{0,2})\\s*$",
+      "beginCaptures": {
+        "4": { "name": "entity.name.tag.sls", "patterns": [ { "include": "#key-content" } ] },
+        "7": { "name": "keyword.control.flow.block-scalar.sls" }
+      },
+      "while": "^(?:\\1[ \\t].*|\\s*)$",
+      "name": "string.unquoted.block.sls",
+      "patterns": [
+        { "include": "#jinja-comment" },
+        { "include": "#jinja-statement" },
+        { "include": "#jinja-expression" }
+      ]
+    },
+
+    "block-scalar-plain": {
+      "comment": "key: | / key: >  -- same as block-scalar-dash, for a key with no leading '-' (e.g. in a plain YAML data file loaded via load_yaml/import_yaml).",
+      "begin": "^(\\s*)((?=[^\\s\\n])(?:\\{%.*?%\\}|\\{\\{.*?\\}\\}|\\{#.*?#\\}|[^\\n{]|\\{(?![%{#]))+?)(:)(\\s+)([|>][+\\-0-9]{0,2})\\s*$",
+      "beginCaptures": {
+        "2": { "name": "entity.name.tag.sls", "patterns": [ { "include": "#key-content" } ] },
+        "5": { "name": "keyword.control.flow.block-scalar.sls" }
+      },
+      "while": "^(?:\\1[ \\t].*|\\s*)$",
+      "name": "string.unquoted.block.sls",
+      "patterns": [
+        { "include": "#jinja-comment" },
+        { "include": "#jinja-statement" },
+        { "include": "#jinja-expression" }
+      ]
     },
 
     "dash-key-line": {
