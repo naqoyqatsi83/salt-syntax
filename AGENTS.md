@@ -27,6 +27,52 @@ This repo follows a standing process — apply it without being asked:
   `src/extension.js` logic), not after, since nothing will catch a
   mistake on `develop` until the next release.
 
+## Working notes
+
+Carried across sessions/machines since nothing but this repo is shared
+between them — keep it current rather than letting it drift, the way the
+rest of this file stays current.
+
+- **Where things stand:** `develop` and `main` are at `v0.9.0`. The
+  rendered-preview PoC lives only on `experimental/template-inputs-poc`,
+  with pre-release `v0.10.0-rc.1` cut from it; `experimental/jinja-render-preview`
+  holds only the original design notes. Issue #23 tracks the feature and
+  is still open.
+- **Identity:** commit, tag, and release only as the one identity this
+  repo's history already uses — never introduce any other name or handle
+  into a commit, issue, or release here.
+- **Release habits:**
+  - Bump `package.json`'s version before cutting an RC tag.
+  - Delete RC tags once the final release they led up to is tagged.
+  - Use "Refs #N" (not "Fixes #N") in a commit message when the fix still
+    needs testing before it should count as closing the issue — pushing
+    to `develop` auto-closes on "Fixes #N".
+  - Close an issue with a comment naming the resolving commit and how it
+    was verified, per the Workflow section above.
+- **Tooling:**
+  - Packaging needs Node 20+, not whatever's on `PATH`: `npx -p node@20
+    -p @vscode/vsce -c "vsce package --no-dependencies"`.
+  - Manual install for local testing: `code --install-extension
+    <file>.vsix --force`, then Reload Window.
+  - On Windows, the preview's Python interpreter is usually `python` or
+    `py`, not `python3` (which may be a Microsoft Store stub that does
+    nothing) — set `saltSyntax.preview.pythonPath` explicitly and
+    `pip install jinja2 pyyaml` for it.
+- **Lessons learned:**
+  - A sidebar panel's visibility can't key off `editorLangId`; the
+    extension has to set and check its own context key instead.
+  - Brackets that stay colored inside a comment after an edit are a
+    stale VS Code re-tokenization quirk, fixed by reopening the file —
+    not a grammar bug worth chasing.
+  - Debug suspicious coloring by tokenizing with `vscode-textmate`
+    against the real theme file, per "Verifying grammar changes" below —
+    not by eyeballing a screenshot.
+- **Next up:** the mocked-`vscode` test scripts for `src/extension.js`
+  logic have only ever lived in a temp directory outside git, and have
+  already been lost once as a result. Give them a `test/` folder in the
+  repo so that stops happening; they'll need to be rewritten from
+  scratch since the originals are gone.
+
 ## Project Nature
 
 A VS Code language extension for SaltStack `.sls` files (YAML + embedded
