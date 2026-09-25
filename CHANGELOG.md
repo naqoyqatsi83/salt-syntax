@@ -33,6 +33,17 @@ version heading when that state gets tagged and merged to `main`.
   ([#32](https://github.com/naqoyqatsi83/salt-syntax/issues/32))
 
 ### Fixed
+- A YAML comment containing a colon (e.g. `  # Detect something bla:`) got
+  misread as a key line instead of a comment -- `yaml-comment` couldn't
+  start matching as early (column 0) as `plain-key-line`/`dash-key-line`
+  could for an indented comment, so they won that position race whenever
+  the comment's text happened to contain a colon.
+  ([#34](https://github.com/naqoyqatsi83/salt-syntax/issues/34))
+- `plain-key-line` (a bare top-level `key: value` line, as opposed to a
+  `- key: value` state-arg line) never scoped its value at all -- an
+  off-by-one in which capture group was the value meant no quote/boolean/
+  numeric/Jinja highlighting on that line, found while investigating #34.
+  ([#35](https://github.com/naqoyqatsi83/salt-syntax/issues/35))
 - A colon inside a YAML block scalar (`|`/`>`, e.g. a multi-line `cmd.run`
   shell command containing a quoted string) got misread as a new YAML key,
   since the grammar re-parsed every line independently with no concept of

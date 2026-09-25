@@ -27,7 +27,8 @@
     },
 
     "yaml-comment": {
-      "match": "(^|\\s)(#.*)$",
+      "comment": "A whole-line YAML comment. Anchored at the true start of the line (only whitespace before '#') rather than the old `(^|\\s)(#.*)$`, which could only start matching at the whitespace right before '#' -- later than column 0 for an indented comment. TextMate picks whichever pattern starts earliest, so dash-key-line/plain-key-line (which always start at column 0 via their own leading-whitespace capture) used to win that race whenever the comment's text happened to contain a colon, e.g. `  # Detect something bla bla bla:` was read as a key line instead of a comment.",
+      "match": "^(\\s*)(#.*)$",
       "captures": { "2": { "name": "comment.line.number-sign.sls" } }
     },
 
@@ -81,11 +82,11 @@
     },
 
     "plain-key-line": {
-      "comment": "key: value   (module.function:, or a top-level state id with no Jinja in it)",
+      "comment": "key: value   (module.function:, or a top-level state id with no Jinja in it). The value is group 5, not 4 -- 4 is the optional whitespace between the colon and it (see dash-key-line's equivalent groups 6/7 for the same shape) -- so the value previously got no scoping at all (no quote/boolean/numeric/Jinja highlighting) for every plain top-level `key: value` line, e.g. throughout a plain YAML data file loaded via load_yaml/import_yaml.",
       "match": "^(\\s*)((?=[^\\s\\n])(?:\\{%.*?%\\}|\\{\\{.*?\\}\\}|\\{#.*?#\\}|[^\\n{]|\\{(?![%{#]))+?)(:)(?:(\\s+)(.*))?$",
       "captures": {
         "2": { "name": "entity.name.tag.sls", "patterns": [ { "include": "#key-content" } ] },
-        "4": { "patterns": [ { "include": "#sls-value" } ] }
+        "5": { "patterns": [ { "include": "#sls-value" } ] }
       }
     },
 
