@@ -33,11 +33,14 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.9.0`. The
-  rendered-preview PoC lives only on `experimental/template-inputs-poc`,
-  with pre-release `v0.10.0-rc.1` cut from it; `experimental/jinja-render-preview`
-  holds only the original design notes. Issue #23 tracks the feature and
-  is still open.
+- **Where things stand:** `develop` and `main` are at `v0.9.1` (7 grammar/
+  completion bugs found and fixed in one session -- #29-#35, all closed).
+  The rendered-preview PoC lives only on `experimental/template-inputs-poc`,
+  merged up to date with those fixes as of `0ff1604`; `v0.10.0-rc.1`
+  predates that merge, so it's stale -- cut a new RC before testing 0.10.0
+  again. `experimental/jinja-render-preview` holds only the original design
+  notes (never merged forward, left as-is). Issue #23 tracks the feature
+  and is still open.
 - **Identity:** commit, tag, and release only as the one identity this
   repo's history already uses — never introduce any other name or handle
   into a commit, issue, or release here.
