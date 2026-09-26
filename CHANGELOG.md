@@ -49,6 +49,11 @@ version heading when that state gets tagged and merged to `main`.
   includes defines are flagged as suspicious.
   [#46](https://github.com/naqoyqatsi83/salt-syntax/issues/46)
 
+### Changed
+- The TextMate grammar now has regression tests (`test/grammar.test.js`,
+  run in CI), tokenizing with VS Code's own engine.
+  [#47](https://github.com/naqoyqatsi83/salt-syntax/issues/47)
+
 ## [0.9.2] - 2026-09-26
 
 ### Added

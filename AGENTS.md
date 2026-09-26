@@ -201,8 +201,13 @@ regression until the next release.
 
 ## Verifying grammar changes
 
-There's no test suite that runs in CI for the grammar itself (it's a
-TextMate grammar, not code) — verify changes by tokenizing a sample file
+`test/grammar.test.js` guards the grammar in CI: it tokenizes with VS
+Code's own engine (`vscode-textmate` + `vscode-oniguruma`, installed on
+demand into `test/.cache` by `test/helpers/tokenizer.js`) and asserts the
+scopes each past grammar fix established (#28, #33, #34, #35), zero
+`invalid` tokens across the example formula, and that the Salt Jinja
+grammar tokenizes identically. When fixing a grammar bug, add its case
+there first and check it fails without the fix. Beyond that, verify changes by tokenizing a sample file
 with `vscode-textmate`/`vscode-oniguruma` directly (outside the editor) and,
 when a specific color theme is in play, by loading that theme's actual
 `tokenColors` and checking what a token really resolves to, rather than
