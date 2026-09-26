@@ -12,6 +12,14 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- Typing `{{` now auto-closes to `{{ | }}` -- a space before the cursor as
+  well as after -- for the usual `{{ variable }}` style, in the same undo
+  step as the typing. Only `{{`: `{%` is so often typed as `{%-`
+  (whitespace control) that a pre-inserted space would break it.
+  `saltSyntax.padJinjaExpressions` turns it off.
+  [#37](https://github.com/naqoyqatsi83/salt-syntax/issues/37)
+
 ### Fixed
 - Enter in front of a line's text gave the pushed-down line VS Code's
   generic auto-indent -- the last non-blank line's indentation -- e.g. 2
