@@ -151,6 +151,8 @@ function register(context, vscode, isSaltLanguage) {
   // - A render error: an error on the line Jinja reports -- in the source,
   //   or in the imported file it happened in.
   // - Renderer warnings: on their own header line of the preview.
+  // All at Warning severity -- the same amber as the other checks (e.g. the
+  // non-ASCII one), so everything this extension flags looks alike.
   function updateDiagnostics(state) {
     const key = state.uri.toString();
     for (const uri of diagnosedUris.get(key) || []) diagnostics.delete(uri);
@@ -173,11 +175,11 @@ function register(context, vscode, isSaltLanguage) {
         const e = r.error;
         const where = e.file === r.context.file || !e.file ? state.uri : path.isAbsolute(e.file) ? vscode.Uri.file(e.file) : null;
         const line = e.line ? e.line - 1 : 0;
-        add(where || state.uri, make(where ? line : 0, where ? `Render error: ${e.message}` : `Render error in ${e.file}${e.line ? ` line ${e.line}` : ''}: ${e.message}`, vscode.DiagnosticSeverity.Error));
+        add(where || state.uri, make(where ? line : 0, where ? `Render error: ${e.message}` : `Render error in ${e.file}${e.line ? ` line ${e.line}` : ''}: ${e.message}`, vscode.DiagnosticSeverity.Warning));
       } else {
         const at = (renderedLine) => renderedLine - 1 + head.length; // 0-based preview line
         for (const y of yamlErrorsOf(r)) {
-          const d = make(y.line ? at(y.line) : 0, `Salt would reject this output: ${y.message}`, vscode.DiagnosticSeverity.Error);
+          const d = make(y.line ? at(y.line) : 0, `Salt would reject this output: ${y.message}`, vscode.DiagnosticSeverity.Warning);
           const other = y.firstLine ? [y.firstLine, 'first defined here'] : y.gaveUpLine ? [y.gaveUpLine, 'the parser gave up here'] : null;
           if (other) {
             d.relatedInformation = [new vscode.DiagnosticRelatedInformation(
@@ -383,8 +385,8 @@ function render(s) {
   root.replaceChildren();
   root.append(el('div', { class: 'file' }, s.file));
   if (s.fatal) { root.append(el('div', { class: 'msg err' }, s.fatal)); return; }
-  if (s.error) root.append(el('div', { class: 'msg err' }, 'Render error' + (s.error.line ? ' (' + (s.error.file || '') + ' line ' + s.error.line + ')' : '') + ': ' + s.error.message));
-  for (const y of s.yamlErrors) root.append(el('div', { class: 'msg err' }, y));
+  if (s.error) root.append(el('div', { class: 'msg' }, 'Render error' + (s.error.line ? ' (' + (s.error.file || '') + ' line ' + s.error.line + ')' : '') + ': ' + s.error.message));
+  for (const y of s.yamlErrors) root.append(el('div', { class: 'msg' }, y));
   for (const w of s.warnings) root.append(el('div', { class: 'msg' }, w));
   if (s.rendering) root.append(el('div', { class: 'empty' }, 'Rendering…'));
   const byKind = {};
