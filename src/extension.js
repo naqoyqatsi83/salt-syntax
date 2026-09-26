@@ -3231,7 +3231,12 @@ async function activate(context) {
   const jinjaSelector = SALT_LANGUAGES.map((language) => ({ language }));
 
   // EXPERIMENTAL (#23): rendered preview + inputs panel -- see src/preview.js.
-  require('./preview').register(context, vscode, isSaltLanguage);
+  // The preview checks state calls against the selected Salt line's module /
+  // function lists and required parameters (MODULE_DATASETS, below).
+  require('./preview').register(context, vscode, isSaltLanguage, (version) => {
+    const ds = MODULE_DATASETS[version] || MODULE_DATASETS['3008'];
+    return { functions: ds.moduleFunctions, mandatory: ds.mandatoryFields };
+  });
 
   vscode.workspace.textDocuments.forEach(maybeSwitchYamlToSaltJinja);
   context.subscriptions.push(

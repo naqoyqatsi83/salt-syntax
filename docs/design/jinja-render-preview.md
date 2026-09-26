@@ -227,7 +227,10 @@ else); the preview uses the same wording.
 
 Salt runs `_handle_state_decls()` (identical in both), then
 `verify_high()` (3006.27: `State.verify_high`; 3008.2: `_verify_high`).
-Ported and checked **message-for-message against Salt's own code**: the
+The run-time checks (`State.verify_data()`: unknown function, missing
+parameter) and include resolution (`render_state()`) are identical in
+3006.27 and 3008.2. The structural checks were ported and checked
+**message-for-message against Salt's own code**: the
 real functions extracted from both versions' `state.py`, run on the same
 rendered data — 20 scenarios × 2 versions, 0 mismatches.
 
@@ -246,9 +249,10 @@ rendered data — 20 scenarios × 2 versions, 0 mismatches.
 | Requisite argument with more than one key | ✓ | ✓ | ✅ |
 | `names:` not a list | — | ✓ | ✅ |
 | An argument with nothing after its colon (`- name:`) | accepted (runs as None) | accepted | ✅ flagged as *suspicious* |
-| Unknown `module.function` ("State … was not found") | ✓ | ✓ | ❌ next — datasets per version already ship with the extension |
-| Missing required argument ("Missing parameter …") | ✓ | ✓ | ❌ next — `MANDATORY_FIELDS_*` already ship |
-| `include:` target not found ("Unknown include: Specified SLS … is not available") | ✓ | ✓ | ❌ next — resolvable against the file roots |
+| Unknown function of a known module ("State … was not found in SLS …", when the state runs) | ✓ | ✓ | ✅ against the version's function list; *fails that state* |
+| Module core Salt doesn't have in that version (e.g. `boto_*` in 3008) | ✓ | ✓ | ✅ as *suspicious* — a salt-extension package or custom `_states` module may provide it; a formula's own `_states/*.py` (by file name and `__virtualname__`) is recognised and skipped |
+| Missing required argument ("Missing parameter … for state …", when the state runs) | ✓ | ✓ | ✅ against the version's required parameters; `name` always counts (it defaults to the ID); skipped for `names:` entries carrying their own arguments |
+| `include:` target not found ("Unknown include: Specified SLS … is not available …"), relative include beyond the top package | ✓ | ✓ | ✅ resolved like `render_state()` — relative (`.foo`, `init.sls` counting as a level), fnmatch globs, `<name>.sls` or `<name>/init.sls` under the file roots; entries for another saltenv are skipped |
 | Requisites / `extend:` pointing at states in other files | ✓ | ✓ | ❌ later — needs the included files rendered too |
 
 Corrections the research made to earlier assumptions:

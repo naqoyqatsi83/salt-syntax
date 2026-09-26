@@ -361,7 +361,103 @@ def _syntax_problem(exc):
     return {"message": message, "line": line, "gaveUpLine": gave_up if gave_up != line else None}
 
 
-def check_rendered_yaml(text, version="3008", sls=""):
+def custom_state_modules(roots):
+    """State modules a formula ships itself: `<root>/_states/*.py`, by file
+    name and by any __virtualname__ -- Salt syncs these to minions, so the
+    core module list doesn't cover them."""
+    names = set()
+    for root in roots:
+        folder = os.path.join(root, "_states")
+        if not os.path.isdir(folder):
+            continue
+        for entry in os.listdir(folder):
+            if not entry.endswith(".py") or entry.startswith("_"):
+                continue
+            names.add(entry[:-3])
+            try:
+                with open(os.path.join(folder, entry), encoding="utf-8", errors="replace") as fh:
+                    m = re.search(r"""^__virtualname__\s*=\s*['"]([\w]+)['"]""", fh.read(), re.M)
+                if m:
+                    names.add(m.group(1))
+            except OSError:
+                pass
+    return names
+
+
+def _sls_available(roots, pattern, limit=5000):
+    """Whether an SLS name (fnmatch pattern, like Salt's include matching)
+    exists under the roots, as <name>.sls or <name>/init.sls. Literal names
+    are checked directly; globs walk only the directory their literal
+    prefix names, and at most `limit` files -- the fallback root can be a
+    home directory."""
+    import fnmatch
+    if not re.search(r"[*?\[]", pattern):
+        rel = pattern.replace(".", os.sep)
+        return any(os.path.isfile(os.path.join(root, rel + ".sls")) or
+                   os.path.isfile(os.path.join(root, rel, "init.sls")) for root in roots)
+    prefix = re.split(r"[*?\[]", pattern, 1)[0].rsplit(".", 1)[0] if "." in pattern.split("*")[0] else ""
+    seen = 0
+    for root in roots:
+        base = os.path.join(root, prefix.replace(".", os.sep)) if prefix else root
+        for dirpath, _dirs, files in os.walk(base):
+            for f in files:
+                seen += 1
+                if seen > limit:
+                    return True  # too big to tell -- don't cry wolf
+                if not f.endswith(".sls"):
+                    continue
+                rel = os.path.relpath(os.path.join(dirpath, f), root)[:-4].replace(os.sep, ".")
+                if rel.endswith(".init"):
+                    rel = rel[: -len(".init")]
+                if fnmatch.fnmatch(rel, pattern):
+                    return True
+    return False
+
+
+def include_problems(text, roots, sls, rel_file, saltenv="base"):
+    """render_state()'s include handling (identical in 3006 and 3008):
+    resolve each `include:` entry -- relative ones (`.foo`) against this
+    SLS, globs with fnmatch -- and flag those not available under the file
+    roots, with Salt's messages. Entries for another saltenv
+    (`- otherenv: foo`) can't be seen from here and are skipped."""
+    try:
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(root, yaml.MappingNode) or not roots:
+        return []
+    found = []
+    for key, value in root.value:
+        if not (isinstance(key, yaml.ScalarNode) and key.value == "include" and isinstance(value, yaml.SequenceNode)):
+            continue
+        for item in value.value:
+            if isinstance(item, yaml.MappingNode):
+                if len(item.value) != 1 or item.value[0][0].value != saltenv:
+                    continue
+                node = item.value[0][1]
+            else:
+                node = item
+            if not (isinstance(node, yaml.ScalarNode) and node.value):
+                continue
+            inc = node.value
+            if inc.startswith("."):
+                m = re.match(r"^(\.+)(.*)$", inc)
+                levels, rest = m.groups()
+                comps = sls.split(".")
+                if rel_file.endswith("/init.sls") or rel_file == "init.sls":
+                    comps.append("init")
+                if len(levels) > len(comps):
+                    found.append({"message": f"Attempted relative include of '{inc}' within SLS '{saltenv}:{sls}' goes "
+                                             "beyond top level package", "line": node.start_mark.line + 1, "reject": True})
+                    continue
+                inc = ".".join(comps[: -len(levels)] + [rest])
+            if not _sls_available(roots, inc):
+                found.append({"message": f"Unknown include: Specified SLS {saltenv}: {inc} is not available on the salt "
+                                         f"master in saltenv(s): {saltenv}", "line": node.start_mark.line + 1, "reject": True})
+    return found
+
+
+def check_rendered_yaml(text, version="3008", sls="", state_data=None, roots=(), rel_file=""):
     """Every reason Salt's YAML loading would reject `text`, in line order:
     syntax errors and every conflicting ID. Salt stops at the first; here a
     syntax error's line is blanked (line numbers kept) and the text checked
@@ -385,7 +481,9 @@ def check_rendered_yaml(text, version="3008", sls=""):
             problems.append({"message": str(exc), "line": None})
             break
     problems.extend(conflicts)
-    problems.extend(compiler_problems("".join(lines), version, sls))
+    checked = "".join(lines)
+    problems.extend(compiler_problems(checked, version, sls, state_data, frozenset(custom_state_modules(roots))))
+    problems.extend(include_problems(checked, roots, sls, rel_file))
     return sorted(problems, key=lambda p: (p["line"] is None, p["line"] or 0))
 
 
@@ -415,10 +513,14 @@ def _is_empty(node):
     return isinstance(node, yaml.ScalarNode) and node.tag == "tag:yaml.org,2002:null" and node.value == ""
 
 
-def compiler_problems(text, version, sls):
-    """What Salt's state compiler would reject in the rendered data, plus
-    one thing it accepts but is almost certainly a mistake (an argument
-    rendered empty). Each: {message, line, reject}."""
+def compiler_problems(text, version, sls, state_data=None, custom_modules=frozenset()):
+    """What Salt's state compiler would reject in the rendered data, what
+    would fail a state when it runs (unknown function, missing required
+    parameter -- with `state_data` = the selected version's
+    {functions: {mod: [fn]}, mandatory: {"mod.fn": [param]}}), plus things
+    it accepts but are almost certainly mistakes (an argument rendered
+    empty, a module core Salt doesn't have). Each: {message, line, reject,
+    lead?}."""
     try:
         root = yaml.compose(text, Loader=yaml.SafeLoader)
     except yaml.YAMLError:
@@ -434,6 +536,37 @@ def compiler_problems(text, version, sls):
     def reject(node, message):
         found.append({"message": message, "line": node.start_mark.line + 1, "reject": True})
 
+    functions = (state_data or {}).get("functions") or {}
+    mandatory = (state_data or {}).get("mandatory") or {}
+
+    def check_call(mod, fn, node, given, args_known):
+        """State.verify_data() (identical in 3006 and 3008) when the state
+        runs: the function must exist, and every parameter without a
+        default must be in the state's data -- `name` always is, it
+        defaults to the ID. Skipped for a formula's custom _states module
+        (it may define or override anything)."""
+        if not functions or mod in custom_modules:
+            return
+        full = f"{mod}.{fn}"
+        if mod not in functions:
+            found.append({
+                "message": f"'{mod}' isn't a state module in Salt {version} -- Salt fails the state (\"State '{full}' "
+                           f"was not found in SLS '{sls}'\") unless a salt-extension package or a custom _states "
+                           "module on the minion provides it",
+                "line": node.start_mark.line + 1,
+                "reject": False,
+            })
+            return
+        if fn not in functions[mod]:
+            found.append({"message": f"State '{full}' was not found in SLS '{sls}'",
+                          "line": node.start_mark.line + 1, "reject": True, "lead": "state"})
+            return
+        if args_known:
+            for param in mandatory.get(full, []):
+                if param not in given:
+                    found.append({"message": f"Missing parameter {param} for state {full}",
+                                  "line": node.start_mark.line + 1, "reject": True, "lead": "state"})
+
     for id_node, body in root.value:
         id_ = py(id_node)
         if isinstance(id_, str) and (id_ in SLS_SPECIAL_KEYS or id_.startswith("__")):
@@ -448,6 +581,8 @@ def compiler_problems(text, version, sls):
         # body is an error; `mod.fn: [args]` becomes `mod: [args..., fn]`,
         # and a second `mod.other:` for the same module is an error.
         if isinstance(body, yaml.ScalarNode) and body.tag == "tag:yaml.org,2002:str" and "." in body.value:
+            mod, fn = body.value.split(".", 1)
+            check_call(mod, fn, body, {"name"}, True)
             continue
         if not isinstance(body, yaml.MappingNode):
             message = f"ID {id_} in SLS {sls} is not a dictionary"
@@ -487,11 +622,15 @@ def compiler_problems(text, version, sls):
                 continue
             funs = 1 if "." in state else 0
             fun_names = [state.split(".", 1)[1]] if "." in state else []
+            fun_nodes = [key_node] if "." in state else []
+            given = {"name"}  # compile_high_data() starts every state's data with its ID as `name`
+            args_known = True
             for arg in value.value:
                 arg_value = py(arg)
                 if isinstance(arg_value, str):
                     funs += 1
                     fun_names.append(arg_value)
+                    fun_nodes.append(arg)
                     if " " in arg_value.strip():
                         reject(arg, f'The function "{arg_value}" in state "{id_}" in SLS "{sls}" has whitespace, a '
                                     'function with whitespace is not supported, perhaps this is an argument that is '
@@ -501,6 +640,12 @@ def compiler_problems(text, version, sls):
                     continue
                 argfirst = py(arg.value[0][0])
                 arg_val_node = arg.value[0][1]
+                given.update(str(py(k)) for k, _v in arg.value)
+                # `names:` entries can carry their own arguments ({name: [{arg: v}]});
+                # don't guess at what each expanded state ends up with.
+                if argfirst == "names" and isinstance(arg_val_node, yaml.SequenceNode) and any(
+                        isinstance(n, yaml.MappingNode) for n in arg_val_node.value):
+                    args_known = False
                 if not v3006 and argfirst == "names" and not isinstance(arg_val_node, yaml.SequenceNode):
                     reject(arg, f"The 'names' argument in state '{id_}' in SLS '{sls}' needs to be formed as a list")
                 if argfirst in requisites:
@@ -541,6 +686,9 @@ def compiler_problems(text, version, sls):
             if padded_fn is not None:
                 funs += 1
                 fun_names.append(padded_fn)
+                fun_nodes.append(key_node)
+            if funs == 1 and "." not in state:
+                check_call(state, str(fun_names[0]), fun_nodes[0], given, args_known)
             if not funs:
                 if v3006 and state in ("require", "watch"):
                     continue
@@ -853,7 +1001,8 @@ def main():
             break
 
     if result["error"] is None:
-        result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"])
+        result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],
+                                                   req.get("stateData"), roots, rel_main)
 
     for qid in injected:
         if qid not in session.questions:

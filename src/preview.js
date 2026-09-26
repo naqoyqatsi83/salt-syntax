@@ -15,7 +15,7 @@ const SCHEME = 'salt-preview';
 const RENDER_SCRIPT = path.join(__dirname, 'preview', 'render.py');
 const KIND_LABELS = { grains: 'Grains', pillar: 'Pillar', config: 'Config / opts', salt: 'Salt function calls', variable: 'Undefined variables' };
 
-function register(context, vscode, isSaltLanguage) {
+function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   const states = new Map(); // source uri string -> { uri, answers, result, running, pending }
   const changed = new vscode.EventEmitter();
   // Problems the render found, as real diagnostics (so squiggles, the
@@ -88,7 +88,10 @@ function register(context, vscode, isSaltLanguage) {
     const source = doc ? doc.getText() : state.lastSource || '';
     state.lastSource = source;
     const saltVersion = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008');
-    state.result = await runRenderer({ source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers, saltVersion });
+    state.result = await runRenderer({
+      source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers,
+      saltVersion, stateData: stateDataFor(saltVersion)
+    });
     state.saltVersion = saltVersion;
     state.lines = staticLines(source);
     state.running = false;
@@ -123,8 +126,11 @@ function register(context, vscode, isSaltLanguage) {
   }
 
   // Salt refuses the file (syntax error, conflicting ID, bodiless state), or
-  // accepts it but it's almost certainly wrong (an empty argument).
-  const yamlProblemLead = (y) => (y.reject === false ? 'Suspicious output' : 'Salt would reject this output');
+  // accepts it but it's almost certainly wrong (an empty argument)...
+  // ...or it passes compilation but fails that one state when it runs
+  // (unknown function, missing required parameter).
+  const yamlProblemLead = (y) =>
+    y.reject === false ? 'Suspicious output' : y.lead === 'state' ? 'Salt would fail this state' : 'Salt would reject this output';
 
   // Salt renders with StrictUndefined: using an undefined value fails the
   // whole render there (the preview carries on so the rest stays visible).
