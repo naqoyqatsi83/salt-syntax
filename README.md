@@ -285,10 +285,13 @@ Pressing Enter at the end of a line that starts with a `{% %}` tag works
 the same way: the new line lands where the next tag would belong — two
 spaces deeper than the innermost open block, so Enter after a nested
 `{% if %}` inside a `{% for %}` puts you inside both, and after an
-`{% endif %}` back at its enclosing level. Prefer the cursor to always go
-to column 0 after a Jinja tag line instead? Set `saltSyntax.jinjaEnterIndent`
-to `column0`. Enter after any other line — YAML — keeps VS Code's normal
-auto-indent either way.
+`{% endif %}` back at its enclosing level. Pressing Enter *in front of* a
+tag (e.g. before `{% endfor %}`) places the tag it pushes down the same
+way — level with its block for `elif`/`else`/`end...` — rather than
+copying the indentation of whatever line is above. Prefer the cursor to
+always go to column 0 after a Jinja tag line instead? Set
+`saltSyntax.jinjaEnterIndent` to `column0`. Enter after any other line —
+YAML — keeps VS Code's normal auto-indent either way.
 
 ### Other Salt files: `.jinja`, and YAML with Jinja in it
 
