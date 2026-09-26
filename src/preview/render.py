@@ -59,6 +59,7 @@ class Session:
         self.raw_answers = answers
         self.questions = {}  # id -> question, in first-asked order
         self.warnings = []
+        self.strict_errors = []  # where Salt's StrictUndefined would fail the render
 
     def answer(self, qid):
         text = self.raw_answers.get(qid)
@@ -569,6 +570,19 @@ def context_for(path, roots):
     }
 
 
+def template_location():
+    """(template file, line) of the template code running right now, from
+    the live call stack -- Jinja's compiled modules carry their template as
+    __jinja_template__, which maps a compiled line back to a template line."""
+    frame = sys._getframe(1)
+    while frame is not None:
+        template = frame.f_globals.get("__jinja_template__")
+        if template is not None:
+            return template.filename or template.name, template.get_corresponding_lineno(frame.f_lineno)
+        frame = frame.f_back
+    return None, None
+
+
 def error_location(exc, tb, rel_main):
     """(file, line) of the template frame an exception came from."""
     lineno = getattr(exc, "lineno", None)
@@ -593,8 +607,18 @@ def main():
     grains, pillar, opts = Lookup(session, "grains"), Lookup(session, "pillar"), Lookup(session, "config")
 
     class RecordingUndefined(jinja2.Undefined):
-        """An undefined *variable* is an input too (e.g. something an
-        including template was expected to pass in) -- ask for it."""
+        """An undefined value, handled the way the preview needs:
+
+        - An undefined *variable* is an input too (something an including
+          template, or a file.managed `context:`, was expected to pass in),
+          so it's asked for, and printed as a visible «variable:name».
+        - Salt renders with jinja2.StrictUndefined unless the master sets
+          allow_undefined (salt/utils/templates.py), so printing, comparing,
+          iterating or truth-testing an undefined value -- variable or a
+          missing key/attribute -- fails the whole render there. Here the
+          render carries on (so the rest stays visible) but each such use is
+          recorded, with its template line, as a strict error. `is defined`
+          and `| default(...)` never reach these methods, as in Salt."""
 
         def __init__(self, hint=None, obj=jinja2.utils.missing, name=None, exc=jinja2.exceptions.UndefinedError):
             super().__init__(hint, obj, name, exc)
@@ -602,9 +626,43 @@ def main():
             if self._is_variable:
                 session.ask("variable", name)
 
+        def _strict(self):
+            file, line = template_location()
+            # Salt's own wording: SaltRenderError(f"Jinja variable {exc}...")
+            err = {"message": f"Jinja variable {self._undefined_message}", "file": file, "line": line}
+            if err not in session.strict_errors:
+                session.strict_errors.append(err)
+
         def __str__(self):
+            self._strict()
             # Visible like any other unanswered input, not silently "".
             return f"«variable:{self._undefined_name}»" if self._is_variable else ""
+
+        def __iter__(self):
+            self._strict()
+            return iter(())
+
+        def __len__(self):
+            self._strict()
+            return 0
+
+        def __bool__(self):
+            self._strict()
+            return False
+
+        def __eq__(self, other):
+            self._strict()
+            return type(self) is type(other)
+
+        def __ne__(self, other):
+            self._strict()
+            return not self.__eq__(other)
+
+        __hash__ = jinja2.Undefined.__hash__
+
+        def __contains__(self, item):
+            self._strict()
+            return False
 
     env = SaltEnvironment(
         loader=SaltLoader(roots, {rel_main: req["source"]}),
@@ -673,6 +731,7 @@ def main():
             session.ask("variable", qid.split("|", 1)[1])
     result["questions"] = list(session.questions.values())
     result["warnings"] = session.warnings
+    result["strictErrors"] = session.strict_errors
     json.dump(result, sys.stdout, default=str)
 
 

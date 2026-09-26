@@ -124,6 +124,11 @@ function register(context, vscode, isSaltLanguage) {
   // accepts it but it's almost certainly wrong (an empty argument).
   const yamlProblemLead = (y) => (y.reject === false ? 'Suspicious output' : 'Salt would reject this output');
 
+  // Salt renders with StrictUndefined: using an undefined value fails the
+  // whole render there (the preview carries on so the rest stays visible).
+  const describeStrictError = (e) =>
+    `Salt would fail to render this: ${e.message}${e.line ? ` (${e.file ? `${e.file} ` : ''}line ${e.line})` : ''}`;
+
   const yamlErrorsOf = (r) => (r && !r.error && r.yamlErrors) || [];
 
   function headerLines(state) {
@@ -139,6 +144,7 @@ function register(context, vscode, isSaltLanguage) {
     if (r.error) {
       head.push(`# ⚠ Render error${r.error.file ? ` in ${r.error.file}` : ''}${r.error.line ? ` line ${r.error.line}` : ''}: ${r.error.message}`);
     } else {
+      for (const e of r.strictErrors || []) head.push(`# ⚠ ${describeStrictError(e)}`);
       // One header line per problem; they're part of the header too, so
       // the offset into the rendered text counts them.
       const problems = yamlErrorsOf(r);
@@ -175,9 +181,16 @@ function register(context, vscode, isSaltLanguage) {
     if (r.context) {
       const head = headerLines(state);
       (r.warnings || []).forEach((w, i) => add(previewUri, make(2 + i, w, vscode.DiagnosticSeverity.Warning)));
+      // A template file as the renderer names it (the main file by its
+      // relative name, imports by absolute path) -> where to put a diagnostic.
+      const uriOf = (file) => (file === r.context.file || !file ? state.uri : path.isAbsolute(file) ? vscode.Uri.file(file) : null);
+      for (const e of r.error ? [] : r.strictErrors || []) {
+        const where = uriOf(e.file);
+        add(where || state.uri, make(where && e.line ? e.line - 1 : 0, `Salt would fail to render this: ${e.message}${where ? '' : ` (${e.file} line ${e.line})`}`, vscode.DiagnosticSeverity.Warning));
+      }
       if (r.error) {
         const e = r.error;
-        const where = e.file === r.context.file || !e.file ? state.uri : path.isAbsolute(e.file) ? vscode.Uri.file(e.file) : null;
+        const where = uriOf(e.file);
         const line = e.line ? e.line - 1 : 0;
         add(where || state.uri, make(where ? line : 0, where ? `Render error: ${e.message}` : `Render error in ${e.file}${e.line ? ` line ${e.line}` : ''}: ${e.message}`, vscode.DiagnosticSeverity.Warning));
       } else {
@@ -242,7 +255,10 @@ function register(context, vscode, isSaltLanguage) {
       file: r.context ? r.context.file : path.basename(state.uri.fsPath),
       fatal: r.fatal || null,
       error: r.error || null,
-      yamlErrors: yamlErrorsOf(r).map((y) => describeYamlError(y, headerLines(state).length)),
+      yamlErrors: [
+        ...(r.error ? [] : (r.strictErrors || []).map(describeStrictError)),
+        ...yamlErrorsOf(r).map((y) => describeYamlError(y, headerLines(state).length))
+      ],
       warnings: r.warnings || [],
       rendering: !state.result,
       kinds: KIND_LABELS,
