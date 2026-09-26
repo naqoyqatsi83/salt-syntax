@@ -228,8 +228,29 @@ function register(context, vscode, isSaltLanguage) {
         }
       }
     }
-    for (const { uri, list } of byUri.values()) diagnostics.set(uri, list);
+    state.pendingPreview = null;
+    for (const { uri, list } of byUri.values()) {
+      if (uri.toString() === previewUri.toString()) setPreviewDiagnosticsWhenShown(state, uri, list);
+      else diagnostics.set(uri, list);
+    }
     diagnosedUris.set(key, [...byUri.values()].map((v) => v.uri));
+  }
+
+  // The preview's diagnostics are placed by the *new* text's line numbers,
+  // but VS Code applies the new text asynchronously, after onDidChange --
+  // and treats it as an edit, shifting any diagnostics already on the
+  // document along with it. Set before the text lands, they'd end up on the
+  // wrong lines. So they're held until the open preview document actually
+  // shows the text they were computed for (or set at once if it isn't open
+  // or already shows it).
+  function setPreviewDiagnosticsWhenShown(state, uri, list) {
+    const text = previewText(state);
+    const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+    if (!doc || doc.getText() === text) {
+      diagnostics.set(uri, list);
+      return;
+    }
+    state.pendingPreview = { uri, list, text };
   }
 
   function previewText(state) {
@@ -346,6 +367,17 @@ function register(context, vscode, isSaltLanguage) {
     vscode.commands.registerCommand('saltSyntax.openRenderedPreview', openPreview),
     vscode.workspace.onDidChangeTextDocument((e) => {
       const key = e.document.uri.toString();
+      if (e.document.uri.scheme === SCHEME) {
+        // The preview just took on new text: place the diagnostics waiting
+        // for exactly that text (see setPreviewDiagnosticsWhenShown).
+        const state = states.get(sourceOfPreview(e.document.uri));
+        const pending = state && state.pendingPreview;
+        if (pending && e.document.getText() === pending.text) {
+          diagnostics.set(pending.uri, pending.list);
+          state.pendingPreview = null;
+        }
+        return;
+      }
       if (!states.has(key)) return;
       clearTimeout(timers.get(key));
       timers.set(key, setTimeout(() => render(key), 400));
