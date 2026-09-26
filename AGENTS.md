@@ -36,7 +36,9 @@ rest of this file stays current.
 - **Where things stand:** `main` is at `v0.9.2`. `develop` has the
   rendered preview graduated from `experimental/template-inputs-poc`
   (#39-#46, closed; #23 closed as the umbrella) and is headed for
-  `v0.10.0` -- `v0.10.0-rc.5` cut from `develop` for testing first. The
+  `v0.10.0` -- `v0.10.0-rc.5` cut from `develop` for testing first;
+  since then `develop` also has #47 (grammar tests) and #48 (scroll
+  sync, tested by hand from a local .vsix), both closed. The
   experimental branches are kept for history but no longer where work
   happens. Design notes, coverage map and graduation checklist:
   `docs/design/jinja-render-preview.md`.
