@@ -18,6 +18,12 @@ const KIND_LABELS = { grains: 'Grains', pillar: 'Pillar', config: 'Config / opts
 function register(context, vscode, isSaltLanguage) {
   const states = new Map(); // source uri string -> { uri, answers, result, running, pending }
   const changed = new vscode.EventEmitter();
+  // Problems the render found, as real diagnostics (so squiggles, the
+  // Problems panel and inline tools like Error Lens show them), not just
+  // the preview's header comment. Keyed per source, so each render replaces
+  // exactly what its previous render set.
+  const diagnostics = vscode.languages.createDiagnosticCollection('salt-preview');
+  const diagnosedUris = new Map(); // source uri string -> [uri, ...] it set diagnostics on
   let current = null; // source uri string the panel shows
   let panel = null; // resolved WebviewView
 
@@ -84,6 +90,7 @@ function register(context, vscode, isSaltLanguage) {
     state.result = await runRenderer({ source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers });
     state.lines = staticLines(source);
     state.running = false;
+    updateDiagnostics(state);
     changed.fire(previewUriFor(state.uri));
     postState();
     if (state.pending) {
@@ -131,6 +138,51 @@ function register(context, vscode, isSaltLanguage) {
     return head;
   }
 
+  // - "Salt would reject this output" (duplicate ID, invalid YAML): an
+  //   error on that line of the preview, linking to the first occurrence.
+  //   It can't go on the source: a rendered line can't be traced back to
+  //   the template line (or loop) that produced it.
+  // - A render error: an error on the line Jinja reports -- in the source,
+  //   or in the imported file it happened in.
+  // - Renderer warnings: on their own header line of the preview.
+  function updateDiagnostics(state) {
+    const key = state.uri.toString();
+    for (const uri of diagnosedUris.get(key) || []) diagnostics.delete(uri);
+    const r = state.result || {};
+    const byUri = new Map();
+    const add = (uri, diag) => {
+      if (!byUri.has(uri.toString())) byUri.set(uri.toString(), { uri, list: [] });
+      byUri.get(uri.toString()).list.push(diag);
+    };
+    const make = (line, message, severity) => {
+      const d = new vscode.Diagnostic(new vscode.Range(Math.max(line, 0), 0, Math.max(line, 0), Number.MAX_SAFE_INTEGER), message, severity);
+      d.source = 'Salt Preview';
+      return d;
+    };
+    const previewUri = previewUriFor(state.uri);
+    if (r.context) {
+      const head = headerLines(state);
+      (r.warnings || []).forEach((w, i) => add(previewUri, make(2 + i, w, vscode.DiagnosticSeverity.Warning)));
+      if (r.error) {
+        const e = r.error;
+        const where = e.file === r.context.file || !e.file ? state.uri : path.isAbsolute(e.file) ? vscode.Uri.file(e.file) : null;
+        const line = e.line ? e.line - 1 : 0;
+        add(where || state.uri, make(where ? line : 0, where ? `Render error: ${e.message}` : `Render error in ${e.file}${e.line ? ` line ${e.line}` : ''}: ${e.message}`, vscode.DiagnosticSeverity.Error));
+      } else if (r.yamlError) {
+        const y = r.yamlError;
+        const d = make(y.line ? y.line - 1 + head.length : 0, `Salt would reject this output: ${y.message}`, vscode.DiagnosticSeverity.Error);
+        if (y.firstLine) {
+          d.relatedInformation = [new vscode.DiagnosticRelatedInformation(
+            new vscode.Location(previewUri, new vscode.Range(y.firstLine - 1 + head.length, 0, y.firstLine - 1 + head.length, 0)),
+            'first defined here')];
+        }
+        add(previewUri, d);
+      }
+    }
+    for (const { uri, list } of byUri.values()) diagnostics.set(uri, list);
+    diagnosedUris.set(key, [...byUri.values()].map((v) => v.uri));
+  }
+
   function previewText(state) {
     const r = state.result;
     if (!r) return '# Rendering…\n';
@@ -142,6 +194,7 @@ function register(context, vscode, isSaltLanguage) {
 
   context.subscriptions.push(
     changed,
+    diagnostics,
     vscode.workspace.registerTextDocumentContentProvider(SCHEME, {
       onDidChange: changed.event,
       provideTextDocumentContent(uri) {
