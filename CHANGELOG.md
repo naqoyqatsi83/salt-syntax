@@ -13,12 +13,13 @@ Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
 ### Fixed
-- Enter in front of a line-leading Jinja tag (e.g. before `{% endfor %}`)
-  gave the pushed-down tag VS Code's generic auto-indent -- the last
-  non-blank line's indentation -- instead of its Jinja nesting depth. It
-  now lands level with its block for `elif`/`else`/`end...`, two spaces
-  deeper than the innermost open block otherwise, honouring
-  `saltSyntax.jinjaEnterIndent`.
+- Enter in front of a line's text gave the pushed-down line VS Code's
+  generic auto-indent -- the last non-blank line's indentation -- e.g. 2
+  spaces for a `{% endfor %}` or a `{{ sls }}.id:` state ID right after a
+  state's body. A Jinja tag now lands at its nesting depth (level with its
+  block for `elif`/`else`/`end...`, two spaces deeper than the innermost
+  open block otherwise, honouring `saltSyntax.jinjaEnterIndent`); any
+  other line keeps the indentation it had.
   [#36](https://github.com/naqoyqatsi83/salt-syntax/issues/36)
 
 ## [0.9.1] - 2026-09-26

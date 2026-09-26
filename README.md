@@ -288,7 +288,9 @@ spaces deeper than the innermost open block, so Enter after a nested
 `{% endif %}` back at its enclosing level. Pressing Enter *in front of* a
 tag (e.g. before `{% endfor %}`) places the tag it pushes down the same
 way — level with its block for `elif`/`else`/`end...` — rather than
-copying the indentation of whatever line is above. Prefer the cursor to
+copying the indentation of whatever line is above; in front of any other
+line (a state ID, `- name:`, ...) the pushed-down line simply keeps the
+indentation it had. Prefer the cursor to
 always go to column 0 after a Jinja tag line instead? Set
 `saltSyntax.jinjaEnterIndent` to `column0`. Enter after any other line —
 YAML — keeps VS Code's normal auto-indent either way.

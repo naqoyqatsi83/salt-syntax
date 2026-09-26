@@ -3424,6 +3424,27 @@ async function activate(context) {
   // splitting a line) keeps VS Code's normal auto-indent. Runs as on-type
   // formatting on "\n", which is why package.json's [sls] defaults turn
   // editor.formatOnType on.
+  // Each open Salt document's text before its latest change, line-split --
+  // the Enter handler below needs to see what a line looked like before
+  // Enter split it, since VS Code has already re-indented it by then.
+  const linesNow = new Map();
+  const linesBefore = new Map();
+  const snapshot = (document) => {
+    if (!isSaltLanguage(document.languageId)) return;
+    const key = document.uri.toString();
+    linesBefore.set(key, linesNow.get(key));
+    linesNow.set(key, document.getText().split('\n'));
+  };
+  vscode.workspace.textDocuments.forEach(snapshot);
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(snapshot),
+    vscode.workspace.onDidChangeTextDocument((e) => snapshot(e.document)),
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      linesNow.delete(document.uri.toString());
+      linesBefore.delete(document.uri.toString());
+    })
+  );
+
   const jinjaEnterIndentProvider = vscode.languages.registerOnTypeFormattingEditProvider(
     jinjaSelector,
     {
@@ -3434,6 +3455,17 @@ async function activate(context) {
         const current = document.lineAt(position.line).text;
         const previous = document.lineAt(position.line - 1).text;
         const column0 = vscode.workspace.getConfiguration('saltSyntax').get('jinjaEnterIndent', 'followNesting') === 'column0';
+        // The indentation the split line had before Enter, when Enter was
+        // pressed in front of its text (nothing but whitespace before the
+        // cursor) -- read from the pre-change snapshot, since VS Code has
+        // already replaced it. null if that can't be established.
+        const originalIndent = (() => {
+          if (!/^[ \t]*$/.test(previous) || current.trim() === '') return null;
+          const before = linesBefore.get(document.uri.toString());
+          const old = before && before[position.line - 1];
+          if (old === undefined || old.trim() !== current.trim()) return null;
+          return old.match(/^[ \t]*/)[0];
+        })();
         // Enter pushed a Jinja tag onto the new line (Enter in front of
         // `{% endfor %}`, say): VS Code gave it the last non-blank line's
         // indentation, which knows nothing of Jinja nesting -- place it
@@ -3445,14 +3477,20 @@ async function activate(context) {
             const { openBlocks } = analyzeJinjaIndent(document.getText(new vscode.Range(0, 0, position.line, 0)));
             const expected = expectedJinjaIndentFor(openBlocks, pushed[2]);
             // Top level: nothing to follow, so the indentation the tag had
-            // before the split (whatever preceded the cursor, if only
-            // whitespace), else column 0.
-            target = expected !== null ? expected : /^[ \t]*$/.test(previous) ? previous.length : 0;
+            // before the split, else column 0.
+            target = expected !== null ? expected : originalIndent !== null ? originalIndent.length : 0;
           }
           if (pushed[1] === ' '.repeat(target)) {
             return [];
           }
           return [vscode.TextEdit.replace(new vscode.Range(position.line, 0, position.line, pushed[1].length), ' '.repeat(target))];
+        }
+        // Enter in front of any other line's text (a state ID, `- name:`,
+        // ...) only opens a line above it: the pushed-down text keeps the
+        // indentation it had, not VS Code's copy of the line above's.
+        if (originalIndent !== null) {
+          const now = current.match(/^[ \t]*/)[0];
+          return now === originalIndent ? [] : [vscode.TextEdit.replace(new vscode.Range(position.line, 0, position.line, now.length), originalIndent)];
         }
         if (current.trim() !== '' || !/^[ \t]*\{%/.test(previous)) {
           return [];
