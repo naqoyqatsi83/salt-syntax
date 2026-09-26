@@ -53,6 +53,10 @@ version heading when that state gets tagged and merged to `main`.
   The lock button on the preview's title bar (or the new
   `saltSyntax.preview.scrollSync` setting) turns it off and on.
   [#48](https://github.com/naqoyqatsi83/salt-syntax/issues/48)
+- Problems found in the rendered output (duplicate IDs, invalid YAML,
+  compiler checks, ...) also show on the formula line that produced them,
+  linked to the preview line.
+  [#49](https://github.com/naqoyqatsi83/salt-syntax/issues/49)
 
 ### Changed
 - The TextMate grammar now has regression tests (`test/grammar.test.js`,

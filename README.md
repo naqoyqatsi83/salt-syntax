@@ -360,7 +360,8 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
 - **Problems Salt would hit, where they are.** Checked against Salt's own
   code for the selected `saltSyntax.saltVersion` (3006 or 3008) and shown
   as warnings — squiggles, the Problems panel, inline tools like Error
-  Lens — on the formula line or the rendered line:
+  Lens — on the formula line that caused them, and on the rendered line
+  where the output shows it:
   - render errors and undefined values (`Jinja variable 'x' is undefined`)
   - invalid YAML and duplicate state IDs, every one, on the line at fault
   - Salt's state-compiler checks (`- name /etc/x` missing its colon, no or

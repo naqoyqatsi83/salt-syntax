@@ -68,6 +68,17 @@ const FILE = path.join(ROOT, 'f', 'init.sls');
   assert.ok(lastState().questions.some((q) => q.kind === 'filter' && q.key === "dns_check('host', 80)"), 'environment filter asked in the panel');
   assert.ok(onPreview().every((d) => d.severity === 1), 'all amber (Warning)');
   assert.strictEqual(lastState().yamlErrors[0], lines.find((l) => l.startsWith('# ⚠ Salt would reject')).replace('# ⚠ ', ''), 'panel = header');
+  // ... and on the formula line that produced it (#49), linked to the preview line.
+  let onSource = diags.get(source.uri) || [];
+  assert.deepStrictEqual(onSource.map((d) => [d.range.start.line, d.message]), [[3, dup.message]], 'on the formula line too');
+  assert.strictEqual(onSource[0].relatedInformation[0].location.uri.toString(), previewDoc.uri.toString());
+  assert.strictEqual(onSource[0].relatedInformation[0].location.range.start.line, dup.range.start.line, 'linked to the preview line');
+
+  // A loop repeating the same problem: once on its formula line.
+  await edit(`{% for i in ['x', 'x', 'x'] %}\n{{ sls }}.{{ i }}:\n  test.nop\n{% endfor %}\n`, () => onPreview().length === 2);
+  onSource = diags.get(source.uri) || [];
+  assert.deepStrictEqual(onSource.map((d) => d.range.start.line), [1], 'merged on the loop line');
+  assert.strictEqual(onSource[0].relatedInformation.length, 2, 'linked to both preview lines');
 
   // A stray line before a duplicate: both reported, each on its own line.
   await edit(`a:\n  test.nop\nf.x:\n  test.nop\n${E}\n\nf.x:\n  test.nop\n`, () => onPreview().length === 2 && previewLines().includes(E));
@@ -80,7 +91,7 @@ const FILE = path.join(ROOT, 'f', 'init.sls');
   assert.strictEqual(previewLines()[onPreview()[0].range.start.line], '    - name: ');
 
   // Undefined variable: on the source line and the rendered line; answering clears it.
-  await edit(`{{ sls }}.state_id:\n  file.managed:\n    - name: {{ nothing }}\n`, () => !!diags.get(source.uri));
+  await edit(`{{ sls }}.state_id:\n  file.managed:\n    - name: {{ nothing }}\n`, () => (diags.get(source.uri) || []).some((d) => /fail to render/.test(d.message)));
   assert.strictEqual(diags.get(source.uri)[0].range.start.line, 2);
   assert.match(diags.get(source.uri)[0].message, /^Salt would fail to render this: Jinja variable 'nothing' is undefined/);
   assert.deepStrictEqual(onPreview().filter((d) => /fail to render/.test(d.message)).map((d) => previewLines()[d.range.start.line]), ['    - name: «variable:nothing»']);

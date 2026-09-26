@@ -162,10 +162,11 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     return head;
   }
 
-  // - "Salt would reject this output" (duplicate ID, invalid YAML): an
-  //   error on that line of the preview, linking to the first occurrence.
-  //   It can't go on the source: a rendered line can't be traced back to
-  //   the template line (or loop) that produced it.
+  // - "Salt would reject this output" (duplicate ID, invalid YAML, ...): an
+  //   error on that line of the preview, linking to the first occurrence --
+  //   and, through the renderer's line map (#48), on the formula line that
+  //   produced it, linking to the preview line(s). A loop repeating the
+  //   same problem gets it once on its line. No map: preview only.
   // - A render error: an error on the line Jinja reports -- in the source,
   //   or in the imported file it happened in.
   // - Renderer warnings: on their own header line of the preview.
@@ -226,6 +227,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
         add(where || state.uri, make(where ? line : 0, where ? `Render error: ${e.message}` : `Render error in ${e.file}${e.line ? ` line ${e.line}` : ''}: ${e.message}`, vscode.DiagnosticSeverity.Warning));
       } else {
         const at = (renderedLine) => renderedLine - 1 + head.length; // 0-based preview line
+        const onSource = new Map(); // "line|message" -> diagnostic on the formula
         for (const y of yamlErrorsOf(r)) {
           const d = make(y.line ? at(y.line) : 0, `${yamlProblemLead(y)}: ${y.message}`, vscode.DiagnosticSeverity.Warning);
           const other = y.firstLine ? [y.firstLine, 'first defined here'] : y.gaveUpLine ? [y.gaveUpLine, 'the parser gave up here'] : null;
@@ -234,6 +236,17 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
               new vscode.Location(previewUri, new vscode.Range(at(other[0]), 0, at(other[0]), 0)), other[1])];
           }
           add(previewUri, d);
+          const sourceLine = y.line && r.lineMap ? r.lineMap[Math.min(y.line, r.lineMap.length) - 1] - 1 : null;
+          if (sourceLine === null) continue;
+          const here = new vscode.Location(previewUri, new vscode.Range(at(y.line), 0, at(y.line), 0));
+          const k = `${sourceLine}|${d.message}`;
+          if (!onSource.has(k)) {
+            const s = make(sourceLine, d.message, vscode.DiagnosticSeverity.Warning);
+            s.relatedInformation = [];
+            onSource.set(k, s);
+            add(state.uri, s);
+          }
+          onSource.get(k).relatedInformation.push(new vscode.DiagnosticRelatedInformation(here, 'in the rendered preview'));
         }
       }
     }
