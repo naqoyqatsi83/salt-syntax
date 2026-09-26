@@ -184,9 +184,31 @@ function register(context, vscode, isSaltLanguage) {
       // A template file as the renderer names it (the main file by its
       // relative name, imports by absolute path) -> where to put a diagnostic.
       const uriOf = (file) => (file === r.context.file || !file ? state.uri : path.isAbsolute(file) ? vscode.Uri.file(file) : null);
-      for (const e of r.error ? [] : r.strictErrors || []) {
+      const renderedLines = (r.rendered || '').split('\n');
+      const strict = r.error ? [] : r.strictErrors || [];
+      const lead = 'Salt would fail to render this: ';
+      const sourceLine = (e) => `${e.file ? `${e.file} ` : ''}line ${e.line}`;
+      strict.forEach((e) => {
         const where = uriOf(e.file);
-        add(where || state.uri, make(where && e.line ? e.line - 1 : 0, `Salt would fail to render this: ${e.message}${where ? '' : ` (${e.file} line ${e.line})`}`, vscode.DiagnosticSeverity.Warning));
+        add(where || state.uri, make(where && e.line ? e.line - 1 : 0, where ? `${lead}${e.message}` : `${lead}${e.message} (${sourceLine(e)})`, vscode.DiagnosticSeverity.Warning));
+      });
+      // Also on the preview: every rendered line an undefined value was
+      // printed on (its «…» marker). A rendered line can't tell which
+      // template line printed it, so per marker it names all of them. Used
+      // only in an if/loop (nothing printed): on its own header line.
+      const byMarker = new Map();
+      strict.forEach((e, i) => {
+        const printedAt = e.marker ? renderedLines.flatMap((l, n) => (l.includes(e.marker) ? [n + head.length] : [])) : [];
+        if (!printedAt.length) {
+          add(previewUri, make(2 + (r.warnings || []).length + i, `${lead}${e.message} (${sourceLine(e)})`, vscode.DiagnosticSeverity.Warning));
+          return;
+        }
+        if (!byMarker.has(e.marker)) byMarker.set(e.marker, { lines: printedAt, errors: [] });
+        byMarker.get(e.marker).errors.push(e);
+      });
+      for (const { lines, errors } of byMarker.values()) {
+        const messages = [...new Set(errors.map((e) => e.message))].join('; ');
+        for (const line of lines) add(previewUri, make(line, `${lead}${messages} (${errors.map(sourceLine).join(', ')})`, vscode.DiagnosticSeverity.Warning));
       }
       if (r.error) {
         const e = r.error;

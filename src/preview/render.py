@@ -626,17 +626,27 @@ def main():
             if self._is_variable:
                 session.ask("variable", name)
 
-        def _strict(self):
+        def _strict(self, marker=None):
             file, line = template_location()
             # Salt's own wording: SaltRenderError(f"Jinja variable {exc}...")
-            err = {"message": f"Jinja variable {self._undefined_message}", "file": file, "line": line}
-            if err not in session.strict_errors:
-                session.strict_errors.append(err)
+            message = f"Jinja variable {self._undefined_message}"
+            for err in session.strict_errors:
+                if (err["message"], err["file"], err["line"]) == (message, file, line):
+                    err["marker"] = err["marker"] or marker
+                    return
+            # `marker`: the placeholder printed into the output, so the
+            # preview can also point at the rendered line(s) it ended up on.
+            session.strict_errors.append({"message": message, "file": file, "line": line, "marker": marker})
 
         def __str__(self):
-            self._strict()
-            # Visible like any other unanswered input, not silently "".
-            return f"«variable:{self._undefined_name}»" if self._is_variable else ""
+            # Visible, never silently "": Salt would have produced no output
+            # at all here (the render fails), so a marker loses nothing.
+            if self._is_variable:
+                marker = f"«variable:{self._undefined_name}»"
+            else:
+                marker = f"«undefined:{self._undefined_name}»" if self._undefined_name else "«undefined»"
+            self._strict(marker)
+            return marker
 
         def __iter__(self):
             self._strict()
