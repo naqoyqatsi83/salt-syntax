@@ -383,7 +383,89 @@ def check_rendered_yaml(text):
             problems.append({"message": str(exc), "line": None})
             break
     problems.extend(conflicts)
+    problems.extend(empty_value_problems("".join(lines)))
     return sorted(problems, key=lambda p: (p["line"] is None, p["line"] or 0))
+
+
+# Top-level SLS keys that aren't state IDs.
+SLS_SPECIAL_KEYS = {"include", "exclude"}
+
+
+def _is_empty(node):
+    # Nothing at all after the colon -- as opposed to an explicit null / ~,
+    # which is somebody's deliberate choice.
+    return isinstance(node, yaml.ScalarNode) and node.tag == "tag:yaml.org,2002:null" and node.value == ""
+
+
+def empty_value_problems(text):
+    """Valid YAML that's still wrong once Salt looks at it -- typically a
+    variable that rendered empty:
+    - a state with nothing under it: Salt's _verify_high() rejects it
+      ("... is not a dictionary");
+    - `module.function:` with a trailing colon and nothing after it: also
+      rejected ("... contains a short declaration ... with a trailing
+      colon ...") -- the no-arguments form is `module.function` (no colon)
+      or `module.function: []`;
+    - a state argument with nothing after its colon (`- name:`): accepted,
+      but the state runs with it as None.
+    Not flagged: an explicit null / ~ (deliberate), and args whose value
+    follows on the next lines (`- require:` + its list)."""
+    try:
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(root, yaml.MappingNode):
+        return []
+    found = []
+
+    def states(mapping):
+        for id_node, body in mapping.value:
+            name = id_node.value if isinstance(id_node, yaml.ScalarNode) else None
+            if name in SLS_SPECIAL_KEYS:
+                continue
+            if name == "extend" and isinstance(body, yaml.MappingNode):
+                yield from states(body)
+                continue
+            yield id_node, body
+
+    for id_node, body in states(root):
+        if _is_empty(body):
+            found.append({
+                "message": f"state '{id_node.value}' has nothing under it -- Salt rejects this (\"is not a "
+                           "dictionary\"); it rendered empty (a variable, loop or if that produced no body?)",
+                "line": id_node.start_mark.line + 1,
+                "reject": True,
+            })
+            continue
+        if not isinstance(body, yaml.MappingNode):
+            continue
+        for fn_node, args in body.value:
+            fn = fn_node.value if isinstance(fn_node, yaml.ScalarNode) else ""
+            if fn.startswith("__"):
+                continue
+            if _is_empty(args):
+                found.append({
+                    "message": f"'{fn}:' has a trailing colon with nothing after it -- Salt rejects this "
+                               f"(\"contains a short declaration ({fn}) with a trailing colon\"); "
+                               f"with no arguments write '{fn}' or '{fn}: []', otherwise its arguments rendered empty",
+                    "line": fn_node.start_mark.line + 1,
+                    "reject": True,
+                })
+                continue
+            if not isinstance(args, yaml.SequenceNode):
+                continue
+            for item in args.value:
+                if not isinstance(item, yaml.MappingNode):
+                    continue
+                for key, value in item.value:
+                    if _is_empty(value):
+                        found.append({
+                            "message": f"'{key.value}' has no value -- it rendered empty (a variable that came "
+                                       "out empty?); Salt would pass it as None",
+                            "line": key.start_mark.line + 1,
+                            "reject": False,
+                        })
+    return found
 
 
 class SaltLoader(jinja2.BaseLoader):

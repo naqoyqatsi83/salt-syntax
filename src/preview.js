@@ -117,8 +117,12 @@ function register(context, vscode, isSaltLanguage) {
     const where = y.line ? ` at line ${y.line + offset} of the preview` : '';
     const first = y.firstLine ? ` (first defined at line ${y.firstLine + offset})` : '';
     const gaveUp = y.gaveUpLine ? ` (the parser gave up at line ${y.gaveUpLine + offset})` : '';
-    return `Salt would reject this output${where}: ${y.message}${first}${gaveUp}`;
+    return `${yamlProblemLead(y)}${where}: ${y.message}${first}${gaveUp}`;
   }
+
+  // Salt refuses the file (syntax error, conflicting ID, bodiless state), or
+  // accepts it but it's almost certainly wrong (an empty argument).
+  const yamlProblemLead = (y) => (y.reject === false ? 'Suspicious output' : 'Salt would reject this output');
 
   const yamlErrorsOf = (r) => (r && !r.error && r.yamlErrors) || [];
 
@@ -179,7 +183,7 @@ function register(context, vscode, isSaltLanguage) {
       } else {
         const at = (renderedLine) => renderedLine - 1 + head.length; // 0-based preview line
         for (const y of yamlErrorsOf(r)) {
-          const d = make(y.line ? at(y.line) : 0, `Salt would reject this output: ${y.message}`, vscode.DiagnosticSeverity.Warning);
+          const d = make(y.line ? at(y.line) : 0, `${yamlProblemLead(y)}: ${y.message}`, vscode.DiagnosticSeverity.Warning);
           const other = y.firstLine ? [y.firstLine, 'first defined here'] : y.gaveUpLine ? [y.gaveUpLine, 'the parser gave up here'] : null;
           if (other) {
             d.relatedInformation = [new vscode.DiagnosticRelatedInformation(
