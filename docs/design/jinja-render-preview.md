@@ -267,6 +267,26 @@ Not catchable by a preview at all: failures while states *run* on a minion
 (a missing package, a failing command) — the preview renders and checks,
 it never executes.
 
+## Graduation checklist
+
+When the preview moves from `experimental/template-inputs-poc` to
+`develop`: merge the branch, open one issue per user-facing feature group
+below (each closed with its commits and the tests that verify it, per
+AGENTS.md), add one `[Unreleased]` bullet per issue, drop the
+"(experimental)" labels from the command / panel / settings / README if
+it's ready, close #23 pointing at them, then release as 0.10.0.
+
+| Feature group (issue) | Commits | Verified by |
+|---|---|---|
+| Rendered preview beside the formula + Salt Preview inputs panel (real Jinja2, Salt's environment emulated, answers per file) | 8488c9b | `preview-render.test.py`, `preview.test.js` |
+| Problems as diagnostics on the source and the preview, amber, placed correctly after edits | 296dcaa, e86b14e, fc5c9ba, b3b1728 | `preview.test.js` |
+| Rendered YAML checked like Salt's loader: syntax errors on the line at fault, every duplicate ID, empty values | 137a7ed, 67f1f29, 67d5f1a | `preview-checks.test.py`, `preview.test.js` |
+| Jinja exactly as Salt: StrictUndefined, sandbox, `raise()`, `match`/`equalto`, Salt's error wording | d76b0c4, d5acee5 | `preview-render.test.py` |
+| Salt's state-compiler checks, per version | d5acee5 | `salt-compiler-parity.test.py` (Salt's own code, both versions) |
+| Unknown functions / modules, missing required arguments, missing includes | a7d8ddd | `preview-checks.test.py` |
+| All of Salt's Jinja filters, environment-dependent ones as inputs | 04009e5 | `salt-filter-parity.test.py` (Salt's own code, both versions) |
+| Requisite / `extend:` targets that don't exist, including included files | a74fb23 | `preview-references.test.py` |
+
 ## Open questions
 
 - How heavily do real formulas lean on `map.jinja` / `import_yaml` /
