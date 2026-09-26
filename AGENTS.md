@@ -33,14 +33,15 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `main` is at `v0.9.1`. `develop` is ahead of it
-  with #36 (Enter indentation) and #37 (`{{ }}` padding) -- both still
-  open, waiting on the user's confirmation -- and the test suite (#38).
-  The rendered preview lives only on `experimental/template-inputs-poc`
-  (latest pre-release `v0.10.0-rc.2`; the branch is well past it -- see
-  #23's status comment for what's done and next, and the design notes'
-  coverage map). `experimental/jinja-render-preview` holds only the
-  original design notes (never merged forward, left as-is).
+- **Where things stand:** `develop` and `main` are at `v0.9.2` (#36 Enter
+  indentation, #37 `{{ }}` padding, #38 the test suite + CI step -- all
+  closed). The rendered preview lives only on
+  `experimental/template-inputs-poc`, merged up to date with `develop`;
+  latest pre-release `v0.10.0-rc.3` (the first build whose CI ran all 13
+  tests, the preview's included). #23 tracks it -- see its status comment
+  for what's done and next, and the design notes' coverage map.
+  `experimental/jinja-render-preview` holds only the original design notes
+  (never merged forward, left as-is).
 - **Identity:** commit, tag, and release only as the one identity this
   repo's history already uses — never introduce any other name or handle
   into a commit, issue, or release here.
