@@ -21,6 +21,7 @@ default written in the code if there is one, else a visible placeholder
 like «grains:os». Pure-logic helpers (grains.filter_by, the merge
 functions) are computed instead of asked.
 """
+import io
 import json
 import os
 import re
@@ -28,6 +29,7 @@ import shlex
 import sys
 
 try:
+    from markupsafe import Markup  # what Jinja's own Markup is (jinja2.utils no longer re-exports it in 3.1)
     import jinja2
     import jinja2.sandbox
     import yaml
@@ -728,45 +730,454 @@ class SaltEnvironment(jinja2.sandbox.SandboxedEnvironment):
         return template
 
 
-def salt_filters():
-    def regex_replace(value, regex, repl, ignorecase=False, multiline=False):
-        flags = (re.I if ignorecase else 0) | (re.M if multiline else 0)
-        return re.sub(regex, repl, str(value), flags=flags)
+# --- Salt's Jinja filters ---------------------------------------------------
+# Salt registers 92 filters in 3008.2 (90 in 3006.27: no to_entries /
+# from_entries), from salt/utils/{data,dateutils,dictupdate,files,hashutils,
+# http,jinja,network,path,stringutils,user,yamlencoding}.py plus its
+# SerializerExtension -- with identical signatures in both versions. The
+# pure ones are implemented here to behave exactly like Salt's (checked
+# against Salt's own code by test/salt-filter-parity.test.py); the ones
+# whose result depends on the minion or the moment -- DNS, HTTP, files,
+# users, randomness, the current time, and the networking helpers' many
+# option modes -- are asked for in the panel instead, like salt[...] calls.
 
-    def regex_search(value, regex, ignorecase=False, multiline=False):
-        m = re.search(regex, str(value), flags=(re.I if ignorecase else 0) | (re.M if multiline else 0))
-        return m.groups() if m else None
+ENVIRONMENT_FILTERS = [
+    "dns_check", "http_query", "which", "file_hashsum", "get_uid", "list_files", "is_bin_file", "is_text_file",
+    "is_empty", "random_hash", "rand_str", "random_str", "random_sample", "random_shuffle", "gen_mac", "strftime",
+    "date_format", "ipaddr", "ipv4", "ipv6", "ip_host", "is_ip", "is_ipv4", "is_ipv6", "ipwrap", "network_hosts",
+    "network_size", "filter_by_networks", "mac_str_to_bytes", "json_query", "mysql_to_dict", "json_encode_dict",
+    "json_encode_list", "json_decode_dict", "json_decode_list",
+]
+SALT_UUID_NAMESPACE = "91633EBF-1C86-5E33-935A-28061F4B480E"  # salt/utils/jinja.py GLOBAL_UUID
 
-    def regex_match(value, regex, ignorecase=False, multiline=False):
-        m = re.match(regex, str(value), flags=(re.I if ignorecase else 0) | (re.M if multiline else 0))
-        return m.groups() if m else None
 
-    def unique(values):
-        out = []
-        for v in values:
-            if v not in out:
-                out.append(v)
-        return out
+def _hashable(x):
+    try:
+        hash(x)
+        return True
+    except TypeError:
+        return False
 
-    return {
-        "yaml": lambda v, flow_style=True: dump_inline(v) if flow_style else yaml.safe_dump(v, default_flow_style=False),
-        "json": lambda v, sort_keys=True, indent=None: json.dumps(v, sort_keys=sort_keys, indent=indent, default=str),
-        "tojson": lambda v, *a, **k: json.dumps(v, default=str),
-        "yaml_encode": dump_inline,
-        "yaml_dquote": lambda v: json.dumps(str(v), ensure_ascii=False),
-        "yaml_squote": lambda v: "'" + str(v).replace("'", "''") + "'",
-        "load_yaml": lambda v: yaml.safe_load(str(v)),
-        "load_json": lambda v: json.loads(str(v)),
-        "load_text": lambda v: str(v),
-        "regex_replace": regex_replace,
-        "regex_search": regex_search,
-        "regex_match": regex_match,
-        "unique": unique,
-        "to_bool": lambda v: str(v).strip().lower() in ("1", "true", "yes", "on", "y"),
-        "sequence": lambda v: v if isinstance(v, (list, tuple)) else [v],
-        "is_list": lambda v: isinstance(v, (list, tuple)),
-        "quote": lambda v: shlex.quote(str(v)),
+
+def _unique(values):
+    if _hashable(values):
+        return set(values)
+    out = []
+    for v in values:
+        if v not in out:
+            out.append(v)
+    return out
+
+
+def _is_iter(thing, ignore=(str,)):
+    if ignore and isinstance(thing, ignore):
+        return False
+    try:
+        iter(thing)
+        return True
+    except TypeError:
+        return False
+
+
+def _flatten(data, levels=None, preserve_nulls=False, _ids=None):
+    _ids = set() if _ids is None else _ids
+    if id(data) in _ids:
+        raise RecursionError("Reference cycle detected. Check input list.")
+    _ids.add(id(data))
+    out = []
+    for el in data:
+        if not preserve_nulls and el in (None, "None", "null"):
+            continue
+        if _is_iter(el):
+            if levels is None:
+                out.extend(_flatten(el, preserve_nulls=preserve_nulls, _ids=_ids))
+            elif levels >= 1:
+                out.extend(_flatten(el, levels=int(levels) - 1, preserve_nulls=preserve_nulls, _ids=_ids))
+            else:
+                out.append(el)
+        else:
+            out.append(el)
+    return out
+
+
+def _traverse(data, key, default=None, delimiter=":"):
+    ptr = data
+    if isinstance(key, str):
+        key = key.split(delimiter)
+    if isinstance(key, int):
+        key = [key]
+    for each in key:
+        if isinstance(ptr, list):
+            try:
+                idx = int(each)
+            except ValueError:
+                found = next((d[each] for d in ptr if isinstance(d, dict) and each in d), MISSING)
+            else:
+                found = next((d[idx] for d in ptr if isinstance(d, dict) and idx in d), MISSING)
+                if found is MISSING:
+                    try:
+                        found = ptr[idx]
+                    except IndexError:
+                        return default
+            if found is MISSING:
+                return default
+            ptr = found
+        else:
+            try:
+                ptr = ptr[each]
+            except KeyError:
+                try:  # salt.utils.args.yamlify_arg: "1" can reach an int key
+                    loaded = yaml.safe_load(each) if isinstance(each, str) else each
+                except yaml.YAMLError:
+                    return default
+                if loaded == each:
+                    return default
+                try:
+                    ptr = ptr[loaded]
+                except (KeyError, TypeError):
+                    return default
+            except TypeError:
+                return default
+    return ptr
+
+
+def _dict_path(in_dict, keys, delimiter):
+    """dictupdate._dict_rpartition(): the dict holding the last key (creating
+    the ones on the way), and that key."""
+    if delimiter not in keys:
+        return in_dict, keys
+    head, _, last = keys.rpartition(delimiter)
+    ptr = in_dict
+    for k in head.split(delimiter):
+        ptr = ptr.setdefault(k, {})
+    return ptr, last
+
+
+def _set_dict_key_value(in_dict, keys, value, delimiter=":", ordered_dict=False):
+    ptr, last = _dict_path(in_dict, keys, delimiter)
+    ptr[last] = value
+    return in_dict
+
+
+def _grow_dict_key_value(method, empty):
+    def grow(in_dict, keys, value, delimiter=":", ordered_dict=False):
+        ptr, last = _dict_path(in_dict, keys, delimiter)
+        if last not in ptr or ptr[last] is None:
+            ptr[last] = empty()
+        getattr(ptr[last], method)(value)
+        return in_dict
+    return grow
+
+
+def _to_bool(val):
+    if val is None:
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.lower() in ("yes", "1", "true")
+    if isinstance(val, int):
+        return val > 0
+    if not _hashable(val):
+        return len(val) > 0
+    return False
+
+
+def _indent(s, width=4, first=False, blank=False, indentfirst=None):
+    if indentfirst is not None:
+        first = indentfirst
+    pad, nl = " " * width, "\n"
+    if isinstance(s, Markup):
+        pad, nl = Markup(pad), Markup(nl)
+    s += nl
+    if blank:
+        rv = (nl + pad).join(s.splitlines())
+    else:
+        lines = s.splitlines()
+        rv = lines.pop(0)
+        if lines:
+            rv += nl + nl.join(pad + line if line else line for line in lines)
+    return pad + rv if first else rv
+
+
+def _regex(func, version):
+    def run(txt, rgx, ignorecase=False, multiline=False):
+        m = func(rgx, txt, (re.I if ignorecase else 0) | (re.M if multiline else 0))
+        if not m:
+            return None
+        # 3006 returns just the groups -- () for a pattern without any; 3007+
+        # return the whole match in that case.
+        if version == "3006" or m.groups():
+            return m.groups()
+        return (m.group(),)
+    return run
+
+
+def _yaml_quoted(write):
+    def quote(text):
+        out = io.StringIO()
+        getattr(yaml.emitter.Emitter(out, width=sys.maxsize), write)(str(text))
+        return out.getvalue()
+    return quote
+
+
+def _yaml_encode(data):
+    node = yaml.representer.SafeRepresenter().represent_data(data)
+    if not isinstance(node, yaml.ScalarNode):
+        raise TypeError(f"yaml_encode() only works with YAML scalar data; failed for {type(data)}")
+    return _yaml_quoted("write_double_quoted")(node.value) if node.tag.rsplit(":", 1)[-1] == "str" else node.value
+
+
+def _human_to_bytes(size, default_unit="B", handle_metric=False):
+    m = re.match(r"(?P<value>[0-9.]*)\s*(?P<unit>.*)$", str(size).strip())
+    value, unit = m.group("value"), m.group("unit").lower() or default_unit.lower()
+    try:
+        value = int(value)
+    except ValueError:
+        try:
+            value = float(value)
+        except ValueError:
+            return 0
+    dec = False
+    if re.match(r"[kmgtpezy]b$", unit):
+        dec = bool(handle_metric)
+    elif not re.match(r"(b|[kmgtpezy](ib)?)$", unit):
+        return 0
+    p = "bkmgtpezy".index(unit[0])
+    value *= 10 ** (p * 3) if dec else 2 ** (p * 10)
+    return int(value)
+
+
+def _to_num(text):
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return float(text)
+        except ValueError:
+            return text
+
+
+def _is_hex(value):
+    try:
+        int(value, 16)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _camel_to_snake(s):
+    res = s[0].lower()
+    for i, letter in enumerate(s[1:], 1):
+        if letter.isupper() and (s[i - 1].islower() or (i != len(s) - 1 and s[i + 1].islower())):
+            res += "_"
+        res += letter.lower()
+    return res
+
+
+def _expr_match(line, expr):
+    import fnmatch
+    if fnmatch.fnmatch(line, expr):
+        return True
+    try:
+        return bool(re.match(rf"\A{expr}\Z", line))
+    except re.error:
+        return False
+
+
+def _check_whitelist_blacklist(value, whitelist=None, blacklist=None):
+    lists = []
+    for lst in (blacklist, whitelist):
+        lst = [lst] if isinstance(lst, str) else (lst or [])
+        if not hasattr(lst, "__iter__"):
+            raise TypeError(f"Expecting iterable list, but got {type(lst).__name__} ({lst})")
+        lists.append(lst)
+    blacklist, whitelist = lists
+    black = any(_expr_match(value, e) for e in blacklist)
+    white = any(_expr_match(value, e) for e in whitelist)
+    if blacklist and not whitelist:
+        return not black
+    if whitelist and not blacklist:
+        return white
+    if blacklist and whitelist:
+        return not black and white
+    return True
+
+
+def _b(text):
+    return text if isinstance(text, bytes) else str(text).encode("utf-8")
+
+
+def _base64_decode(instr):
+    import base64
+    decoded = base64.b64decode(_b(instr))
+    try:
+        return decoded.decode("utf-8")
+    except UnicodeDecodeError:
+        return decoded
+
+
+def _path_join(*parts, **kwargs):
+    import posixpath  # minions this previews for are overwhelmingly POSIX
+    parts = [posixpath.normpath(str(p)) for p in parts]
+    if not parts:
+        return ""
+    root = parts.pop(0)
+    if not parts:
+        return posixpath.normpath(root)
+    return posixpath.normpath(posixpath.join(root, *[p.lstrip("/") for p in parts]))
+
+
+def _from_entries(entries):
+    ret = {}
+    for entry in entries:
+        lowered = {str(k).lower(): v for k, v in entry.items()}
+        for key in ("key", "name"):
+            if lowered.get(key):
+                ret[lowered[key]] = lowered.get("value")
+                break
+    return ret
+
+
+class SaltException(Exception):
+    """Salt's own exception (salt.exceptions.SaltException) -- not a Jinja
+    error, so a render it aborts reads "Jinja error: ...", as in Salt."""
+
+
+def _to_entries(data):
+    if isinstance(data, dict):
+        return [{"key": k, "value": v} for k, v in data.items()]
+    if isinstance(data, list):
+        return [{"key": i, "value": v} for i, v in enumerate(data)]
+    raise SaltException("Input data must be a dict or list")
+
+
+def salt_filters(version, session):
+    import base64
+    import hashlib
+    import hmac
+    import uuid as uuidlib
+
+    def load_yaml(value):
+        try:
+            return yaml.safe_load(str(value))
+        except yaml.YAMLError as exc:
+            raise jinja2.exceptions.TemplateRuntimeError(f"Encountered error loading yaml: {exc}")
+
+    def load_json(value):
+        try:
+            return json.loads(str(value))
+        except (ValueError, TypeError, AttributeError):
+            raise jinja2.exceptions.TemplateRuntimeError(f"Unable to load json from {value}")
+
+    def format_yaml(value, flow_style=True):
+        text = yaml.safe_dump(value, default_flow_style=flow_style, allow_unicode=True).strip()
+        return Markup(text[:-4] if text.endswith("\n...") else text)
+
+    def tojson(val, indent=None, **options):
+        options.setdefault("ensure_ascii", True)
+        if indent is not None:
+            options["indent"] = indent
+        return (json.dumps(val, **options).replace("<", "\\u003c").replace(">", "\\u003e")
+                .replace("&", "\\u0026").replace("'", "\\u0027"))
+
+    def lst_avg(lst):
+        return float(sum(lst) / len(lst)) if not _hashable(lst) else float(lst)
+
+    def digest(algo):
+        return lambda instr: hashlib.new(algo, _b(instr)).hexdigest()
+
+    filters = {
+        # SerializerExtension
+        "yaml": format_yaml,
+        "json": lambda value, sort_keys=True, indent=None: Markup(json.dumps(value, sort_keys=sort_keys, indent=indent).strip()),
+        "load_yaml": load_yaml,
+        "load_json": load_json,
+        "load_text": lambda value: str(value),
+        # salt/utils/jinja.py
+        "skip": lambda data: "",
+        "sequence": lambda data: data if isinstance(data, (list, tuple, set, dict)) else [data],
+        "to_bool": _to_bool,
+        "indent": _indent,
+        "tojson": tojson,
+        "quote": lambda txt: shlex.quote(txt),
+        "regex_escape": lambda value: re.escape(value),
+        "regex_search": _regex(re.search, version),
+        "regex_match": _regex(re.match, version),
+        "regex_replace": lambda txt, rgx, val, ignorecase=False, multiline=False:
+            re.compile(rgx, (re.I if ignorecase else 0) | (re.M if multiline else 0)).sub(val, txt),
+        "uuid": lambda val: str(uuidlib.uuid5(uuidlib.UUID(SALT_UUID_NAMESPACE), str(val))),
+        "unique": _unique,
+        "min": lambda obj: min(obj),
+        "max": lambda obj: max(obj),
+        "avg": lst_avg,
+        "union": lambda a, b: set(a) | set(b) if _hashable(a) and _hashable(b) else _unique(a + b),
+        "intersect": lambda a, b: set(a) & set(b) if _hashable(a) and _hashable(b) else _unique([e for e in a if e in b]),
+        "difference": lambda a, b: set(a) - set(b) if _hashable(a) and _hashable(b) else _unique([e for e in a if e not in b]),
+        "symmetric_difference": lambda a, b: set(a) ^ set(b) if _hashable(a) and _hashable(b) else
+            _unique([e for e in _unique(a + b) if e not in _unique([x for x in a if x in b])]),
+        "method_call": lambda obj, f_name, *a, **kw: getattr(obj, f_name, lambda *x, **y: None)(*a, **kw),
+        # salt/utils/data.py
+        "compare_dicts": lambda old=None, new=None: {
+            k: ({"old": "", "new": new[k]} if k not in old else {"new": "", "old": old[k]} if k not in new else {"old": old[k], "new": new[k]})
+            for k in set(new or {}).union(old or {}) if k not in old or k not in new or new[k] != old[k]},
+        "compare_lists": lambda old=None, new=None: {
+            **({"new": [i for i in new if i not in old]} if any(i not in old for i in new) else {}),
+            **({"old": [i for i in old if i not in new]} if any(i not in new for i in old) else {})},
+        "exactly_n_true": lambda iterable, amount=1: (lambda it: all(any(it) for _ in range(amount)) and not any(it))(iter(iterable)),
+        "exactly_one_true": lambda iterable: (lambda it: any(it) and not any(it))(iter(iterable)),
+        "flatten": _flatten,
+        "is_iter": _is_iter,
+        "is_list": lambda value: isinstance(value, list),
+        "sorted_ignorecase": lambda to_sort: sorted(to_sort, key=lambda x: x.lower()),
+        "substring_in_list": lambda s, lst: any(s in x for x in lst),
+        "traverse": _traverse,
+        # salt/utils/dictupdate.py
+        "set_dict_key_value": _set_dict_key_value,
+        "update_dict_key_value": _grow_dict_key_value("update", dict),
+        "append_dict_key_value": _grow_dict_key_value("append", list),
+        "extend_dict_key_value": _grow_dict_key_value("extend", list),
+        # salt/utils/stringutils.py
+        "to_num": _to_num,
+        "str_to_num": _to_num,
+        "is_hex": _is_hex,
+        "contains_whitespace": lambda text: any(x.isspace() for x in text),
+        "human_to_bytes": _human_to_bytes,
+        "to_camelcase": lambda s, uppercamel=False: (lambda w: (w[0].capitalize() if uppercamel else w[0]) + "".join(x.capitalize() for x in w[1:]))(s.split("_")),
+        "to_snake_case": _camel_to_snake,
+        "check_whitelist_blacklist": _check_whitelist_blacklist,
+        "to_bytes": lambda s, encoding=None, errors="strict": s if isinstance(s, bytes) else str(s).encode(encoding or "utf-8", errors),
+        # salt/utils/hashutils.py
+        "base64_encode": lambda instr: base64.b64encode(_b(instr)).decode("utf-8"),
+        "base64_decode": _base64_decode,
+        "md5": digest("md5"),
+        "sha1": digest("sha1"),
+        "sha256": digest("sha256"),
+        "sha512": digest("sha512"),
+        "hmac": lambda string, shared_secret, challenge_hmac:
+            base64.b64encode(hmac.new(_b(shared_secret), _b(string), hashlib.sha256).digest()) == _b(challenge_hmac),
+        "hmac_compute": lambda string, shared_secret: hmac.new(_b(shared_secret), _b(string), hashlib.sha256).hexdigest(),
+        # salt/utils/path.py
+        "path_join": _path_join,
+        # salt/utils/yamlencoding.py
+        "yaml_dquote": _yaml_quoted("write_double_quoted"),
+        "yaml_squote": _yaml_quoted("write_single_quoted"),
+        "yaml_encode": _yaml_encode,
     }
+    if version != "3006":  # added in 3007
+        filters["to_entries"] = _to_entries
+        filters["from_entries"] = _from_entries
+
+    def environment_filter(name):
+        # Its result depends on the minion or the moment: an input to answer.
+        def ask(value, *args, **kwargs):
+            shown = [repr(value)] + [repr(a) for a in args] + [f"{k}={v!r}" for k, v in kwargs.items()]
+            return session.ask("filter", f"{name}({', '.join(shown)})")
+        return ask
+
+    for name in ENVIRONMENT_FILTERS:
+        filters[name] = environment_filter(name)
+    return filters
 
 
 def context_for(path, roots):
@@ -887,11 +1298,18 @@ def main():
                 message = f"Jinja variable {self._undefined_message}"
             for err in session.strict_errors:
                 if (err["message"], err["file"], err["line"]) == (message, file, line):
-                    err["marker"] = err["marker"] or marker
+                    if marker and not err["marker"]:
+                        err["marker"] = marker
+                        err["markers"] = [marker, marker.replace("«", "\\xAB").replace("»", "\\xBB"),
+                                          marker.replace("«", "\\u00ab").replace("»", "\\u00bb")]
                     return
             # `marker`: the placeholder printed into the output, so the
-            # preview can also point at the rendered line(s) it ended up on.
-            session.strict_errors.append({"message": message, "file": file, "line": line, "marker": marker})
+            # preview can also point at the rendered line(s) it ended up on --
+            # `markers` adds how Salt's escaping filters spell it (yaml_dquote
+            # / yaml_encode: \xAB..\xBB; json / tojson: \u00ab..\u00bb).
+            markers = [marker, marker.replace("«", "\\xAB").replace("»", "\\xBB"),
+                       marker.replace("«", "\\u00ab").replace("»", "\\u00bb")] if marker else []
+            session.strict_errors.append({"message": message, "file": file, "line": line, "marker": marker, "markers": markers})
 
         def __str__(self):
             # Visible, never silently "": Salt would have produced no output
@@ -935,7 +1353,7 @@ def main():
         extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"],
         keep_trailing_newline=True,
     )
-    env.filters.update(salt_filters())
+    env.filters.update(salt_filters(salt_version, session))
 
     # Salt's own Jinja global and tests (salt/utils/jinja.py, identical in
     # 3006.27 and 3008.2).
@@ -982,23 +1400,12 @@ def main():
     result = {"rendered": "", "error": None, "yamlErrors": [], "context": dict(ctx, file=rel_main, roots=roots)}
     # Salt ships filters this emulation doesn't: stub each unknown one as a
     # pass-through (with a warning) and retry, rather than stopping cold.
-    for _ in range(20):
-        try:
-            result["rendered"] = env.get_template(rel_main).render()
-            break
-        except jinja2.TemplateAssertionError as exc:
-            m = re.search(r"No (filter|test) named '([^']+)'", str(exc))
-            if not m:
-                raise_to_result(result, exc, rel_main)
-                break
-            kind, name = m.groups()
-            (env.filters if kind == "filter" else env.tests)[name] = (lambda v, *a, **k: v) if kind == "filter" else (lambda v, *a, **k: False)
-            session.warnings.append(f"Salt {kind} '{name}' isn't emulated here -- treated as a pass-through.")
-            if env.cache is not None:
-                env.cache.clear()
-        except Exception as exc:  # noqa: BLE001 - every failure is reported, not raised
-            raise_to_result(result, exc, rel_main)
-            break
+    # Every filter Salt has is registered above, so an unknown one fails the
+    # render here exactly as in Salt ("No filter named ...").
+    try:
+        result["rendered"] = env.get_template(rel_main).render()
+    except Exception as exc:  # noqa: BLE001 - every failure is reported, not raised
+        raise_to_result(result, exc, rel_main)
 
     if result["error"] is None:
         result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],

@@ -19,7 +19,7 @@ c.eq([q["id"] for q in r["questions"]], ["pillar|nginx:lookup", "grains|os_famil
      "questions reached by this render")
 c.eq({q["id"]: q["default"] for q in r["questions"]}["pillar|nginx:sites"], "[]", "default shown")
 c.true("- name: nginx" in r["rendered"], "package name from defaults.yaml")
-c.true('"«variable:banner_text»"' in r["rendered"], "unknown variable rendered as a visible placeholder")
+c.true('"\\xABvariable:banner_text\\xBB"' in r["rendered"], "unknown variable: a visible placeholder, escaped by yaml_dquote exactly as Salt's does")
 c.eq([e["message"] for e in r["strictErrors"]], ["Jinja variable 'banner_text' is undefined"], "StrictUndefined, as Salt")
 
 # Answered: follow-up questions appear as the render reaches them (render-until-unknown).
@@ -48,7 +48,8 @@ e = one('{% from "nope/map.jinja" import m %}\na: 1')["error"]
 c.true(e["message"].startswith("Jinja error: nope/map.jinja") and e["line"] == 1, f"missing import: {e}")
 e = one('{% from "f/map.jinja" import m %}\na: {{ m.a }}\n')["error"]
 c.eq((e["message"], os.path.basename(e["file"]), e["line"]), ("Jinja error: division by zero", "map.jinja", 2), "error inside an import")
-c.true(any("isn't emulated" in w for w in one('a: {{ "x" | not_a_salt_filter }}')["warnings"]), "unknown filter -> warning")
+e = one('a: {{ "x" | not_a_salt_filter }}')["error"]
+c.eq((e["message"], e["line"]), ("Jinja syntax error: No filter named 'not_a_salt_filter'.", 1), "unknown filter fails the render, as in Salt")
 
 # Salt's sandbox, raise(), match/equalto (identical in 3006 and 3008).
 r = one('s:\n  test.nop:\n    - name: {{ "".__class__ }}\n')

@@ -13,7 +13,7 @@ const { extractTemplateInputs } = require('./templateInputs');
 
 const SCHEME = 'salt-preview';
 const RENDER_SCRIPT = path.join(__dirname, 'preview', 'render.py');
-const KIND_LABELS = { grains: 'Grains', pillar: 'Pillar', config: 'Config / opts', salt: 'Salt function calls', variable: 'Undefined variables' };
+const KIND_LABELS = { grains: 'Grains', pillar: 'Pillar', config: 'Config / opts', salt: 'Salt function calls', filter: 'Environment-dependent filters', variable: 'Undefined variables' };
 
 function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   const states = new Map(); // source uri string -> { uri, answers, result, running, pending }
@@ -206,7 +206,8 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       // only in an if/loop (nothing printed): on its own header line.
       const byMarker = new Map();
       strict.forEach((e, i) => {
-        const printedAt = e.marker ? renderedLines.flatMap((l, n) => (l.includes(e.marker) ? [n + head.length] : [])) : [];
+        const markers = e.markers && e.markers.length ? e.markers : e.marker ? [e.marker] : [];
+        const printedAt = renderedLines.flatMap((l, n) => (markers.some((m) => l.includes(m)) ? [n + head.length] : []));
         if (!printedAt.length) {
           add(previewUri, make(2 + (r.warnings || []).length + i, `${lead}${e.message} (${sourceLine(e)})`, vscode.DiagnosticSeverity.Warning));
           return;

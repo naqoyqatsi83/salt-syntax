@@ -212,7 +212,7 @@ else); the preview uses the same wording.
 | Sandbox violation (`"".__class__`, …) | ✅ sandboxed environment, as Salt |
 | `{{ raise('…') }}` (Salt global) | ✅ `Jinja error: …` |
 | Salt tests `match`, `equalto` | ✅ Salt's implementations |
-| Salt's filters: 86 `@jinja_filter`s (`salt/utils/{data,dictupdate,files,hashutils,http,jinja,network,path,stringutils,user,yamlencoding,dateutils}.py`) + serializer filters | ⚠️ ~17 emulated; any other becomes a pass-through with a warning, so output using it is wrong. **Next:** implement the pure ones (~50); turn environment-dependent ones (`dns_check`, `http_query`, `which`, `file_hashsum`, `list_files`, `is_bin_file`, `get_uid`, `random_*`, `uuid`, …) into panel inputs like `salt[...]` calls |
+| Salt's filters — 92 in 3008.2, 90 in 3006.27 (no `to_entries`/`from_entries`), identical signatures otherwise | ✅ every one registered, so an unknown filter fails the render as in Salt (`No filter named …`). ~60 pure ones implemented and **checked against Salt's own code** (`test/salt-filter-parity.test.py`: each Salt filter extracted from source at both tags, ~110 cases per version, identical results). Version differences honoured: `regex_search`/`regex_match` return only the groups in 3006, the whole match when there are none in 3008. Environment-dependent ones (DNS, HTTP, files, users, randomness, the current time, the networking helpers' option modes, `json_query`, …) are panel inputs |
 
 ### 2. YAML loading — `salt/renderers/yaml.py`, `SaltYamlSafeLoader`
 

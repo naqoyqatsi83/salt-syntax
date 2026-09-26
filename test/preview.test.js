@@ -57,15 +57,15 @@ const FILE = path.join(ROOT, 'f', 'init.sls');
     await until(async () => previewDoc.getText() === provider().provideTextDocumentContent(previewDoc.uri) && !/Rendering/.test(previewDoc.getText()) && (await settled()), `render of ${JSON.stringify(text.slice(0, 40))}`);
   };
 
-  // Duplicate IDs + an unemulated filter: errors on the preview's lines.
+  // Duplicate IDs + an environment-dependent filter (an input, not a problem): errors on the preview's lines.
   const E = '\u{1F60A}';
-  await edit(`a:\n  test.nop\n{% for i in ['x', 'y', 'x'] %}\n{{ sls }}.{{ i }}:\n  test.nop\n{% endfor %}\nb:\n  test.nop:\n    - name: {{ 'v' | not_a_salt_filter }}\n`, () => onPreview().length === 2);
+  await edit(`a:\n  test.nop\n{% for i in ['x', 'y', 'x'] %}\n{{ sls }}.{{ i }}:\n  test.nop\n{% endfor %}\nb:\n  test.nop:\n    - name: {{ 'host' | dns_check(80) }}\n`, () => onPreview().length === 1);
   let lines = previewLines();
   const dup = onPreview().find((d) => /conflicting/.test(d.message));
   assert.strictEqual(lines[dup.range.start.line], 'f.x:', 'on the second duplicate');
   assert.strictEqual(lines[dup.relatedInformation[0].location.range.start.line], 'f.x:', 'related info on the first');
   assert.ok(dup.relatedInformation[0].location.range.start.line < dup.range.start.line);
-  assert.match(lines[onPreview().find((d) => /not_a_salt_filter/.test(d.message)).range.start.line], /not_a_salt_filter/, 'warning on its header line');
+  assert.ok(lastState().questions.some((q) => q.kind === 'filter' && q.key === "dns_check('host', 80)"), 'environment filter asked in the panel');
   assert.ok(onPreview().every((d) => d.severity === 1), 'all amber (Warning)');
   assert.strictEqual(lastState().yamlErrors[0], lines.find((l) => l.startsWith('# ⚠ Salt would reject')).replace('# ⚠ ', ''), 'panel = header');
 
