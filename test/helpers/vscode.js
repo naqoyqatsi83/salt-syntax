@@ -121,7 +121,7 @@ function createVscode(config) {
     onType: [],
     commands: {},
     executed: [],
-    listeners: { open: [], change: [], close: [], save: [], config: [], active: [] },
+    listeners: { open: [], change: [], close: [], save: [], config: [], active: [], visibleRanges: [] },
     collections: {},
     contentProviders: {},
     webviews: {},
@@ -157,6 +157,7 @@ function createVscode(config) {
       }
     },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
+    TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
     CodeAction: class {
       constructor(title, k) {
         this.title = title;
@@ -222,6 +223,9 @@ function createVscode(config) {
     window: lenient({
       activeTextEditor: null,
       onDidChangeActiveTextEditor: on('active'),
+      // Editors on screen: tests push { document, visibleRanges, revealRange }.
+      visibleTextEditors: [],
+      onDidChangeTextEditorVisibleRanges: on('visibleRanges'),
       showInformationMessage: (m) => reg.info.push(m),
       showTextDocument: async () => ({}),
       registerWebviewViewProvider: (id, provider) => ((reg.webviews[id] = provider), { dispose() {} })
@@ -234,7 +238,9 @@ function createVscode(config) {
           return full in config ? config[full] : d;
         },
         inspect: () => ({}),
-        update: async () => {}
+        update: async (k, v) => {
+          config[section ? `${section}.${k}` : k] = v;
+        }
       }),
       getWorkspaceFolder: () => undefined,
       onDidOpenTextDocument: on('open'),
@@ -296,6 +302,8 @@ async function load({ config = {} } = {}) {
     open: (d) => fire('open', d),
     change: (d, contentChanges = []) => fire('change', { document: d, contentChanges }),
     close: (d) => fire('close', d),
+    // Tell the extension an editor scrolled (so its top line is `line`).
+    scroll: (textEditor, line) => fire('visibleRanges', { textEditor, visibleRanges: [new vscode.Range(line, 0, line + 30, 0)] }),
     save: (d) => fire('save', d),
     fireConfig: (setting) => fire('config', { affectsConfiguration: (s) => s === setting || setting.startsWith(`${s}.`) }),
     // The provider registered for a given kind; `pick` filters (e.g. by trigger characters).

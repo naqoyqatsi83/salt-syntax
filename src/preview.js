@@ -371,8 +371,44 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     postState();
   }
 
+  // Scroll sync (#48): scrolling the formula scrolls its preview to the
+  // matching rendered line and back, through the renderer's line map (or by
+  // the same fraction of the file when there's none). Toggled by
+  // saltSyntax.preview.scrollSync -- the lock/unlock button on the preview.
+  // Scrolling one editor makes VS Code report the other one scrolled too;
+  // those echoes are ignored for a moment, so the two don't chase each other.
+  const scrolledByUs = new Map(); // document uri string -> when we last scrolled it
+  const SYNC_ECHO_MS = 300;
+  const scrollSyncOn = () => vscode.workspace.getConfiguration('saltSyntax.preview').get('scrollSync', true);
+
+  function syncScroll(fromEditor) {
+    if (!scrollSyncOn() || !fromEditor.visibleRanges.length) return;
+    const uri = fromEditor.document.uri;
+    if (Date.now() - (scrolledByUs.get(uri.toString()) || 0) < SYNC_ECHO_MS) return;
+    const fromPreview = uri.scheme === SCHEME;
+    const state = states.get(fromPreview ? sourceOfPreview(uri) : uri.toString());
+    const r = state && state.result;
+    if (!r || r.fatal || r.error) return;
+    const target = (fromPreview ? state.uri : previewUriFor(state.uri)).toString();
+    const other = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === target);
+    if (!other) return;
+    const top = fromEditor.visibleRanges[0].start.line;
+    const head = headerLines(state).length;
+    const map = r.lineMap || proportionalMap(r.rendered, other.document.lineCount, fromEditor.document.lineCount, fromPreview);
+    const line = fromPreview ? sourceLineOf(map, head, top) : previewLineOf(map, head, top);
+    scrolledByUs.set(target, Date.now());
+    other.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
+  }
+
+  function setScrollSync(on) {
+    return vscode.workspace.getConfiguration('saltSyntax.preview').update('scrollSync', on, vscode.ConfigurationTarget.Global);
+  }
+
   const timers = new Map();
   context.subscriptions.push(
+    vscode.commands.registerCommand('saltSyntax.preview.lockScroll', () => setScrollSync(true)),
+    vscode.commands.registerCommand('saltSyntax.preview.unlockScroll', () => setScrollSync(false)),
+    vscode.window.onDidChangeTextEditorVisibleRanges((e) => syncScroll(e.textEditor)),
     vscode.commands.registerCommand('saltSyntax.openRenderedPreview', openPreview),
     vscode.workspace.onDidChangeTextDocument((e) => {
       const key = e.document.uri.toString();
@@ -385,6 +421,11 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
           diagnostics.set(pending.uri, pending.list);
           state.pendingPreview = null;
         }
+        // New text moves the preview on its own: that's not the user
+        // scrolling it. Line it up with the formula again instead.
+        scrolledByUs.set(e.document.uri.toString(), Date.now());
+        const sourceEditor = state && vscode.window.visibleTextEditors.find((ed) => ed.document.uri.toString() === state.uri.toString());
+        if (sourceEditor) syncScroll(sourceEditor);
         return;
       }
       if (!states.has(key)) return;
@@ -411,6 +452,35 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       }
     })
   );
+}
+
+// Scroll sync's line mapping (#48). `map` holds the source line (1-based)
+// behind each rendered line; the preview shows `head` header lines first.
+// The preview line for a formula's top line: where the nearest source line
+// at or below it first renders (a loop body's first pass, not a macro
+// defined further down that happened to print earlier).
+function previewLineOf(map, head, sourceLine) {
+  if (sourceLine <= 0 || !map.length) return 0;
+  let best = -1;
+  map.forEach((s, i) => {
+    if (s - 1 >= sourceLine && (best < 0 || s < map[best])) best = i;
+  });
+  return (best < 0 ? map.length - 1 : best) + head;
+}
+
+// The formula line for a preview's top line: the source line that
+// produced it (the header maps to the top).
+function sourceLineOf(map, head, previewLine) {
+  if (previewLine < head || !map.length) return 0;
+  return map[Math.min(previewLine - head, map.length - 1)] - 1;
+}
+
+// Without a line map: a stand-in that spreads the rendered lines evenly
+// over the formula's, so both scroll by the same fraction of the file.
+function proportionalMap(rendered, otherLineCount, ownLineCount, fromPreview) {
+  const renderedCount = (rendered || '').split('\n').length;
+  const sourceCount = Math.max(1, fromPreview ? otherLineCount : ownLineCount);
+  return Array.from({ length: renderedCount }, (_, i) => 1 + Math.floor((i * sourceCount) / renderedCount));
 }
 
 function panelHtml(webview) {
@@ -500,4 +570,4 @@ vscode.postMessage({ type: 'ready' });
 </script></body></html>`;
 }
 
-module.exports = { register };
+module.exports = { register, previewLineOf, sourceLineOf, proportionalMap };

@@ -206,6 +206,11 @@
           },
           "default": [],
           "markdownDescription": "Salt file roots the rendered preview resolves imports (`from \"x/map.jinja\"`, `import_yaml`, `salt://...`) and `sls`/`tpldir` against, like the master's `file_roots`. Empty: the workspace folder, or with no folder open, the directory above the file's own (i.e. `<root>/<formula>/file.sls`)."
+        },
+        "saltSyntax.preview.scrollSync": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Scroll the formula and its rendered preview together: each follows the other to the matching line (through the rendered lines' source lines, so loops and includes stay lined up). Toggled by the lock button on the preview's title bar."
         }
       }
     },
@@ -232,6 +237,16 @@
         "command": "saltSyntax.openRenderedPreview",
         "title": "Salt Syntax: Open Rendered Preview",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "saltSyntax.preview.unlockScroll",
+        "title": "Salt Syntax: Unlock Preview Scrolling from the Formula",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "saltSyntax.preview.lockScroll",
+        "title": "Salt Syntax: Lock Preview Scrolling to the Formula",
+        "icon": "$(unlock)"
       },
       {
         "command": "saltSyntax.toggleComment",
@@ -265,6 +280,16 @@
         {
           "command": "saltSyntax.openRenderedPreview",
           "when": "resourceLangId == sls || resourceLangId == salt-jinja",
+          "group": "navigation"
+        },
+        {
+          "command": "saltSyntax.preview.unlockScroll",
+          "when": "resourceScheme == salt-preview && config.saltSyntax.preview.scrollSync",
+          "group": "navigation"
+        },
+        {
+          "command": "saltSyntax.preview.lockScroll",
+          "when": "resourceScheme == salt-preview && !config.saltSyntax.preview.scrollSync",
           "group": "navigation"
         }
       ]

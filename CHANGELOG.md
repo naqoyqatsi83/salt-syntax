@@ -48,6 +48,11 @@ version heading when that state gets tagged and merged to `main`.
 - Requisite and `extend:` targets that no state in the file or its
   includes defines are flagged as suspicious.
   [#46](https://github.com/naqoyqatsi83/salt-syntax/issues/46)
+- The formula and its preview scroll together, each following the other
+  to the matching line -- loops, conditionals and includes stay lined up.
+  The lock button on the preview's title bar (or the new
+  `saltSyntax.preview.scrollSync` setting) turns it off and on.
+  [#48](https://github.com/naqoyqatsi83/salt-syntax/issues/48)
 
 ### Changed
 - The TextMate grammar now has regression tests (`test/grammar.test.js`,

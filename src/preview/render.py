@@ -5,7 +5,8 @@ Reads one JSON request on stdin, writes one JSON result on stdout:
 
   request  {"source": str, "path": str, "roots": [str], "answers": {id: str}}
   result   {"rendered": str, "questions": [...], "warnings": [...],
-            "error": {...} | null, "yamlErrors": [{...}], "context": {...}}
+            "error": {...} | null, "yamlErrors": [{...}], "context": {...},
+            "lineMap": [source line per rendered line] | null}
 
 Real Jinja2 does the rendering, with Salt's Jinja environment emulated:
 Salt's context variables (sls, tpldir, ...) derived from the file's path,
@@ -875,16 +876,66 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
     return found
 
 
+# Line markers for the line map (#48): private-use characters around a
+# source line number, placed just before that line's newline.
+LINE_MARK = re.compile("\ue000(\\d+)\ue001")
+
+
+def mark_lines(env, text):
+    """`text` with a line marker before every newline that is template text
+    -- outside any tag, and outside {% set %}...{% endset %} (so also
+    {% load_yaml %}) and {% filter %} blocks, whose text is captured rather
+    than printed where it stands. Jinja's own lexer decides what's what, so
+    no marker ever lands inside a tag."""
+    marked, depth, tag = set(), 0, None
+    for lineno, kind, value in env.lex(text):
+        if kind == "block_begin":
+            tag = []
+        elif kind == "block_end":
+            if tag and (tag[0] == "filter" or (tag[0] == "set" and "=" not in tag)):
+                depth += 1
+            elif tag and tag[0] in ("endset", "endfilter") and depth:
+                depth -= 1
+            tag = None
+        elif tag is not None and kind in ("name", "operator"):
+            tag.append(value)
+        elif kind == "data" and not depth:
+            marked.update(range(lineno, lineno + value.count("\n")))
+    return "\n".join(f"{line}\ue000{n}\ue001" if n in marked else line for n, line in enumerate(text.split("\n"), 1))
+
+
+def line_map(marked_output, rendered):
+    """The source line (1-based) behind each line of `rendered`, read from the
+    marked render's output: a marked line is its marker's; an unmarked one
+    (a printed value's own newlines, an included file's text) belongs to the
+    next marker down -- the source line whose newline ends it. None when the
+    markers changed more than themselves (e.g. captured text that went
+    through tojson): no map rather than a wrong one."""
+    if LINE_MARK.sub("", marked_output) != rendered:
+        return None
+    result, pending = [], 0
+    for line in marked_output.split("\n"):
+        found = LINE_MARK.findall(line)
+        if found:
+            result.extend([int(found[-1])] * (pending + 1))
+            pending = 0
+        else:
+            pending += 1
+    return result + [result[-1] if result else 1] * pending
+
+
 class SaltLoader(jinja2.BaseLoader):
     def __init__(self, roots, overrides):
         self.roots = roots
         self.overrides = overrides  # template name -> unsaved editor text
+        self.mark = None  # template name to serve with line markers (#48)
 
     def get_source(self, environment, template):
         name = template[len("salt://"):] if template.startswith("salt://") else template
         name = name.lstrip("/")
         if name in self.overrides:
-            return preprocess(self.overrides[name]), name, lambda: False
+            text = preprocess(self.overrides[name])
+            return (mark_lines(environment, text) if name == self.mark else text), name, lambda: False
         for root in self.roots:
             path = os.path.join(root, name)
             if os.path.isfile(path):
@@ -1600,6 +1651,21 @@ def main():
 
         result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],
                                                    req.get("stateData"), roots, rel_main, render_included)
+
+    # The line map (#48): the same render again, with the main file's lines
+    # marked -- after everything else, and with anything it asks or records
+    # dropped, so the preview and its checks never see it.
+    result["lineMap"] = None
+    if result["error"] is None:
+        saved = (dict(session.questions), list(session.warnings), list(session.strict_errors))
+        try:
+            env.loader.mark = rel_main
+            result["lineMap"] = line_map(env.get_template(rel_main).render(), result["rendered"])
+        except Exception:  # noqa: BLE001 - no map is the fallback, never an error
+            pass
+        finally:
+            env.loader.mark = None
+            session.questions, session.warnings, session.strict_errors = saved
 
     for qid in injected:
         if qid not in session.questions:

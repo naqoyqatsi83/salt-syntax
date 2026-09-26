@@ -369,6 +369,10 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
     targets that don't exist
   - arguments that rendered empty (`- name:`), and requisite / `extend:`
     targets defined neither in the file nor in anything it includes
+- **Scrolls with the formula.** Scroll either side and the other follows
+  to the matching line — a loop's lines to its first pass, a
+  `{% include %}`d template's output to the include line. The lock button on the preview's title
+  bar unlinks them (and links them again).
 - **Setup:** set `saltSyntax.preview.fileRoots` to your Salt tree (like
   the master's `file_roots`) if it isn't the open workspace folder; on
   Windows point `saltSyntax.preview.pythonPath` at your Python (`python`
@@ -433,6 +437,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.detectJinjaInYaml` | `true` | Switch a `.yaml`/`.yml` file to Salt Jinja when a line starts with a `{% %}`/`{# #}` tag — see [Other Salt files](#other-salt-files-jinja-and-yaml-with-jinja-in-it). |
 | `saltSyntax.preview.pythonPath` | `python3` | Python interpreter for the rendered preview — needs `jinja2` and `pyyaml`. |
 | `saltSyntax.preview.fileRoots` | `[]` | Salt file roots imports, `include:` targets and `sls`/`tpldir` resolve against. Empty: the workspace folder, or with no folder open, the directory above the file's own. |
+| `saltSyntax.preview.scrollSync` | `true` | Scroll the formula and its preview together. Toggled by the lock button on the preview's title bar. |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a
 thin, discoverable wrapper around the editor defaults described above — disabling one doesn't just stop *forcing* that behavior,
