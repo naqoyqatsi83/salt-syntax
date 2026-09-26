@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.9.2] - 2026-09-26
+
 ### Added
 - Typing `{{` now auto-closes to `{{ | }}` -- a space before the cursor as
   well as after -- for the usual `{{ variable }}` style, in the same undo
