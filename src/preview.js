@@ -116,8 +116,11 @@ function register(context, vscode, isSaltLanguage) {
   function describeYamlError(y, offset) {
     const where = y.line ? ` at line ${y.line + offset} of the preview` : '';
     const first = y.firstLine ? ` (first defined at line ${y.firstLine + offset})` : '';
-    return `Salt would reject this output${where}: ${y.message}${first}`;
+    const gaveUp = y.gaveUpLine ? ` (the parser gave up at line ${y.gaveUpLine + offset})` : '';
+    return `Salt would reject this output${where}: ${y.message}${first}${gaveUp}`;
   }
+
+  const yamlErrorsOf = (r) => (r && !r.error && r.yamlErrors) || [];
 
   function headerLines(state) {
     const r = state.result;
@@ -131,9 +134,12 @@ function register(context, vscode, isSaltLanguage) {
     for (const w of r.warnings || []) head.push(`# ⚠ ${w}`);
     if (r.error) {
       head.push(`# ⚠ Render error${r.error.file ? ` in ${r.error.file}` : ''}${r.error.line ? ` line ${r.error.line}` : ''}: ${r.error.message}`);
-    } else if (r.yamlError) {
-      // This line is itself part of the header, hence the +1.
-      head.push(`# ⚠ ${describeYamlError(r.yamlError, head.length + 1)}`);
+    } else {
+      // One header line per problem; they're part of the header too, so
+      // the offset into the rendered text counts them.
+      const problems = yamlErrorsOf(r);
+      const offset = head.length + problems.length;
+      for (const y of problems) head.push(`# ⚠ ${describeYamlError(y, offset)}`);
     }
     return head;
   }
@@ -168,15 +174,17 @@ function register(context, vscode, isSaltLanguage) {
         const where = e.file === r.context.file || !e.file ? state.uri : path.isAbsolute(e.file) ? vscode.Uri.file(e.file) : null;
         const line = e.line ? e.line - 1 : 0;
         add(where || state.uri, make(where ? line : 0, where ? `Render error: ${e.message}` : `Render error in ${e.file}${e.line ? ` line ${e.line}` : ''}: ${e.message}`, vscode.DiagnosticSeverity.Error));
-      } else if (r.yamlError) {
-        const y = r.yamlError;
-        const d = make(y.line ? y.line - 1 + head.length : 0, `Salt would reject this output: ${y.message}`, vscode.DiagnosticSeverity.Error);
-        if (y.firstLine) {
-          d.relatedInformation = [new vscode.DiagnosticRelatedInformation(
-            new vscode.Location(previewUri, new vscode.Range(y.firstLine - 1 + head.length, 0, y.firstLine - 1 + head.length, 0)),
-            'first defined here')];
+      } else {
+        const at = (renderedLine) => renderedLine - 1 + head.length; // 0-based preview line
+        for (const y of yamlErrorsOf(r)) {
+          const d = make(y.line ? at(y.line) : 0, `Salt would reject this output: ${y.message}`, vscode.DiagnosticSeverity.Error);
+          const other = y.firstLine ? [y.firstLine, 'first defined here'] : y.gaveUpLine ? [y.gaveUpLine, 'the parser gave up here'] : null;
+          if (other) {
+            d.relatedInformation = [new vscode.DiagnosticRelatedInformation(
+              new vscode.Location(previewUri, new vscode.Range(at(other[0]), 0, at(other[0]), 0)), other[1])];
+          }
+          add(previewUri, d);
         }
-        add(previewUri, d);
       }
     }
     for (const { uri, list } of byUri.values()) diagnostics.set(uri, list);
@@ -228,7 +236,7 @@ function register(context, vscode, isSaltLanguage) {
       file: r.context ? r.context.file : path.basename(state.uri.fsPath),
       fatal: r.fatal || null,
       error: r.error || null,
-      yamlError: r.yamlError && !r.error ? describeYamlError(r.yamlError, headerLines(state).length) : null,
+      yamlErrors: yamlErrorsOf(r).map((y) => describeYamlError(y, headerLines(state).length)),
       warnings: r.warnings || [],
       rendering: !state.result,
       kinds: KIND_LABELS,
@@ -376,7 +384,7 @@ function render(s) {
   root.append(el('div', { class: 'file' }, s.file));
   if (s.fatal) { root.append(el('div', { class: 'msg err' }, s.fatal)); return; }
   if (s.error) root.append(el('div', { class: 'msg err' }, 'Render error' + (s.error.line ? ' (' + (s.error.file || '') + ' line ' + s.error.line + ')' : '') + ': ' + s.error.message));
-  if (s.yamlError) root.append(el('div', { class: 'msg' }, s.yamlError));
+  for (const y of s.yamlErrors) root.append(el('div', { class: 'msg err' }, y));
   for (const w of s.warnings) root.append(el('div', { class: 'msg' }, w));
   if (s.rendering) root.append(el('div', { class: 'empty' }, 'Rendering…'));
   const byKind = {};

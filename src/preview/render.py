@@ -5,7 +5,7 @@ Reads one JSON request on stdin, writes one JSON result on stdout:
 
   request  {"source": str, "path": str, "roots": [str], "answers": {id: str}}
   result   {"rendered": str, "questions": [...], "warnings": [...],
-            "error": {...} | null, "yamlError": {...} | null, "context": {...}}
+            "error": {...} | null, "yamlErrors": [{...}], "context": {...}}
 
 Real Jinja2 does the rendering, with Salt's Jinja environment emulated:
 Salt's context variables (sls, tpldir, ...) derived from the file's path,
@@ -297,9 +297,15 @@ class SaltSafeLoader(yaml.SafeLoader):
     flattening merge keys, a key appearing twice in the same mapping -- at
     any level, e.g. two states rendered with the same ID -- is an error.
     Plain yaml.safe_load silently keeps the last one, so without this the
-    preview would call "fine" a file Salt refuses to run. The message is
-    Salt's own and points at the second occurrence, as Salt's does; the
-    first occurrence's line rides along as `first_line`."""
+    preview would call "fine" a file Salt refuses to run.
+
+    Salt stops at the first conflict; this records every one (in
+    `conflicts`) so the preview can point at all of them at once. The
+    message is still Salt's own."""
+
+    def __init__(self, stream):
+        super().__init__(stream)
+        self.conflicts = []
 
     def construct_mapping(self, node, deep=False):
         if not isinstance(node, yaml.MappingNode):
@@ -317,14 +323,67 @@ class SaltSafeLoader(yaml.SafeLoader):
                     f"found unacceptable key {key_node.value}", key_node.start_mark)
             value = self.construct_object(value_node, deep=deep)
             if key in mapping:
-                exc = yaml.constructor.ConstructorError(
-                    "while constructing a mapping", node.start_mark,
-                    f"found conflicting ID '{key}'", key_node.start_mark)
-                exc.first_line = first_seen[key] + 1
-                raise exc
+                self.conflicts.append({
+                    "message": f"found conflicting ID '{key}'",
+                    "line": key_node.start_mark.line + 1,
+                    "firstLine": first_seen[key] + 1,
+                })
+                continue
             mapping[key] = value
             first_seen[key] = key_node.start_mark.line
         return mapping
+
+
+def _load_conflicts(text):
+    loader = SaltSafeLoader(text)
+    try:
+        loader.get_single_data()
+    finally:
+        loader.dispose()
+    return loader.conflicts
+
+
+def _syntax_problem(exc):
+    """A YAML syntax error, placed where the broken construct *starts*.
+    For "while scanning ..." errors PyYAML's problem mark is only where it
+    gave up (e.g. the next key after a stray bare line), while the context
+    mark is the line actually at fault -- so that's the one reported, with
+    the give-up line alongside."""
+    pm, cm = exc.problem_mark, exc.context_mark
+    if cm is not None and exc.context and exc.context.startswith("while scanning"):
+        line, gave_up = cm.line + 1, (pm.line + 1 if pm else None)
+    else:
+        mark = pm or cm
+        line, gave_up = (mark.line + 1 if mark else None), None
+    message = f"{exc.context}, {exc.problem}" if exc.context and exc.problem else str(exc.problem or exc)
+    return {"message": message, "line": line, "gaveUpLine": gave_up if gave_up != line else None}
+
+
+def check_rendered_yaml(text):
+    """Every reason Salt's YAML loading would reject `text`, in line order:
+    syntax errors and every conflicting ID. Salt stops at the first; here a
+    syntax error's line is blanked (line numbers kept) and the text checked
+    again, a few times over, so one broken line doesn't hide the problems
+    after it. The blanking only ever affects this check, never the preview."""
+    lines = text.splitlines(True)
+    problems, blanked, conflicts = [], set(), []
+    for _ in range(10):
+        try:
+            conflicts = _load_conflicts("".join(lines))
+            break
+        except yaml.MarkedYAMLError as exc:
+            syntax = _syntax_problem(exc)
+            problems.append(syntax)
+            line = syntax["line"]
+            if not line or line in blanked or line > len(lines):
+                break
+            blanked.add(line)
+            lines[line - 1] = "\n"
+        except yaml.YAMLError as exc:
+            problems.append({"message": str(exc), "line": None})
+            break
+    problems.extend(conflicts)
+    return sorted(problems, key=lambda p: (p["line"] is None, p["line"] or 0))
 
 
 class SaltLoader(jinja2.BaseLoader):
@@ -503,7 +562,7 @@ def main():
                 env.globals[qid.split("|", 1)[1]] = val
                 injected.append(qid)
 
-    result = {"rendered": "", "error": None, "yamlError": None, "context": dict(ctx, file=rel_main, roots=roots)}
+    result = {"rendered": "", "error": None, "yamlErrors": [], "context": dict(ctx, file=rel_main, roots=roots)}
     # Salt ships filters this emulation doesn't: stub each unknown one as a
     # pass-through (with a warning) and retry, rather than stopping cold.
     for _ in range(20):
@@ -525,14 +584,7 @@ def main():
             break
 
     if result["error"] is None:
-        try:
-            yaml.load(result["rendered"], Loader=SaltSafeLoader)
-        except yaml.MarkedYAMLError as exc:
-            mark = exc.problem_mark or exc.context_mark
-            result["yamlError"] = {"message": str(exc.problem or exc), "line": mark.line + 1 if mark else None,
-                                   "firstLine": getattr(exc, "first_line", None)}
-        except yaml.YAMLError as exc:
-            result["yamlError"] = {"message": str(exc), "line": None}
+        result["yamlErrors"] = check_rendered_yaml(result["rendered"])
 
     for qid in injected:
         if qid not in session.questions:
