@@ -104,10 +104,16 @@ function register(context, vscode, isSaltLanguage) {
     return lines;
   }
 
-  function previewText(state) {
+  // How a rendered-YAML problem reads, in the preview's own line numbers
+  // (rendered line + the header's line count), for the header and panel.
+  function describeYamlError(y, offset) {
+    const where = y.line ? ` at line ${y.line + offset} of the preview` : '';
+    const first = y.firstLine ? ` (first defined at line ${y.firstLine + offset})` : '';
+    return `Salt would reject this output${where}: ${y.message}${first}`;
+  }
+
+  function headerLines(state) {
     const r = state.result;
-    if (!r) return '# Rendering…\n';
-    if (r.fatal) return `# Salt rendered preview (experimental)\n#\n# ${r.fatal.split('\n').join('\n# ')}\n`;
     const qs = r.questions || [];
     const open = qs.filter((q) => !q.answered);
     const noDefault = open.filter((q) => q.default === null);
@@ -118,14 +124,21 @@ function register(context, vscode, isSaltLanguage) {
     for (const w of r.warnings || []) head.push(`# ⚠ ${w}`);
     if (r.error) {
       head.push(`# ⚠ Render error${r.error.file ? ` in ${r.error.file}` : ''}${r.error.line ? ` line ${r.error.line}` : ''}: ${r.error.message}`);
-      return `${head.join('\n')}\n`;
+    } else if (r.yamlError) {
+      // This line is itself part of the header, hence the +1.
+      head.push(`# ⚠ ${describeYamlError(r.yamlError, head.length + 1)}`);
     }
-    if (r.yamlError) {
-      const at = r.yamlError.line ? ` at line ${r.yamlError.line + head.length + 1} of this preview` : '';
-      head.push(`# ⚠ The rendered output isn't valid YAML${at}: ${r.yamlError.message}`);
-    }
-    return `${head.join('\n')}\n${r.rendered}`;
+    return head;
   }
+
+  function previewText(state) {
+    const r = state.result;
+    if (!r) return '# Rendering…\n';
+    if (r.fatal) return `# Salt rendered preview (experimental)\n#\n# ${r.fatal.split('\n').join('\n# ')}\n`;
+    const head = headerLines(state);
+    return r.error ? `${head.join('\n')}\n` : `${head.join('\n')}\n${r.rendered}`;
+  }
+
 
   context.subscriptions.push(
     changed,
@@ -162,7 +175,7 @@ function register(context, vscode, isSaltLanguage) {
       file: r.context ? r.context.file : path.basename(state.uri.fsPath),
       fatal: r.fatal || null,
       error: r.error || null,
-      yamlError: r.yamlError || null,
+      yamlError: r.yamlError && !r.error ? describeYamlError(r.yamlError, headerLines(state).length) : null,
       warnings: r.warnings || [],
       rendering: !state.result,
       kinds: KIND_LABELS,
@@ -310,7 +323,7 @@ function render(s) {
   root.append(el('div', { class: 'file' }, s.file));
   if (s.fatal) { root.append(el('div', { class: 'msg err' }, s.fatal)); return; }
   if (s.error) root.append(el('div', { class: 'msg err' }, 'Render error' + (s.error.line ? ' (' + (s.error.file || '') + ' line ' + s.error.line + ')' : '') + ': ' + s.error.message));
-  if (s.yamlError) root.append(el('div', { class: 'msg' }, 'Rendered output isn’t valid YAML: ' + s.yamlError.message));
+  if (s.yamlError) root.append(el('div', { class: 'msg' }, s.yamlError));
   for (const w of s.warnings) root.append(el('div', { class: 'msg' }, w));
   if (s.rendering) root.append(el('div', { class: 'empty' }, 'Rendering…'));
   const byKind = {};

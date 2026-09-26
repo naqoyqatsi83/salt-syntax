@@ -95,7 +95,11 @@ appears.
 Once rendered to plain YAML, reuse data the extension already ships:
 
 - **Duplicate state IDs after rendering** (classic loop bug, invisible in
-  the template)
+  the template) — *done in the PoC:* the rendered output is parsed the way
+  Salt's own loader does (`SaltYamlSafeLoader.construct_mapping`), so a key
+  repeated in the same mapping at any level is reported with Salt's own
+  message, `found conflicting ID '…'`, at the second occurrence plus where
+  the first was
 - **Unknown `module.function`** for the active `saltSyntax.saltVersion`
   (`MODULE_FUNCTIONS_*`)
 - **Missing mandatory arguments** (`MANDATORY_FIELDS_*`)

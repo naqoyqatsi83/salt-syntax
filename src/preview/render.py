@@ -291,6 +291,42 @@ def preprocess(source):
     return "".join(out)
 
 
+class SaltSafeLoader(yaml.SafeLoader):
+    """Parses the rendered output the way Salt's own loader does
+    (salt/utils/yamlloader.py, SaltYamlSafeLoader.construct_mapping): after
+    flattening merge keys, a key appearing twice in the same mapping -- at
+    any level, e.g. two states rendered with the same ID -- is an error.
+    Plain yaml.safe_load silently keeps the last one, so without this the
+    preview would call "fine" a file Salt refuses to run. The message is
+    Salt's own and points at the second occurrence, as Salt's does; the
+    first occurrence's line rides along as `first_line`."""
+
+    def construct_mapping(self, node, deep=False):
+        if not isinstance(node, yaml.MappingNode):
+            return super().construct_mapping(node, deep)
+        self.flatten_mapping(node)
+        mapping = {}
+        first_seen = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                hash(key)
+            except TypeError:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark,
+                    f"found unacceptable key {key_node.value}", key_node.start_mark)
+            value = self.construct_object(value_node, deep=deep)
+            if key in mapping:
+                exc = yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark,
+                    f"found conflicting ID '{key}'", key_node.start_mark)
+                exc.first_line = first_seen[key] + 1
+                raise exc
+            mapping[key] = value
+            first_seen[key] = key_node.start_mark.line
+        return mapping
+
+
 class SaltLoader(jinja2.BaseLoader):
     def __init__(self, roots, overrides):
         self.roots = roots
@@ -490,10 +526,11 @@ def main():
 
     if result["error"] is None:
         try:
-            yaml.safe_load(result["rendered"])
+            yaml.load(result["rendered"], Loader=SaltSafeLoader)
         except yaml.MarkedYAMLError as exc:
             mark = exc.problem_mark or exc.context_mark
-            result["yamlError"] = {"message": str(exc.problem or exc), "line": mark.line + 1 if mark else None}
+            result["yamlError"] = {"message": str(exc.problem or exc), "line": mark.line + 1 if mark else None,
+                                   "firstLine": getattr(exc, "first_line", None)}
         except yaml.YAMLError as exc:
             result["yamlError"] = {"message": str(exc), "line": None}
 
