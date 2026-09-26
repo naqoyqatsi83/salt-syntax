@@ -459,7 +459,179 @@ def include_problems(text, roots, sls, rel_file, saltenv="base"):
     return found
 
 
-def check_rendered_yaml(text, version="3008", sls="", state_data=None, roots=(), rel_file=""):
+# --- Requisites and extend: pointing at states that exist ------------------
+# A requisite's target must be a state in the same run; this can only see the
+# file and what it includes, so a miss is *suspicious* -- in a highstate,
+# another SLS from top.sls could define it.
+
+# Requisites whose target Salt looks up (3006: the "requisites were not
+# found" check in State.check_requisite; 3008: RequisiteGraph.add_requisites).
+REFERENCE_REQUISITES = {
+    "3006": ("require", "watch", "prereq", "onfail", "onchanges", "require_any", "watch_any", "onfail_any",
+             "onchanges_any", "prerequired"),
+    "3008": ("require", "require_any", "watch", "watch_any", "prereq", "onfail", "onfail_any", "onfail_all",
+             "onchanges", "onchanges_any"),
+}
+
+
+def _is_glob(value):
+    return any(ch in value for ch in "*?[")
+
+
+def _resolve_includes(root_node, sls, rel_file, roots):
+    """(sls name, path) for every include of this rendered SLS that exists
+    under the roots (globs expanded) -- the same resolution include_problems()
+    checks; entries for another saltenv are skipped."""
+    import fnmatch
+    found = []
+    for key, value in root_node.value:
+        if not (isinstance(key, yaml.ScalarNode) and key.value == "include" and isinstance(value, yaml.SequenceNode)):
+            continue
+        for item in value.value:
+            node = item.value[0][1] if isinstance(item, yaml.MappingNode) and len(item.value) == 1 and item.value[0][0].value == "base" else item
+            if not (isinstance(node, yaml.ScalarNode) and node.value):
+                continue
+            inc = node.value
+            if inc.startswith("."):
+                m = re.match(r"^(\.+)(.*)$", inc)
+                comps = sls.split(".") + (["init"] if rel_file.endswith("init.sls") else [])
+                if len(m.group(1)) > len(comps):
+                    continue
+                inc = ".".join(comps[: -len(m.group(1))] + [m.group(2)])
+            for root in roots:
+                if _is_glob(inc):
+                    for dirpath, _dirs, files in os.walk(root):
+                        for f in files:
+                            if f.endswith(".sls"):
+                                rel = os.path.relpath(os.path.join(dirpath, f), root)[:-4].replace(os.sep, ".")
+                                name = rel[: -len(".init")] if rel.endswith(".init") else rel
+                                if fnmatch.fnmatch(name, inc):
+                                    found.append((name, os.path.join(dirpath, f)))
+                    continue
+                for cand in (inc.replace(".", os.sep) + ".sls", os.path.join(inc.replace(".", os.sep), "init.sls")):
+                    if os.path.isfile(os.path.join(root, cand)):
+                        found.append((inc, os.path.join(root, cand)))
+                        break
+    return found
+
+
+def _states_of(root_node):
+    """What a rendered SLS defines: {ids}, {(module, id or name)}."""
+    ids, pairs = set(), set()
+    for id_node, body in root_node.value:
+        if not isinstance(id_node, yaml.ScalarNode) or id_node.value in SLS_SPECIAL_KEYS:
+            continue
+        sid = id_node.value
+        ids.add(sid)
+        if isinstance(body, yaml.ScalarNode) and "." in body.value:
+            pairs.add((body.value.split(".", 1)[0], sid))
+            continue
+        if not isinstance(body, yaml.MappingNode):
+            continue
+        for key, args in body.value:
+            if not isinstance(key, yaml.ScalarNode) or key.value.startswith("__"):
+                continue
+            module = key.value.split(".", 1)[0]
+            pairs.add((module, sid))
+            for arg in args.value if isinstance(args, yaml.SequenceNode) else []:
+                if not isinstance(arg, yaml.MappingNode):
+                    continue
+                for k, v in arg.value:
+                    if k.value == "name" and isinstance(v, yaml.ScalarNode):
+                        pairs.add((module, v.value))
+                    if k.value == "names" and isinstance(v, yaml.SequenceNode):
+                        for n in v.value:
+                            name = n.value if isinstance(n, yaml.ScalarNode) else n.value[0][0].value if isinstance(n, yaml.MappingNode) and n.value else None
+                            if name is not None:
+                                pairs.add((module, str(name)))
+    return ids, pairs
+
+
+def reference_problems(text, version, sls, roots, rel_file, render_included, limit=50):
+    """Requisite targets and extended IDs that no state in this file or the
+    files it includes (transitively, rendered via `render_included(path, sls)`)
+    defines. Skipped entirely when an included file can't be rendered --
+    its states would be unknown."""
+    import fnmatch
+    try:
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(root, yaml.MappingNode):
+        return []
+    ids, pairs = _states_of(root)
+    known_sls, seen_paths = {sls}, set()
+    queue = _resolve_includes(root, sls, rel_file, roots)
+    included_ids, included_pairs = set(), set()
+    while queue:
+        name, path = queue.pop(0)
+        if path in seen_paths:
+            continue
+        seen_paths.add(path)
+        if len(seen_paths) > limit:
+            return []
+        known_sls.add(name)
+        rendered = render_included(path, name)
+        try:
+            node = yaml.compose(rendered, Loader=yaml.SafeLoader) if rendered is not None else None
+        except yaml.YAMLError:
+            node = None
+        if rendered is None or (node is not None and not isinstance(node, yaml.MappingNode)):
+            return []
+        if node is None:
+            continue
+        i, p = _states_of(node)
+        included_ids |= i
+        included_pairs |= p
+        rel = next((os.path.relpath(path, r) for r in roots if not os.path.relpath(path, r).startswith("..")), path)
+        queue.extend(_resolve_includes(node, name, rel.replace(os.sep, "/"), roots))
+    all_ids, all_pairs = ids | included_ids, pairs | included_pairs
+    hint = (" -- no state in this file or the files it includes defines it; fine only if another SLS in the same "
+            "run (e.g. from top.sls) does")
+    found = []
+    for id_node, body in root.value:
+        if not isinstance(id_node, yaml.ScalarNode):
+            continue
+        if id_node.value == "extend" and isinstance(body, yaml.MappingNode):
+            for ext_id, ext_body in body.value:
+                module = next((k.value.split(".", 1)[0] for k, _v in ext_body.value if isinstance(k, yaml.ScalarNode) and not k.value.startswith("__")), None) if isinstance(ext_body, yaml.MappingNode) else None
+                if ext_id.value not in included_ids and (module is None or (module, ext_id.value) not in included_pairs):
+                    found.append({"message": f"Cannot extend ID '{ext_id.value}' in 'base:{sls}'. It is not part of the high state." + hint,
+                                  "line": ext_id.start_mark.line + 1, "reject": False})
+            continue
+        if id_node.value in SLS_SPECIAL_KEYS or not isinstance(body, yaml.MappingNode):
+            continue
+        for _key, args in body.value:
+            for arg in args.value if isinstance(args, yaml.SequenceNode) else []:
+                if not (isinstance(arg, yaml.MappingNode) and len(arg.value) == 1):
+                    continue
+                rtype, targets = arg.value[0][0].value, arg.value[0][1]
+                if rtype not in REFERENCE_REQUISITES[version] or not isinstance(targets, yaml.SequenceNode):
+                    continue
+                for target in targets.value:
+                    if isinstance(target, yaml.ScalarNode):
+                        key, val = "id", target.value
+                    elif isinstance(target, yaml.MappingNode) and len(target.value) == 1 and isinstance(target.value[0][1], yaml.ScalarNode):
+                        key, val = target.value[0][0].value, target.value[0][1].value
+                    else:
+                        continue  # malformed: the compiler checks report it
+                    if key == "sls":
+                        ok = _is_glob(val) or val in known_sls
+                    elif key == "id":
+                        ok = any(fnmatch.fnmatch(i, val) for i in all_ids) if _is_glob(val) else val in all_ids
+                    else:
+                        ok = any(m == key and fnmatch.fnmatch(n, val) for m, n in all_pairs) if _is_glob(val) else (key, val) in all_pairs
+                    if ok:
+                        continue
+                    state_name = id_node.value
+                    message = (f"The following requisites were not found: {rtype}: {key}: {val}" if version == "3006" else
+                               f"Referenced state does not exist for requisite [{rtype}: ({key}: {val})] in state "
+                               f"[{state_name}] in SLS [{sls}]")
+                    found.append({"message": message + hint, "line": target.start_mark.line + 1, "reject": False})
+    return found
+
+
+def check_rendered_yaml(text, version="3008", sls="", state_data=None, roots=(), rel_file="", render_included=None):
     """Every reason Salt's YAML loading would reject `text`, in line order:
     syntax errors and every conflicting ID. Salt stops at the first; here a
     syntax error's line is blanked (line numbers kept) and the text checked
@@ -486,6 +658,8 @@ def check_rendered_yaml(text, version="3008", sls="", state_data=None, roots=(),
     checked = "".join(lines)
     problems.extend(compiler_problems(checked, version, sls, state_data, frozenset(custom_state_modules(roots))))
     problems.extend(include_problems(checked, roots, sls, rel_file))
+    if render_included is not None:
+        problems.extend(reference_problems(checked, version, sls, roots, rel_file, render_included))
     return sorted(problems, key=lambda p: (p["line"] is None, p["line"] or 0))
 
 
@@ -1408,8 +1582,24 @@ def main():
         raise_to_result(result, exc, rel_main)
 
     if result["error"] is None:
+        def render_included(path, _sls):
+            """Another SLS rendered for its state IDs: its own context (sls,
+            tpldir, ...), the same answers; anything it asks, warns about or
+            records is dropped, so the panel only shows this file's inputs.
+            None if it can't be rendered."""
+            saved = (dict(session.questions), list(session.warnings), list(session.strict_errors))
+            try:
+                rel = next((os.path.relpath(path, r) for r in roots if not os.path.relpath(path, r).startswith("..")), None)
+                if rel is None:
+                    return None
+                return env.get_template(rel.replace(os.sep, "/")).render(**context_for(path, roots)[1])
+            except Exception:  # noqa: BLE001 - an unrenderable include just disables the check
+                return None
+            finally:
+                session.questions, session.warnings, session.strict_errors = saved
+
         result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],
-                                                   req.get("stateData"), roots, rel_main)
+                                                   req.get("stateData"), roots, rel_main, render_included)
 
     for qid in injected:
         if qid not in session.questions:
