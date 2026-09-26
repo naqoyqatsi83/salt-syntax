@@ -7,3 +7,4 @@ node_modules/**
 AGENTS.md
 examples/**
 images/icon.svg
+test/**

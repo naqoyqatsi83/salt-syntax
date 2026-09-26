@@ -28,6 +28,9 @@ jobs:
       - name: Check extension.js syntax
         run: node --check src/extension.js
 
+      - name: Run tests
+        run: node test/run.js
+
       - name: Package extension
         run: npx --yes @vscode/vsce package --no-dependencies
 
