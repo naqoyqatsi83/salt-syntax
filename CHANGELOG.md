@@ -62,6 +62,10 @@ version heading when that state gets tagged and merged to `main`.
 - **Go to Formula Line** (F12 or right-click in the preview) jumps from a
   rendered line to the formula line that produced it.
   [#50](https://github.com/naqoyqatsi83/salt-syntax/issues/50)
+- `examples/salt_filters_3008.sls` / `salt_filters_3006.sls`: every Salt
+  Jinja filter with an example and its expected output, for testing the
+  preview by hand (not packaged).
+  [#51](https://github.com/naqoyqatsi83/salt-syntax/issues/51)
 
 ### Changed
 - The TextMate grammar now has regression tests (`test/grammar.test.js`,
