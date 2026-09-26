@@ -3218,6 +3218,12 @@ async function maybeSwitchYamlToSaltJinja(document) {
   }
 }
 
+// `{{|` with the auto-closed ` }}` right after the cursor -- the moment to
+// pad it to `{{ | }}` (see saltSyntax.padJinjaExpressions in activate()).
+function needsJinjaExpressionPadding(before, after) {
+  return /\{\{$/.test(before) && after.startsWith(' }}');
+}
+
 async function activate(context) {
   // State-only features (module.function / requisite completion, state
   // block insertion) use `selector`; everything Jinja uses `jinjaSelector`.
@@ -3508,6 +3514,35 @@ async function activate(context) {
       }
     },
     '\n'
+  );
+
+  // saltSyntax.padJinjaExpressions: typing `{{` auto-closes to `{{| }}`
+  // (language-configuration.json's pair), leaving no space before the
+  // cursor; auto-closing pairs can't insert anything there, so add it right
+  // after the auto-close fires -> `{{ | }}`, in the same undo step. Only
+  // `{{`: `{%` is so often typed as `{%-` (whitespace control) that a space
+  // put in first would turn it into `{% -`.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || e.document !== editor.document || !isSaltLanguage(e.document.languageId)) return;
+      if (!e.contentChanges.some((c) => c.text.includes('{'))) return;
+      if (!vscode.workspace.getConfiguration('saltSyntax').get('padJinjaExpressions', true)) return;
+      // The cursor only moves after this event, so look once it has.
+      setTimeout(() => {
+        if (vscode.window.activeTextEditor !== editor) return;
+        const spots = editor.selections
+          .filter((sel) => sel.isEmpty)
+          .map((sel) => sel.active)
+          .filter((pos) => {
+            const line = editor.document.lineAt(pos.line).text;
+            return needsJinjaExpressionPadding(line.slice(0, pos.character), line.slice(pos.character));
+          });
+        if (spots.length) {
+          editor.insertSnippet(new vscode.SnippetString(' '), spots, { undoStopBefore: false, undoStopAfter: false });
+        }
+      }, 0);
+    })
   );
 
   // Quick-pick alternative to hunting down saltSyntax.saltVersion in the

@@ -346,6 +346,11 @@ Comments (`#`, `{# #}`), bracket matching and auto-close for `{{ }}` /
 `{% %}` / `{# #}`, and sensible YAML-style indentation (2-space, spaces not
 tabs) — set as this extension's editor defaults for `.sls` files, along with:
 
+- Typing `{{` auto-closes padded on *both* sides — `{{ | }}`, cursor in the
+  middle — for the usual `{{ variable }}` style
+  (`saltSyntax.padJinjaExpressions`). `{%` isn't padded before the cursor,
+  since it's so often typed as `{%-` (whitespace control).
+
 - `editor.quickSuggestions` tuned so completion reacts inside plain scalar
   values too (VS Code disables quick suggestions inside `string`-scoped
   text by default, and unquoted YAML values are scoped as strings here to
@@ -379,6 +384,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaEnterIndent` | `followNesting` | Where Enter puts the cursor after a line starting with a `{% %}` tag: `followNesting` (two spaces deeper than the innermost open Jinja block) or `column0`. Other lines keep VS Code's normal auto-indent. Needs `editor.formatOnType`, on by default for `.sls`. |
+| `saltSyntax.padJinjaExpressions` | `true` | Typing `{{` auto-closes to `{{ \| }}` — a space before the cursor too — instead of `{{\| }}`. Only `{{`; `{%` is left alone (often typed as `{%-`). |
 | `saltSyntax.detectJinjaInYaml` | `true` | Switch a `.yaml`/`.yml` file to Salt Jinja when a line starts with a `{% %}`/`{# #}` tag — see [Other Salt files](#other-salt-files-jinja-and-yaml-with-jinja-in-it). |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a

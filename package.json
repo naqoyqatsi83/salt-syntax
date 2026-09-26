@@ -179,6 +179,11 @@
           "default": true,
           "markdownDescription": "Switch a `.yaml`/`.yml` file to **Salt Jinja** when it opens and a line *starts* with a Jinja `{% %}` or `{# #}` tag — e.g. a formula's `defaults.yaml` or `osfamilymap.yaml` loaded through `import_yaml` — so it gets the same Jinja highlighting, checks and completion as `.jinja` files. YAML that only quotes `{{ }}` inside values (Ansible, Helm, GitHub Actions) isn't affected, and neither is a file another extension already claimed. Switch a file back via the language picker in the status bar; to map whole folders instead, use `files.associations` (e.g. `\"**/salt/**/*.yaml\": \"salt-jinja\"`)."
         },
+        "saltSyntax.padJinjaExpressions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When typing `{{` auto-closes to `{{ }}`, also put a space *before* the cursor: `{{ | }}` instead of `{{| }}`, matching the usual `{{ variable }}` style. Only for `{{` — `{%` is left alone, since it's so often typed as `{%-` (whitespace control). Turn off if you'd rather type that space yourself."
+        },
         "saltSyntax.saltVersion": {
           "type": "string",
           "enum": ["3008", "3006"],
