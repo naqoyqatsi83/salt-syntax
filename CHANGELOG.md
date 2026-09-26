@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.10.0] - 2026-09-26
+
 ### Added
 - **Rendered preview**: `Ctrl+K V` (or the editor-title button) shows the
   YAML a formula renders to, beside it and live, rendered with real Jinja2

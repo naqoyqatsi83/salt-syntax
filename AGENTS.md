@@ -33,14 +33,13 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `main` is at `v0.9.2`. `develop` has the
-  rendered preview graduated from `experimental/template-inputs-poc`
-  (#39-#46, closed; #23 closed as the umbrella) and is headed for
-  `v0.10.0` -- `v0.10.0-rc.5` cut from `develop` for testing first;
-  since then `develop` also has #47 (grammar tests) and #48 (scroll
-  sync, tested by hand from a local .vsix), both closed. The
+- **Where things stand:** `develop` and `main` are at `v0.10.0`: the
+  rendered preview (#39-#46, graduated from
+  `experimental/template-inputs-poc`; #23 the umbrella), grammar tests
+  (#47), and on top of the preview's line map: scroll sync (#48),
+  problems on the formula line (#49), Go to Formula Line (#50). The
   experimental branches are kept for history but no longer where work
-  happens. Design notes, coverage map and graduation checklist:
+  happens. Design notes and coverage map:
   `docs/design/jinja-render-preview.md`.
 - **Identity:** commit, tag, and release only as the one identity this
   repo's history already uses — never introduce any other name or handle
@@ -71,8 +70,8 @@ rest of this file stays current.
   - Debug suspicious coloring by tokenizing with `vscode-textmate`
     against the real theme file, per "Verifying grammar changes" below —
     not by eyeballing a screenshot.
-- **Next up:** once rc.5 is confirmed, release `v0.10.0` (merge `develop`
-  into `main`, tag, delete the 0.10.0 RCs).
+- **Next up:** nothing committed to; candidates: refreshing the Salt
+  datasets against newer 3006/3008 point releases.
 
 ## Project Nature
 
