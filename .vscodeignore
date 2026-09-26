@@ -7,4 +7,6 @@ node_modules/**
 AGENTS.md
 examples/**
 images/icon.svg
+docs/**
+**/__pycache__/**
 test/**

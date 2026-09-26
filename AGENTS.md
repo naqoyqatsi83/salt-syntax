@@ -33,15 +33,13 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.9.2` (#36 Enter
-  indentation, #37 `{{ }}` padding, #38 the test suite + CI step -- all
-  closed). The rendered preview lives only on
-  `experimental/template-inputs-poc`, merged up to date with `develop`;
-  latest pre-release `v0.10.0-rc.3` (the first build whose CI ran all 13
-  tests, the preview's included). #23 tracks it -- see its status comment
-  for what's done and next, and the design notes' coverage map.
-  `experimental/jinja-render-preview` holds only the original design notes
-  (never merged forward, left as-is).
+- **Where things stand:** `main` is at `v0.9.2`. `develop` has the
+  rendered preview graduated from `experimental/template-inputs-poc`
+  (#39-#46, closed; #23 closed as the umbrella) and is headed for
+  `v0.10.0` -- `v0.10.0-rc.5` cut from `develop` for testing first. The
+  experimental branches are kept for history but no longer where work
+  happens. Design notes, coverage map and graduation checklist:
+  `docs/design/jinja-render-preview.md`.
 - **Identity:** commit, tag, and release only as the one identity this
   repo's history already uses — never introduce any other name or handle
   into a commit, issue, or release here.
@@ -71,9 +69,8 @@ rest of this file stays current.
   - Debug suspicious coloring by tokenizing with `vscode-textmate`
     against the real theme file, per "Verifying grammar changes" below —
     not by eyeballing a screenshot.
-- **Next up:** see #23's status comment -- remaining Salt filters,
-  requisites/`extend:` across included files, then graduating the preview
-  to `develop`.
+- **Next up:** once rc.5 is confirmed, release `v0.10.0` (merge `develop`
+  into `main`, tag, delete the 0.10.0 RCs).
 
 ## Project Nature
 
@@ -93,6 +90,7 @@ turns the source tree into a `.vsix`.
 | `syntaxes/salt-jinja.tmLanguage.json` | Salt Jinja language's grammar — just includes `source.sls` under its own scope, so there's one grammar to maintain |
 | `snippets/sls-snippets.json` | Static snippets |
 | `src/extension.js` | Completion, diagnostics, highlight, comment-toggle and formatting providers — `sls` gets everything, `salt-jinja` everything but the state-only completions (`SALT_LANGUAGES` / `jinjaSelector`) |
+| `src/preview.js`, `src/preview/render.py`, `src/templateInputs.js` | Rendered preview: the VS Code side (preview document, inputs panel, diagnostics), the Python renderer (real Jinja2 with Salt's environment emulated, checks against Salt's rules per version), the static inputs extractor. Design notes and coverage map: `docs/design/jinja-render-preview.md` |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
 | `images/icon.svg` / `icon.png` | Extension icon — edit the SVG, re-render the 256×256 PNG from it (e.g. `@resvg/resvg-js`); only the PNG is packaged |
 | `test/` | `run.js` runner, `helpers/vscode.js` mock, one `*.test.js` / `*.test.py` per feature — see "Tests" below |

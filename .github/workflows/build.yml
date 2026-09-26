@@ -28,6 +28,9 @@ jobs:
       - name: Check extension.js syntax
         run: node --check src/extension.js
 
+      - name: Python deps for the rendered preview's tests
+        run: python3 -m pip install --quiet jinja2 pyyaml
+
       - name: Run tests
         run: node test/run.js
 

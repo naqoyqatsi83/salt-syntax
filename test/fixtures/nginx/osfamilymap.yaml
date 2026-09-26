@@ -1,0 +1,5 @@
+Debian:
+  config_dir: /etc/nginx/sites-enabled
+RedHat:
+  config_dir: /etc/nginx/conf.d
+  pkg: nginx-core

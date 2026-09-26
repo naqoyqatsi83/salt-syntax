@@ -332,6 +332,51 @@ The editor defaults and `saltSyntax.*` toggles under
 [Language configuration](#language-configuration) apply to Salt Jinja
 files the same way.
 
+### Rendered preview
+
+See what a formula actually renders to — the YAML Salt would get — without
+a master or a minion. **Ctrl+K V** (or the preview button in the editor
+title bar, or *Salt Syntax: Open Rendered Preview*) opens the rendered
+output beside the `.sls` / Salt Jinja file, updating as you type.
+
+- **Real Jinja2, Salt's environment.** Rendering uses Jinja2 through your
+  `python3` (needs `pip install jinja2 pyyaml`; Salt itself isn't needed)
+  with Salt's Jinja emulated: `sls`/`tpldir`/`slspath`/`saltenv` from the
+  file's path, `map.jinja` / `import_yaml` / `load_*` / `salt://` and
+  `./relative` imports processed for real, Salt's sandbox and
+  `StrictUndefined`, `raise()`, and every one of Salt's Jinja filters.
+  The output is shown character for character as Salt produces it —
+  never reformatted.
+- **You supply what isn't in the files.** Every external value the render
+  needs — grains, pillar keys, config/opts, other `salt[...]` calls such
+  as `cmd.run`, environment-dependent filters (`dns_check`, `http_query`,
+  …), undefined variables — is listed in the **Salt Preview** panel,
+  prefilled with the default written in the code. Type a value (as YAML:
+  `8080`, `RedHat`, `[a, b]`, `{k: v}`) and the preview re-renders;
+  questions appear as the render reaches them (answer `os_family:
+  RedHat` and the RedHat-only inputs show up). Answers are remembered per
+  file. Nothing Salt-side is ever executed; an unanswered value without a
+  default shows as a visible `«grains:os»`-style placeholder.
+- **Problems Salt would hit, where they are.** Checked against Salt's own
+  code for the selected `saltSyntax.saltVersion` (3006 or 3008) and shown
+  as warnings — squiggles, the Problems panel, inline tools like Error
+  Lens — on the formula line or the rendered line:
+  - render errors and undefined values (`Jinja variable 'x' is undefined`)
+  - invalid YAML and duplicate state IDs, every one, on the line at fault
+  - Salt's state-compiler checks (`- name /etc/x` missing its colon, no or
+    too many functions, malformed requisites, …) with Salt's own messages
+  - unknown `module.function`, missing required arguments, `include:`
+    targets that don't exist
+  - arguments that rendered empty (`- name:`), and requisite / `extend:`
+    targets defined neither in the file nor in anything it includes
+- **Setup:** set `saltSyntax.preview.fileRoots` to your Salt tree (like
+  the master's `file_roots`) if it isn't the open workspace folder; on
+  Windows point `saltSyntax.preview.pythonPath` at your Python (`python`
+  or `py`, not the `python3` Store stub).
+
+What it can't show is anything that only happens when states *run* on a
+minion — a package that doesn't exist, a command that fails.
+
 ### Snippets
 
 Boilerplate that isn't really "completion" so much as "type a short prefix,
@@ -386,6 +431,8 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.jinjaEnterIndent` | `followNesting` | Where Enter puts the cursor after a line starting with a `{% %}` tag: `followNesting` (two spaces deeper than the innermost open Jinja block) or `column0`. Other lines keep VS Code's normal auto-indent. Needs `editor.formatOnType`, on by default for `.sls`. |
 | `saltSyntax.padJinjaExpressions` | `true` | Typing `{{` auto-closes to `{{ \| }}` — a space before the cursor too — instead of `{{\| }}`. Only `{{`; `{%` is left alone (often typed as `{%-`). |
 | `saltSyntax.detectJinjaInYaml` | `true` | Switch a `.yaml`/`.yml` file to Salt Jinja when a line starts with a `{% %}`/`{# #}` tag — see [Other Salt files](#other-salt-files-jinja-and-yaml-with-jinja-in-it). |
+| `saltSyntax.preview.pythonPath` | `python3` | Python interpreter for the rendered preview — needs `jinja2` and `pyyaml`. |
+| `saltSyntax.preview.fileRoots` | `[]` | Salt file roots imports, `include:` targets and `sls`/`tpldir` resolve against. Empty: the workspace folder, or with no folder open, the directory above the file's own. |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a
 thin, discoverable wrapper around the editor defaults described above — disabling one doesn't just stop *forcing* that behavior,

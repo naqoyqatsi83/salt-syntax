@@ -12,6 +12,43 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- **Rendered preview**: `Ctrl+K V` (or the editor-title button) shows the
+  YAML a formula renders to, beside it and live, rendered with real Jinja2
+  (via `python3` + `jinja2` + `pyyaml`) and Salt's Jinja environment
+  emulated -- `map.jinja`, `import_yaml`, `salt://` imports processed for
+  real. A **Salt Preview** panel lists every external input the render
+  needs (grains, pillar, `salt[...]` results, undefined variables),
+  prefilled with the code's defaults; answers are remembered per file.
+  Nothing Salt-side is executed. New settings `saltSyntax.preview.pythonPath`
+  and `saltSyntax.preview.fileRoots`.
+  [#39](https://github.com/naqoyqatsi83/salt-syntax/issues/39)
+- The preview reports problems as warnings on the formula line and the
+  rendered line -- squiggles, Problems panel, Error Lens -- staying on the
+  right line as edits change the line count.
+  [#40](https://github.com/naqoyqatsi83/salt-syntax/issues/40)
+- Rendered YAML is checked the way Salt's loader does: every syntax error
+  on the line at fault, every duplicate ID, arguments that rendered empty.
+  [#41](https://github.com/naqoyqatsi83/salt-syntax/issues/41)
+- Jinja renders exactly as in Salt: `StrictUndefined` (an undefined value
+  fails the render), the sandbox, `raise()`, `match`/`equalto`, and Salt's
+  error wording.
+  [#42](https://github.com/naqoyqatsi83/salt-syntax/issues/42)
+- Salt's state-compiler checks run on the rendered output with the
+  selected `saltSyntax.saltVersion`'s rules and messages (3006 / 3008),
+  verified against Salt's own code.
+  [#43](https://github.com/naqoyqatsi83/salt-syntax/issues/43)
+- Unknown `module.function`, missing required arguments and `include:`
+  targets that don't exist are flagged.
+  [#44](https://github.com/naqoyqatsi83/salt-syntax/issues/44)
+- All of Salt's Jinja filters are supported (92 in 3008, 90 in 3006),
+  verified against Salt's own implementations; environment-dependent ones
+  (`dns_check`, `http_query`, `random_*`, ...) become panel inputs.
+  [#45](https://github.com/naqoyqatsi83/salt-syntax/issues/45)
+- Requisite and `extend:` targets that no state in the file or its
+  includes defines are flagged as suspicious.
+  [#46](https://github.com/naqoyqatsi83/salt-syntax/issues/46)
+
 ## [0.9.2] - 2026-09-26
 
 ### Added
