@@ -3430,11 +3430,32 @@ async function activate(context) {
         }
         const current = document.lineAt(position.line).text;
         const previous = document.lineAt(position.line - 1).text;
+        const column0 = vscode.workspace.getConfiguration('saltSyntax').get('jinjaEnterIndent', 'followNesting') === 'column0';
+        // Enter pushed a Jinja tag onto the new line (Enter in front of
+        // `{% endfor %}`, say): VS Code gave it the last non-blank line's
+        // indentation, which knows nothing of Jinja nesting -- place it
+        // where the nesting says instead (see expectedJinjaIndentFor).
+        const pushed = current.match(/^([ \t]*)\{%-?\s*([A-Za-z_]\w*)/);
+        if (pushed) {
+          let target = 0;
+          if (!column0) {
+            const { openBlocks } = analyzeJinjaIndent(document.getText(new vscode.Range(0, 0, position.line, 0)));
+            const expected = expectedJinjaIndentFor(openBlocks, pushed[2]);
+            // Top level: nothing to follow, so the indentation the tag had
+            // before the split (whatever preceded the cursor, if only
+            // whitespace), else column 0.
+            target = expected !== null ? expected : /^[ \t]*$/.test(previous) ? previous.length : 0;
+          }
+          if (pushed[1] === ' '.repeat(target)) {
+            return [];
+          }
+          return [vscode.TextEdit.replace(new vscode.Range(position.line, 0, position.line, pushed[1].length), ' '.repeat(target))];
+        }
         if (current.trim() !== '' || !/^[ \t]*\{%/.test(previous)) {
           return [];
         }
         let target = 0;
-        if (vscode.workspace.getConfiguration('saltSyntax').get('jinjaEnterIndent', 'followNesting') !== 'column0') {
+        if (!column0) {
           const { openBlocks } = analyzeJinjaIndent(document.getText(new vscode.Range(0, 0, position.line, 0)));
           const top = openBlocks[openBlocks.length - 1];
           target = top ? top.expected + JINJA_INDENT_STEP : previous.match(/^[ \t]*/)[0].length;
