@@ -239,6 +239,10 @@
         "icon": "$(open-preview)"
       },
       {
+        "command": "saltSyntax.preview.goToSource",
+        "title": "Salt Syntax: Go to Formula Line"
+      },
+      {
         "command": "saltSyntax.preview.unlockScroll",
         "title": "Salt Syntax: Unlock Preview Scrolling from the Formula",
         "icon": "$(lock)"
@@ -263,6 +267,11 @@
     ],
     "keybindings": [
       {
+        "command": "saltSyntax.preview.goToSource",
+        "key": "f12",
+        "when": "editorTextFocus && resourceScheme == salt-preview"
+      },
+      {
         "command": "saltSyntax.toggleComment",
         "key": "ctrl+/",
         "mac": "cmd+/",
@@ -276,6 +285,19 @@
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "saltSyntax.preview.goToSource",
+          "when": "resourceScheme == salt-preview",
+          "group": "navigation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "saltSyntax.preview.goToSource",
+          "when": "resourceScheme == salt-preview"
+        }
+      ],
       "editor/title": [
         {
           "command": "saltSyntax.openRenderedPreview",

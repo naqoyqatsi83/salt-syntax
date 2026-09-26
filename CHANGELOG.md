@@ -57,6 +57,9 @@ version heading when that state gets tagged and merged to `main`.
   compiler checks, ...) also show on the formula line that produced them,
   linked to the preview line.
   [#49](https://github.com/naqoyqatsi83/salt-syntax/issues/49)
+- **Go to Formula Line** (F12 or right-click in the preview) jumps from a
+  rendered line to the formula line that produced it.
+  [#50](https://github.com/naqoyqatsi83/salt-syntax/issues/50)
 
 ### Changed
 - The TextMate grammar now has regression tests (`test/grammar.test.js`,

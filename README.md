@@ -374,6 +374,9 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   to the matching line — a loop's lines to its first pass, a
   `{% include %}`d template's output to the include line. The lock button on the preview's title
   bar unlinks them (and links them again).
+- **Back to the source.** In the preview, **F12** (or right-click → *Go to
+  Formula Line*) jumps to the formula line that produced the line under
+  the cursor.
 - **Setup:** set `saltSyntax.preview.fileRoots` to your Salt tree (like
   the master's `file_roots`) if it isn't the open workspace folder; on
   Windows point `saltSyntax.preview.pythonPath` at your Python (`python`

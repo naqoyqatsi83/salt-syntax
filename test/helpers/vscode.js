@@ -36,7 +36,9 @@ class Range {
 }
 
 class Selection extends Range {
-  constructor(anchor, active) {
+  // (anchor, active) positions, or four numbers like VS Code's.
+  constructor(anchor, active, ...rest) {
+    if (typeof anchor === 'number') [anchor, active] = [new Position(anchor, active), new Position(rest[0], rest[1])];
     super(anchor, active || anchor);
     this.anchor = anchor;
     this.active = active || anchor;
@@ -252,6 +254,9 @@ function createVscode(config) {
       // A virtual document (e.g. the rendered preview) opened from its
       // content provider; kept in textDocuments like VS Code does.
       async openTextDocument(u) {
+        // An already-open file is returned as is, like VS Code does.
+        const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === u.toString());
+        if (open && !reg.contentProviders[u.scheme]) return open;
         const provider = reg.contentProviders[u.scheme];
         const d = doc(provider ? provider.provideTextDocumentContent(u) : '', { languageId: 'plaintext', path: u.path, scheme: u.scheme });
         d.uri = u;

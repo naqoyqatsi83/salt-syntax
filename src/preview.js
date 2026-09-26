@@ -413,12 +413,38 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     other.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
   }
 
+  // Go to Formula Line (#50): from the preview's cursor line to the formula
+  // line that produced it, selected, in the formula's own column (Go to
+  // Definition would open it in the preview's).
+  async function goToSource() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.uri.scheme !== SCHEME) return;
+    const state = states.get(sourceOfPreview(editor.document.uri));
+    const r = state && state.result;
+    if (!r || r.fatal || r.error) return;
+    const head = headerLines(state).length;
+    const line = editor.selection.active.line;
+    if (line < head) return;
+    if (!r.lineMap) {
+      vscode.window.showInformationMessage("Salt Syntax: this render's lines can't be traced to the formula (the template's own text is transformed on its way to the output, e.g. passed through tojson).");
+      return;
+    }
+    const target = sourceLineOf(r.lineMap, head, line);
+    const source = await vscode.workspace.openTextDocument(state.uri);
+    const sourceEditor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === state.uri.toString());
+    await vscode.window.showTextDocument(state.uri, {
+      viewColumn: sourceEditor ? sourceEditor.viewColumn : vscode.ViewColumn.One,
+      selection: new vscode.Range(target, 0, target, source.lineAt(target).text.length)
+    });
+  }
+
   function setScrollSync(on) {
     return vscode.workspace.getConfiguration('saltSyntax.preview').update('scrollSync', on, vscode.ConfigurationTarget.Global);
   }
 
   const timers = new Map();
   context.subscriptions.push(
+    vscode.commands.registerCommand('saltSyntax.preview.goToSource', goToSource),
     vscode.commands.registerCommand('saltSyntax.preview.lockScroll', () => setScrollSync(true)),
     vscode.commands.registerCommand('saltSyntax.preview.unlockScroll', () => setScrollSync(false)),
     vscode.window.onDidChangeTextEditorVisibleRanges((e) => syncScroll(e.textEditor)),
