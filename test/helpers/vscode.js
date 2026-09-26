@@ -243,6 +243,17 @@ function createVscode(config) {
       onDidSaveTextDocument: on('save'),
       onDidChangeConfiguration: on('config'),
       registerTextDocumentContentProvider: (scheme, provider) => ((reg.contentProviders[scheme] = provider), { dispose() {} }),
+      // A virtual document (e.g. the rendered preview) opened from its
+      // content provider; kept in textDocuments like VS Code does.
+      async openTextDocument(u) {
+        const provider = reg.contentProviders[u.scheme];
+        const d = doc(provider ? provider.provideTextDocumentContent(u) : '', { languageId: 'plaintext', path: u.path, scheme: u.scheme });
+        d.uri = u;
+        vscode.workspace.textDocuments.push(d);
+        reg.opened = reg.opened || [];
+        reg.opened.push(d);
+        return d;
+      },
       applyEdit: async (edit) => ((reg.appliedEdit = edit), true)
     }),
     commands: lenient({
