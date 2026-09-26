@@ -9,3 +9,4 @@ examples/**
 images/icon.svg
 docs/**
 **/__pycache__/**
+test/**

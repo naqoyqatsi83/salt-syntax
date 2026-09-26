@@ -20,6 +20,12 @@ version heading when that state gets tagged and merged to `main`.
   `saltSyntax.padJinjaExpressions` turns it off.
   [#37](https://github.com/naqoyqatsi83/salt-syntax/issues/37)
 
+### Changed
+- The extension's test harnesses now live in the repo (`test/`, run with
+  `node test/run.js`) instead of a temp directory outside git, and CI runs
+  them before packaging a release.
+  [#38](https://github.com/naqoyqatsi83/salt-syntax/issues/38)
+
 ### Fixed
 - Enter in front of a line's text gave the pushed-down line VS Code's
   generic auto-indent -- the last non-blank line's indentation -- e.g. 2

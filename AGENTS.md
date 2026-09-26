@@ -23,9 +23,9 @@ This repo follows a standing process — apply it without being asked:
   which packages the `.vsix` and attaches it to a GitHub Release.
 - **CI only runs on a `v*` tag push**, not on every `develop`/`main`
   push — verification of a change has to happen before it's committed
-  (see "Verifying grammar changes" below, and mocked-`vscode` tests for
-  `src/extension.js` logic), not after, since nothing will catch a
-  mistake on `develop` until the next release.
+  (see "Verifying grammar changes" below, and `node test/run.js` for
+  `src/extension.js` logic — see "Tests" below), not after, since nothing
+  will catch a mistake on `develop` until the next release.
 
 ## Working notes
 
@@ -33,14 +33,14 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.9.1` (7 grammar/
-  completion bugs found and fixed in one session -- #29-#35, all closed).
-  The rendered-preview PoC lives only on `experimental/template-inputs-poc`,
-  merged up to date with those fixes as of `0ff1604`; `v0.10.0-rc.1`
-  predates that merge, so it's stale -- cut a new RC before testing 0.10.0
-  again. `experimental/jinja-render-preview` holds only the original design
-  notes (never merged forward, left as-is). Issue #23 tracks the feature
-  and is still open.
+- **Where things stand:** `main` is at `v0.9.1`. `develop` is ahead of it
+  with #36 (Enter indentation) and #37 (`{{ }}` padding) -- both still
+  open, waiting on the user's confirmation -- and the test suite (#38).
+  The rendered preview lives only on `experimental/template-inputs-poc`
+  (latest pre-release `v0.10.0-rc.2`; the branch is well past it -- see
+  #23's status comment for what's done and next, and the design notes'
+  coverage map). `experimental/jinja-render-preview` holds only the
+  original design notes (never merged forward, left as-is).
 - **Identity:** commit, tag, and release only as the one identity this
   repo's history already uses — never introduce any other name or handle
   into a commit, issue, or release here.
@@ -70,11 +70,9 @@ rest of this file stays current.
   - Debug suspicious coloring by tokenizing with `vscode-textmate`
     against the real theme file, per "Verifying grammar changes" below —
     not by eyeballing a screenshot.
-- **Next up:** the mocked-`vscode` test scripts for `src/extension.js`
-  logic have only ever lived in a temp directory outside git, and have
-  already been lost once as a result. Give them a `test/` folder in the
-  repo so that stops happening; they'll need to be rewritten from
-  scratch since the originals are gone.
+- **Next up:** see #23's status comment -- remaining Salt filters,
+  requisites/`extend:` across included files, then graduating the preview
+  to `develop`.
 
 ## Project Nature
 
@@ -96,6 +94,7 @@ turns the source tree into a `.vsix`.
 | `src/extension.js` | Completion, diagnostics, highlight, comment-toggle and formatting providers — `sls` gets everything, `salt-jinja` everything but the state-only completions (`SALT_LANGUAGES` / `jinjaSelector`) |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
 | `images/icon.svg` / `icon.png` | Extension icon — edit the SVG, re-render the 256×256 PNG from it (e.g. `@resvg/resvg-js`); only the PNG is packaged |
+| `test/` | `run.js` runner, `helpers/vscode.js` mock, one `*.test.js` / `*.test.py` per feature — see "Tests" below |
 | `CHANGELOG.md` | Keep a Changelog, per the Workflow section above |
 | `.github/workflows/build.yml` | CI: validates/packages/releases, only on a `v*` tag push (or manual `workflow_dispatch`) — deliberately not on every `develop`/`main` push, see the Workflow section above |
 
@@ -179,6 +178,27 @@ To regenerate one dataset against a newer tag on its line:
    original extraction caught `module.run` and `postgres_cluster/schema
    .absent` as real exceptions to the name-first rule only by checking the
    rejected list by hand.
+
+## Tests
+
+`node test/run.js` runs every `test/*.test.js` (node) and `test/*.test.py`
+(python3), each in its own process; `node test/run.js <part-of-name>` runs
+a subset, `-v` shows every test's output. CI runs it before packaging. Run
+it before committing any `src/` change -- nothing else will catch a
+regression until the next release.
+
+- `test/helpers/vscode.js` is a shared, lenient mock of the `vscode` API:
+  `load()` activates `src/extension.js` against it and returns a registry
+  of what got registered (providers, commands, listeners, diagnostic
+  collections, ...). Unmodelled APIs are no-ops, so adding a registration
+  to the extension doesn't break unrelated tests.
+- One file per feature. When fixing a bug, add the reproducing case to the
+  feature's file first and check it fails without the fix.
+- A mock can't show what only VS Code decides (exact cursor placement,
+  rendering, timing of its own events) -- those still need a check in the
+  real editor, from a locally installed `.vsix`.
+- A Python test that can't run here (no python3/package/network) exits 77,
+  which the runner reports as skipped rather than failed.
 
 ## Verifying grammar changes
 
