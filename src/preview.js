@@ -87,7 +87,9 @@ function register(context, vscode, isSaltLanguage) {
     const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriString);
     const source = doc ? doc.getText() : state.lastSource || '';
     state.lastSource = source;
-    state.result = await runRenderer({ source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers });
+    const saltVersion = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008');
+    state.result = await runRenderer({ source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers, saltVersion });
+    state.saltVersion = saltVersion;
     state.lines = staticLines(source);
     state.running = false;
     updateDiagnostics(state);
@@ -137,7 +139,7 @@ function register(context, vscode, isSaltLanguage) {
     const open = qs.filter((q) => !q.answered);
     const noDefault = open.filter((q) => q.default === null);
     const head = [
-      `# Salt rendered preview (experimental) — ${r.context.file}  (sls: ${r.context.sls}, tpldir: ${r.context.tpldir || '.'})`,
+      `# Salt rendered preview (experimental) — ${r.context.file}  (sls: ${r.context.sls}, tpldir: ${r.context.tpldir || '.'}, checked as Salt ${state.saltVersion || '3008'})`,
       `# ${qs.length} external input${qs.length === 1 ? '' : 's'}: ${qs.length - open.length} answered, ${open.length - noDefault.length} using the default in the code, ${noDefault.length} unknown (shown as «kind:key»). Fill them in the Salt Preview panel.`
     ];
     for (const w of r.warnings || []) head.push(`# ⚠ ${w}`);
@@ -386,6 +388,11 @@ function register(context, vscode, isSaltLanguage) {
     // saving any file re-renders every open preview.
     vscode.workspace.onDidSaveTextDocument(() => {
       for (const key of states.keys()) render(key);
+    }),
+    // Where 3006 and 3008 differ (e.g. which compiler errors exist), the
+    // checks follow saltSyntax.saltVersion -- re-check when it changes.
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('saltSyntax.saltVersion')) for (const key of states.keys()) render(key);
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor) return;

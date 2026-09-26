@@ -181,6 +181,88 @@ Findings / limits so far:
 - Not yet: profiles (named answer sets per mock minion), branch dimming,
   rendered-output checks — see the phased plan.
 
+## Coverage of Salt's failure modes
+
+Researched against Salt's own source at the tags the extension's datasets
+are pinned to — **v3006.27** (LTS) and **v3008.2** — rather than from
+memory. A render in Salt fails in one of three stages; this is what the
+preview catches of each, per version. Rules that differ between 3006 and
+3008 follow `saltSyntax.saltVersion` and use that version's exact
+message. 3007 (STS) and a future 3009 aren't modelled yet: supporting one
+means diffing its `salt/utils/templates.py`, `salt/state.py`
+(`_handle_state_decls`, `verify_high`) and `salt/utils/jinja.py` against
+these two, the same way.
+
+### 1. Jinja rendering — `salt/utils/templates.py`
+
+Salt renders SLS in `jinja2.sandbox.SandboxedEnvironment` with
+`StrictUndefined` (unless the master sets `allow_undefined`), extensions
+`do`, `loopcontrols`, `with_` and its serializer extension — identical in
+3006 and 3008. It reports failures as `Jinja variable …`
+(`UndefinedError`), `Jinja syntax error: …` (`TemplateSyntaxError`,
+`TemplateRuntimeError`, `SecurityError`) or `Jinja error: …` (anything
+else); the preview uses the same wording.
+
+| Failure | Preview |
+|---|---|
+| Jinja syntax errors | ✅ render error, on its line |
+| Undefined variable / missing key used (`StrictUndefined`) | ✅ on the template line *and* the rendered line(s) it printed on |
+| Import / `import_yaml` target missing or failing | ✅ render error, in the importing or imported file |
+| Exception inside an expression (`1/0`, …) | ✅ `Jinja error: …` on its line |
+| Sandbox violation (`"".__class__`, …) | ✅ sandboxed environment, as Salt |
+| `{{ raise('…') }}` (Salt global) | ✅ `Jinja error: …` |
+| Salt tests `match`, `equalto` | ✅ Salt's implementations |
+| Salt's filters: 86 `@jinja_filter`s (`salt/utils/{data,dictupdate,files,hashutils,http,jinja,network,path,stringutils,user,yamlencoding,dateutils}.py`) + serializer filters | ⚠️ ~17 emulated; any other becomes a pass-through with a warning, so output using it is wrong. **Next:** implement the pure ones (~50); turn environment-dependent ones (`dns_check`, `http_query`, `which`, `file_hashsum`, `list_files`, `is_bin_file`, `get_uid`, `random_*`, `uuid`, …) into panel inputs like `salt[...]` calls |
+
+### 2. YAML loading — `salt/renderers/yaml.py`, `SaltYamlSafeLoader`
+
+| Failure | Preview |
+|---|---|
+| YAML syntax errors | ✅ every one, on the line at fault (not where PyYAML gave up) |
+| Conflicting (duplicate) IDs / keys at any level | ✅ every one, with the first occurrence |
+| A dict used as a key ("Invalid YAML, possible double curly-brace") | ✅ (worded as PyYAML's "unacceptable key") |
+| Unquoted octal (`mode: 0644`) | — not a failure: Salt's loader strips the leading zero and file modes are handled as strings |
+
+### 3. State compiler — `salt/state.py`
+
+Salt runs `_handle_state_decls()` (identical in both), then
+`verify_high()` (3006.27: `State.verify_high`; 3008.2: `_verify_high`).
+Ported and checked **message-for-message against Salt's own code**: the
+real functions extracted from both versions' `state.py`, run on the same
+rendered data — 20 scenarios × 2 versions, 0 mismatches.
+
+| Failure | 3006 | 3008 | Preview |
+|---|---|---|---|
+| ID with nothing / a plain value under it (`ID … is not a dictionary`) | ✓ | ✓ | ✅ |
+| Same module declared twice in one ID (`file.managed` + `file.comment`) | ✓ | ✓ | ✅ |
+| `mod.fn:` with a trailing colon and nothing after it | "is not formed as a list" | "short declaration … with a trailing colon" | ✅ each version's message |
+| ID that isn't a string (`1234:`, `yes:`) — "may need to be quoted" | ✓ | ✓ | ✅ |
+| Function value not a list (`file.managed: /x`) | ✓ | ✓ | ✅ |
+| Argument missing its `:` (`- name /etc/x`) — "function with whitespace" (+ "Too many functions") | ✓ | ✓ | ✅ |
+| No function / too many functions declared | ✓ (skips `require`/`watch` keys) | ✓ | ✅ |
+| Requisite value not a list | `require`/`watch`/`prereq`/`onchanges` only | every requisite keyword | ✅ |
+| Requisite entry not a single-key dict | dict only | dict *and* single key | ✅ |
+| Requisite type with a dot (`- pkg.installed: nginx`), illegal (unhashable) requisite value | ✓ | ✓ | ✅ |
+| Requisite argument with more than one key | ✓ | ✓ | ✅ |
+| `names:` not a list | — | ✓ | ✅ |
+| An argument with nothing after its colon (`- name:`) | accepted (runs as None) | accepted | ✅ flagged as *suspicious* |
+| Unknown `module.function` ("State … was not found") | ✓ | ✓ | ❌ next — datasets per version already ship with the extension |
+| Missing required argument ("Missing parameter …") | ✓ | ✓ | ❌ next — `MANDATORY_FIELDS_*` already ship |
+| `include:` target not found ("Unknown include: Specified SLS … is not available") | ✓ | ✓ | ❌ next — resolvable against the file roots |
+| Requisites / `extend:` pointing at states in other files | ✓ | ✓ | ❌ later — needs the included files rendered too |
+
+Corrections the research made to earlier assumptions:
+
+- An ordinary argument with two keys (`- name: /x` with `source:` wrongly
+  indented under it) is **not** an error in either version — Salt checks
+  extra keys only inside requisite arguments, and simply sets both.
+- Two declarations of the same module in one ID are **rejected**
+  (`_handle_state_decls`), not silently dropped.
+
+Not catchable by a preview at all: failures while states *run* on a minion
+(a missing package, a failing command) — the preview renders and checks,
+it never executes.
+
 ## Open questions
 
 - How heavily do real formulas lean on `map.jinja` / `import_yaml` /

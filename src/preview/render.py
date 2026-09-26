@@ -29,6 +29,7 @@ import sys
 
 try:
     import jinja2
+    import jinja2.sandbox
     import yaml
 except ImportError as exc:  # pragma: no cover - reported to the user
     json.dump({"fatal": f"The rendered preview needs Python 3 with the '{exc.name}' package "
@@ -360,7 +361,7 @@ def _syntax_problem(exc):
     return {"message": message, "line": line, "gaveUpLine": gave_up if gave_up != line else None}
 
 
-def check_rendered_yaml(text):
+def check_rendered_yaml(text, version="3008", sls=""):
     """Every reason Salt's YAML loading would reject `text`, in line order:
     syntax errors and every conflicting ID. Salt stops at the first; here a
     syntax error's line is blanked (line numbers kept) and the text checked
@@ -384,12 +385,28 @@ def check_rendered_yaml(text):
             problems.append({"message": str(exc), "line": None})
             break
     problems.extend(conflicts)
-    problems.extend(empty_value_problems("".join(lines)))
+    problems.extend(compiler_problems("".join(lines), version, sls))
     return sorted(problems, key=lambda p: (p["line"] is None, p["line"] or 0))
 
 
-# Top-level SLS keys that aren't state IDs.
-SLS_SPECIAL_KEYS = {"include", "exclude"}
+# --- Salt's state compiler checks ----------------------------------------
+# Ported from Salt's own _handle_state_decls() (identical in 3006.27 and
+# 3008.2) and verify_high() (3006.27: State.verify_high; 3008.2:
+# _verify_high), in that order, run on the rendered
+# YAML's node tree so each problem can be pinned to its line. The messages
+# are Salt's own, for the selected saltSyntax.saltVersion line.
+
+# Top-level SLS keys Salt handles before verify_high -- not state IDs.
+SLS_SPECIAL_KEYS = {"include", "exclude", "extend"}
+
+# Requisite keywords whose value verify_high checks: 3006 only knows these
+# four; 3008 checks every RequisiteType (salt/utils/requisite.py) plus
+# onfail_stop (STATE_REQUISITE_KEYWORDS).
+REQUISITES = {
+    "3006": {"require", "watch", "prereq", "onchanges"},
+    "3008": {"onfail", "onfail_any", "onfail_all", "require", "require_any", "onchanges",
+             "onchanges_any", "watch", "watch_any", "prereq", "prerequired", "listen", "onfail_stop"},
+}
 
 
 def _is_empty(node):
@@ -398,74 +415,139 @@ def _is_empty(node):
     return isinstance(node, yaml.ScalarNode) and node.tag == "tag:yaml.org,2002:null" and node.value == ""
 
 
-def empty_value_problems(text):
-    """Valid YAML that's still wrong once Salt looks at it -- typically a
-    variable that rendered empty:
-    - a state with nothing under it: Salt's _verify_high() rejects it
-      ("... is not a dictionary");
-    - `module.function:` with a trailing colon and nothing after it: also
-      rejected ("... contains a short declaration ... with a trailing
-      colon ...") -- the no-arguments form is `module.function` (no colon)
-      or `module.function: []`;
-    - a state argument with nothing after its colon (`- name:`): accepted,
-      but the state runs with it as None.
-    Not flagged: an explicit null / ~ (deliberate), and args whose value
-    follows on the next lines (`- require:` + its list)."""
+def compiler_problems(text, version, sls):
+    """What Salt's state compiler would reject in the rendered data, plus
+    one thing it accepts but is almost certainly a mistake (an argument
+    rendered empty). Each: {message, line, reject}."""
     try:
         root = yaml.compose(text, Loader=yaml.SafeLoader)
     except yaml.YAMLError:
         return []
     if not isinstance(root, yaml.MappingNode):
         return []
+    v3006 = version == "3006"
+    requisites = REQUISITES["3006" if v3006 else "3008"]
+    value_of = yaml.SafeLoader("")  # to turn nodes into the Python values Salt sees
+    py = lambda node: value_of.construct_object(node, deep=True)  # noqa: E731
     found = []
 
-    def states(mapping):
-        for id_node, body in mapping.value:
-            name = id_node.value if isinstance(id_node, yaml.ScalarNode) else None
-            if name in SLS_SPECIAL_KEYS:
-                continue
-            if name == "extend" and isinstance(body, yaml.MappingNode):
-                yield from states(body)
-                continue
-            yield id_node, body
+    def reject(node, message):
+        found.append({"message": message, "line": node.start_mark.line + 1, "reject": True})
 
-    for id_node, body in states(root):
-        if _is_empty(body):
-            found.append({
-                "message": f"state '{id_node.value}' has nothing under it -- Salt rejects this (\"is not a "
-                           "dictionary\"); it rendered empty (a variable, loop or if that produced no body?)",
-                "line": id_node.start_mark.line + 1,
-                "reject": True,
-            })
+    for id_node, body in root.value:
+        id_ = py(id_node)
+        if isinstance(id_, str) and (id_ in SLS_SPECIAL_KEYS or id_.startswith("__")):
+            continue
+        if not isinstance(id_, str):
+            kind = type(id_).__name__
+            reject(id_node, f"ID '{id_}' in SLS '{sls}' is not formed as a string, but is a {kind}. It may need to be quoted"
+                   if v3006 else
+                   f"ID '{id_}' in SLS '{sls}' is not formed as a string, but is type {kind}. It may need to be quoted.")
+        # _handle_state_decls() (identical in 3006 and 3008) runs first: the
+        # short form `id: mod.fn` becomes {mod: [fn]}; any other non-mapping
+        # body is an error; `mod.fn: [args]` becomes `mod: [args..., fn]`,
+        # and a second `mod.other:` for the same module is an error.
+        if isinstance(body, yaml.ScalarNode) and body.tag == "tag:yaml.org,2002:str" and "." in body.value:
             continue
         if not isinstance(body, yaml.MappingNode):
+            message = f"ID {id_} in SLS {sls} is not a dictionary"
+            if _is_empty(body):
+                message += " -- nothing rendered under this ID (a variable, loop or if that produced no body?)"
+            reject(id_node, message)
             continue
-        for fn_node, args in body.value:
-            fn = fn_node.value if isinstance(fn_node, yaml.ScalarNode) else ""
-            if fn.startswith("__"):
+        entries, seen_mods = [], set()
+        for key_node, value in body.value:
+            state = py(key_node)
+            if not isinstance(state, str):
                 continue
-            if _is_empty(args):
-                found.append({
-                    "message": f"'{fn}:' has a trailing colon with nothing after it -- Salt rejects this "
-                               f"(\"contains a short declaration ({fn}) with a trailing colon\"); "
-                               f"with no arguments write '{fn}' or '{fn}: []', otherwise its arguments rendered empty",
-                    "line": fn_node.start_mark.line + 1,
-                    "reject": True,
-                })
+            fn = None
+            if not state.startswith("_") and isinstance(value, yaml.SequenceNode):
+                if "." in state:
+                    mod, fn = state.split(".", 1)
+                    if mod in seen_mods:
+                        reject(key_node, f"ID '{id_}' in SLS '{sls}' contains multiple state declarations of the same type")
+                        continue
+                    seen_mods.add(mod)
+                    state = mod
+                else:
+                    seen_mods.add(state)
+            entries.append((state, key_node, value, fn))
+        for state, key_node, value, padded_fn in entries:
+            if state.startswith("__"):
                 continue
-            if not isinstance(args, yaml.SequenceNode):
+            if _is_empty(value) and not v3006:
+                reject(key_node, f"ID '{id_}' in SLS '{sls}' contains a short declaration ({state}) with a trailing "
+                                 "colon. When not passing any arguments to a state, the colon must be omitted.")
                 continue
-            for item in args.value:
-                if not isinstance(item, yaml.MappingNode):
+            if not isinstance(value, yaml.SequenceNode):
+                message = f"State '{id_}' in SLS '{sls}' is not formed as a list"
+                if _is_empty(value):
+                    message += f" -- '{state}:' has a trailing colon with nothing after it (write '{state}' or '{state}: []')"
+                reject(key_node, message)
+                continue
+            funs = 1 if "." in state else 0
+            fun_names = [state.split(".", 1)[1]] if "." in state else []
+            for arg in value.value:
+                arg_value = py(arg)
+                if isinstance(arg_value, str):
+                    funs += 1
+                    fun_names.append(arg_value)
+                    if " " in arg_value.strip():
+                        reject(arg, f'The function "{arg_value}" in state "{id_}" in SLS "{sls}" has whitespace, a '
+                                    'function with whitespace is not supported, perhaps this is an argument that is '
+                                    'missing a ":"')
                     continue
-                for key, value in item.value:
-                    if _is_empty(value):
+                if not isinstance(arg, yaml.MappingNode) or not arg.value:
+                    continue
+                argfirst = py(arg.value[0][0])
+                arg_val_node = arg.value[0][1]
+                if not v3006 and argfirst == "names" and not isinstance(arg_val_node, yaml.SequenceNode):
+                    reject(arg, f"The 'names' argument in state '{id_}' in SLS '{sls}' needs to be formed as a list")
+                if argfirst in requisites:
+                    if not isinstance(arg_val_node, yaml.SequenceNode):
+                        reject(arg, f"The {argfirst} statement in state '{id_}' in SLS '{sls}' needs to be formed as a list")
+                    else:
+                        for req in arg_val_node.value:
+                            req_value = py(req)
+                            if isinstance(req_value, str):
+                                continue  # a bare ID
+                            if not isinstance(req_value, dict) or (not v3006 and len(req_value) != 1):
+                                reject(req, f"Requisite declaration {req_value} in SLS {sls} is not formed as a single key dictionary"
+                                       if v3006 else
+                                       f"Requisite declaration {req_value} in state {id_} in SLS {sls} is not formed as a single key dictionary")
+                                continue
+                            req_key, req_val = next(iter(req_value.items()))
+                            if "." in str(req_key):
+                                reject(req, f"Invalid requisite type '{req_key}' in state '{id_}', in SLS '{sls}'. Requisite "
+                                            f"types must not contain dots, did you mean '{str(req_key)[: str(req_key).find('.')]}'?")
+                            try:
+                                hash(req_val)
+                            except TypeError:
+                                reject(req, f'Illegal requisite "{req_val}", is SLS {sls}' if v3006 else
+                                            f'Illegal requisite "{req_val}" in SLS "{sls}", please check your syntax.')
+                    if len(arg.value) != 1:
+                        reject(arg, f"Multiple dictionaries defined in argument of state '{id_}' in SLS '{sls}'")
+                # Not a Salt error, but almost always a variable that rendered
+                # empty: Salt runs the state with this argument as None.
+                for k, v in arg.value:
+                    if _is_empty(v) and py(k) not in requisites:
                         found.append({
-                            "message": f"'{key.value}' has no value -- it rendered empty (a variable that came "
-                                       "out empty?); Salt would pass it as None",
-                            "line": key.start_mark.line + 1,
+                            "message": f"'{py(k)}' has no value -- it rendered empty (a variable that came out empty?); "
+                                       "Salt would pass it as None",
+                            "line": k.start_mark.line + 1,
                             "reject": False,
                         })
+            # The function from `mod.fn:` was appended after the list's items.
+            if padded_fn is not None:
+                funs += 1
+                fun_names.append(padded_fn)
+            if not funs:
+                if v3006 and state in ("require", "watch"):
+                    continue
+                reject(key_node, f"No function declared in state '{id_}' in SLS '{sls}'")
+            elif funs > 1:
+                reject(key_node, f"Too many functions declared in state '{id_}' in SLS '{sls}'. Please choose one of "
+                                 "the following: " + ", ".join(str(f) for f in fun_names))
     return found
 
 
@@ -487,7 +569,10 @@ class SaltLoader(jinja2.BaseLoader):
         raise jinja2.TemplateNotFound(f"{name} (looked in: {', '.join(self.roots)})")
 
 
-class SaltEnvironment(jinja2.Environment):
+class SaltEnvironment(jinja2.sandbox.SandboxedEnvironment):
+    # Salt renders SLS in Jinja's sandbox (salt/utils/templates.py, both
+    # 3006 and 3008), so unsafe attribute access (`''.__class__`, ...)
+    # fails there with a SecurityError -- and does here too.
     def join_path(self, template, parent):
         # Salt supports imports relative to the importing template.
         if template.startswith(("./", "../")):
@@ -570,6 +655,16 @@ def context_for(path, roots):
     }
 
 
+def _compiling():
+    """True while Jinja's compiler is on the call stack (constant folding)."""
+    frame = sys._getframe(1)
+    while frame is not None:
+        if frame.f_code.co_filename.replace("\\", "/").endswith("jinja2/compiler.py"):
+            return True
+        frame = frame.f_back
+    return False
+
+
 def template_location():
     """(template file, line) of the template code running right now, from
     the live call stack -- Jinja's compiled modules carry their template as
@@ -600,6 +695,8 @@ def error_location(exc, tb, rel_main):
 
 def main():
     req = json.load(sys.stdin)
+    # Which Salt line's rules to apply where they differ (saltSyntax.saltVersion).
+    salt_version = "3006" if str(req.get("saltVersion", "3008")) == "3006" else "3008"
     session = Session(req.get("answers") or {})
     roots = [os.path.abspath(r) for r in req.get("roots") or []]
     rel_main, ctx = context_for(req["path"], roots)
@@ -628,8 +725,18 @@ def main():
 
         def _strict(self, marker=None):
             file, line = template_location()
-            # Salt's own wording: SaltRenderError(f"Jinja variable {exc}...")
-            message = f"Jinja variable {self._undefined_message}"
+            if file is None and _compiling():
+                # Jinja folds constant expressions (`"".__class__`) while
+                # compiling; with Salt's StrictUndefined that raises, and Jinja
+                # then leaves the expression to render time -- do the same, so
+                # it's evaluated (and reported, with its line) while rendering.
+                raise RuntimeError("undefined value during constant folding")
+            # Salt's own wording (salt/utils/templates.py): an UndefinedError is
+            # "Jinja variable ...", a sandbox SecurityError "Jinja syntax error: ...".
+            if issubclass(self._undefined_exception, jinja2.exceptions.SecurityError):
+                message = f"Jinja syntax error: {self._undefined_message}"
+            else:
+                message = f"Jinja variable {self._undefined_message}"
             for err in session.strict_errors:
                 if (err["message"], err["file"], err["line"]) == (message, file, line):
                     err["marker"] = err["marker"] or marker
@@ -681,6 +788,18 @@ def main():
         keep_trailing_newline=True,
     )
     env.filters.update(salt_filters())
+
+    # Salt's own Jinja global and tests (salt/utils/jinja.py, identical in
+    # 3006.27 and 3008.2).
+    def jinja_raise(msg):
+        raise jinja2.exceptions.TemplateError(msg)
+
+    def test_match(txt, rgx, ignorecase=False, multiline=False):
+        return bool(re.compile(rgx, (re.I if ignorecase else 0) | (re.M if multiline else 0)).match(txt))
+
+    env.globals["raise"] = jinja_raise
+    env.tests["match"] = test_match
+    env.tests["equalto"] = lambda value, other: value == other
 
     def import_serialized(kind):
         # import_yaml & co. render the imported file with Jinja first (as
@@ -734,7 +853,7 @@ def main():
             break
 
     if result["error"] is None:
-        result["yamlErrors"] = check_rendered_yaml(result["rendered"])
+        result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"])
 
     for qid in injected:
         if qid not in session.questions:
@@ -747,7 +866,15 @@ def main():
 
 def raise_to_result(result, exc, rel_main):
     file, line = error_location(exc, sys.exc_info()[2], rel_main)
-    result["error"] = {"message": f"{type(exc).__name__}: {exc}", "file": file, "line": line}
+    # Salt's own wording for a failed render (salt/utils/templates.py).
+    if isinstance(exc, jinja2.exceptions.UndefinedError):
+        message = f"Jinja variable {exc}"
+    elif isinstance(exc, (jinja2.exceptions.TemplateRuntimeError, jinja2.exceptions.TemplateSyntaxError,
+                          jinja2.exceptions.SecurityError)):
+        message = f"Jinja syntax error: {exc}"
+    else:
+        message = f"Jinja error: {exc}"
+    result["error"] = {"message": message, "file": file, "line": line}
 
 
 if __name__ == "__main__":
