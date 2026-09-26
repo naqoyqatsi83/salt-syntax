@@ -27,7 +27,8 @@ let skipped = 0;
 for (const f of files) {
   const [cmd, ...cmdArgs] = f.endsWith('.py') ? [process.env.PYTHON || 'python3', path.join(dir, f)] : [process.execPath, path.join(dir, f)];
   const started = Date.now();
-  const res = spawnSync(cmd, cmdArgs, { encoding: 'utf8', cwd: path.join(dir, '..'), timeout: 120000 });
+  // NODE: lets a Python test call back into this same node (e.g. to read extension.js's datasets).
+  const res = spawnSync(cmd, cmdArgs, { encoding: 'utf8', cwd: path.join(dir, '..'), timeout: 120000, env: { ...process.env, NODE: process.execPath } });
   const took = `${((Date.now() - started) / 1000).toFixed(1)}s`;
   const output = `${res.stdout || ''}${res.stderr || ''}${res.error ? String(res.error) : ''}`;
   if (res.status === 0) {

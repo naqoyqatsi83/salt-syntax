@@ -1,0 +1,4 @@
+nginx:
+  pkg: nginx
+  service: nginx
+  port: {{ 80 }}
