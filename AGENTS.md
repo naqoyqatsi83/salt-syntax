@@ -103,7 +103,7 @@ turns the source tree into a `.vsix`.
 | `syntaxes/sls.tmLanguage.json` | TextMate grammar |
 | `syntaxes/salt-jinja.tmLanguage.json` | Salt Jinja language's grammar — just includes `source.sls` under its own scope, so there's one grammar to maintain |
 | `snippets/sls-snippets.json` | Static snippets |
-| `src/extension.js` | Completion, diagnostics, highlight, comment-toggle and formatting providers — `sls` gets everything, `salt-jinja` everything but the state-only completions (`SALT_LANGUAGES` / `jinjaSelector`) |
+| `src/extension.js` | Completion, hover, diagnostics, highlight, comment-toggle and formatting providers — `sls` gets everything, `salt-jinja` everything but the state-only completions (`SALT_LANGUAGES` / `jinjaSelector`) |
 | `src/preview.js`, `src/preview/render.py`, `src/templateInputs.js` | Rendered preview: the VS Code side (preview document, inputs panel, diagnostics), the Python renderer (real Jinja2 with Salt's environment emulated, checks against Salt's rules per version), the static inputs extractor. Design notes and coverage map: `docs/design/jinja-render-preview.md` |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
 | `examples/salt_filters_3008.sls`, `examples/salt_filters_3006.sls` | Every Salt Jinja filter with an example and its expected output, per Salt version — for testing the preview by hand; not packaged (#51) |

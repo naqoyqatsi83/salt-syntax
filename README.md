@@ -20,11 +20,21 @@
 <br>
 
 Salt Syntax is a VS Code language extension for `.sls` files — SaltStack's
-YAML-with-embedded-Jinja2 state files. It ships a purpose-built TextMate
-grammar (not a bolt-on of VS Code's built-in YAML grammar — see
-[Why a custom grammar](#why-a-custom-grammar) below), a set of completion
-providers that react to what you're actually typing, and a handful of
-snippets for common boilerplate.
+YAML-with-embedded-Jinja2 state files — and the `.jinja` / Jinja-YAML files
+around them. It ships:
+
+- a purpose-built TextMate grammar (not a bolt-on of VS Code's built-in
+  YAML grammar — see [Why a custom grammar](#why-a-custom-grammar) below);
+- completion that reacts to what you're typing — state modules and
+  functions from Salt's own source, each function's real arguments,
+  requisites, Jinja keywords, filters and blocks;
+- hover info for state functions and their arguments, with links to
+  Salt's docs;
+- checks as you type: arguments a function doesn't take, Jinja
+  indentation, non-ASCII characters;
+- a **rendered preview** — the YAML a formula renders to, with real
+  Jinja2, inputs you supply, and the problems Salt would hit;
+- snippets for common boilerplate.
 
 ## What it does
 
@@ -370,7 +380,9 @@ features, minus the ones that only make sense in a state file:
 | Highlighting, `Ctrl+/` comment toggle, matching block highlight | ✓ | ✓ |
 | Jinja indentation check, Enter indentation, non-ASCII check | ✓ | ✓ |
 | Jinja keyword / filter / block completion | ✓ | ✓ |
-| `module.` → state function completion, requisites after `- ` | ✓ | — |
+| Rendered preview | ✓ | ✓ |
+| `module.` → state function completion, arguments after `- ` | ✓ | — |
+| Hover info, argument check | ✓ | — |
 
 - **`.jinja` files** are Salt Jinja automatically.
 - **`.yaml` / `.yml` files** switch to Salt Jinja when they open if a line
@@ -428,8 +440,9 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   - invalid YAML and duplicate state IDs, every one, on the line at fault
   - Salt's state-compiler checks (`- name /etc/x` missing its colon, no or
     too many functions, malformed requisites, …) with Salt's own messages
-  - unknown `module.function`, missing required arguments, `include:`
-    targets that don't exist
+  - unknown `module.function`, missing required arguments, arguments the
+    function doesn't take (`'x' is an invalid keyword argument for
+    'user.present'`), `include:` targets that don't exist
   - arguments that rendered empty (`- name:`), and requisite / `extend:`
     targets defined neither in the file nor in anything it includes
 - **Scrolls with the formula.** Scroll either side and the other follows
@@ -437,9 +450,11 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   `{% include %}`d template's output to the include line. The lock button on the preview's title
   bar unlinks them (and links them again).
 - **Back to the source.** In the preview, **F12** (or right-click → *Go to
-  Source Line*) jumps to the line that produced the line under the cursor
-  — in the formula, or in the macro library (`map.jinja`, `libtofs.jinja`,
-  ...) or `{% include %}`d file it really came from. A plain mouse click
+  Source Line*) jumps to the exact character that produced the one under
+  the cursor — a stray space lands on the space in the template it came
+  from; text a `{{ }}` printed selects that whole expression — in the
+  formula, or in the macro library (`map.jinja`, `libtofs.jinja`, ...) or
+  `{% include %}`d file it really came from. A plain mouse click
   in the preview highlights that line and scrolls it into view, keeping
   your cursor in the preview (in the formula if the other file isn't open;
   `saltSyntax.preview.clickToSource` turns it off).
@@ -485,7 +500,8 @@ tabs) — set as this extension's editor defaults for `.sls` files, along with:
   This extension's only on-type formatting, so nothing else changes.
 
 All of these are per-language defaults (`[sls]` in VS Code settings), so
-they don't affect any other file type. The last three also have dedicated
+they don't affect any other file type. The 2-space indentation, whitespace
+rendering, final newline and line endings also have dedicated
 `saltSyntax.*` toggles — see [Settings](#settings) below — and like any
 default, you can always override them yourself in `settings.json` too.
 
@@ -500,7 +516,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.enforceIndentSize` | `true` | Enforce 2-space indentation (`editor.tabSize`, `editor.insertSpaces`, `editor.detectIndentation`) in `.sls` files — YAML doesn't allow tabs. Written as an explicit `"[sls]"` override, so it wins over a tab size you've set for every other language. |
 | `saltSyntax.jinjaWhitespaceControl` | `false` | Include Jinja's `-` whitespace-control marker (leading side only) on `{% %}` blocks this extension inserts — `{%- if %}` instead of `{% if %}`. |
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
-| `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
+| `saltSyntax.saltVersion` | `3008` | Which Salt release line to work against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped): state modules, functions and their arguments for completion, hover and the argument check, and the rules the rendered preview checks by. Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.argumentCheck` | `true` | Flag a state argument its function doesn't take: a warning where Salt fails the state, a hint for a near-miss on a function that takes `**kwargs` — see [Hover info and the argument check](#hover-info-and-the-argument-check). |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
@@ -537,10 +553,13 @@ code --install-extension salt-syntax-<version>.vsix
 
 ### From source
 
+Packaging needs Node 20 or newer (`@vscode/vsce`'s requirement); with an
+older `node` on your `PATH`, run it through `npx -p node@20` as below.
+
 ```bash
 git clone https://github.com/naqoyqatsi83/salt-syntax.git
 cd salt-syntax
-npx --yes @vscode/vsce package --no-dependencies
+npx --yes -p node@20 -p @vscode/vsce -c "vsce package --no-dependencies"
 code --install-extension salt-syntax-<version>.vsix
 ```
 
@@ -556,7 +575,7 @@ salt-syntax/
 ├── syntaxes/sls.tmLanguage.json         # TextMate grammar
 ├── syntaxes/salt-jinja.tmLanguage.json  # Salt Jinja language: includes the sls grammar under its own scope
 ├── snippets/sls-snippets.json           # Static snippets
-├── src/extension.js                     # Completion, checks, highlight, comment toggle, Enter/indent handling (plain JS)
+├── src/extension.js                     # Completion, hover, checks, highlight, comment toggle, Enter/indent handling (plain JS)
 ├── src/preview.js                       # Rendered preview: preview document, Salt Preview panel, diagnostics, scroll sync
 ├── src/preview/render.py                # Preview renderer: real Jinja2 with Salt's environment emulated, Salt's checks
 ├── src/templateInputs.js                # Static scan for a template's inputs (the panel's line numbers)
@@ -570,8 +589,9 @@ salt-syntax/
 └── .github/workflows/build.yml          # CI (see below)
 ```
 
-No build step — `src/extension.js` runs as-is. `npm run package` (or
-`npx --yes @vscode/vsce package --no-dependencies`) produces the `.vsix`.
+No build step — `src/extension.js` runs as-is. `npm run package` produces
+the `.vsix` (it runs `@vscode/vsce` under Node 20, which it needs, whatever
+`node` is on your `PATH`).
 `MODULE_FUNCTIONS_3008`/`MODULE_FUNCTIONS_3006` (and their
 `FULL_FUNCTION_FIELDS_*`/`MANDATORY_FIELDS_*` counterparts) in
 `src/extension.js` are extracted from Salt's own source, not hand-written —

@@ -350,6 +350,6 @@
     }
   },
   "scripts": {
-    "package": "npx --yes @vscode/vsce package --no-dependencies"
+    "package": "npx --yes -p node@20 -p @vscode/vsce -c \"vsce package --no-dependencies\""
   }
 }

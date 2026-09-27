@@ -185,13 +185,26 @@ branch dimming, hover values and profile diffs weren't built.
   names its source line and the markers are stripped. If stripping doesn't
   give back exactly the normal render (e.g. template text passed through
   `tojson`), there's no map rather than a wrong one. The displayed preview
-  is always the normal render. It drives:
+  is always the normal render. Since #59 every template is marked, so each
+  rendered line also knows its real file (a macro library, an
+  `{% include %}`d file) — `lineOrigins` / `lineFiles` beside the
+  main-file `lineMap` — and a line the markers changed (template text
+  through `tojson`, ...) loses only its own mapping. It drives:
   - **scroll sync** (#48) — each side follows the other to the matching
     line, toggled by the lock button on the preview (`saltSyntax.preview.scrollSync`);
     no map → both scroll by the same fraction of the file;
   - **problems on the formula line** (#49) — every rendered-output problem
     also on the line that produced it, linked to the preview line(s);
-  - **Go to Formula Line** (#50) — F12 / context menu in the preview.
+  - **Go to Source Line** (#50, #59) — F12 / context menu in the preview,
+    into the file the line really came from; a click reveals it
+    (`saltSyntax.preview.clickToSource`).
+- **Character origins** (#60) — for F12 only, rendered on demand when it's
+  used: a mapping render whose parse tree (not source text, so whitespace
+  control is untouched) marks each piece of template text and each `{{ }}`
+  output with its file and offset, so F12 lands on the exact character, or
+  selects the whole expression that printed it. A proof of concept also had
+  a hover and hints on empty lines left by tag-only lines; they read like
+  errors on empty lines and were dropped.
 
 Limits:
 

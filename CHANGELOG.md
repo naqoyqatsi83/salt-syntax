@@ -34,6 +34,16 @@ version heading when that state gets tagged and merged to `main`.
   (`pakgs` → `pkgs`). The preview checks rendered states the same way.
   New setting `saltSyntax.argumentCheck`.
   [#62](https://github.com/naqoyqatsi83/salt-syntax/issues/62)
+- Go to Source Line (F12) in the preview lands on the exact character
+  that produced the one under the cursor -- a stray space on its space
+  in the template -- or selects the whole `{{ }}` that printed it; traced
+  on demand, only when it's used.
+  [#60](https://github.com/naqoyqatsi83/salt-syntax/issues/60)
+
+### Changed
+- The README covers everything shipped (preview, hover, checks), and
+  `npm run package` runs `vsce` under Node 20, which it needs.
+  [#63](https://github.com/naqoyqatsi83/salt-syntax/issues/63)
 
 ## [0.12.0] - 2026-09-27
 
