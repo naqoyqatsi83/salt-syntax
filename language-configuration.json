@@ -30,7 +30,7 @@
   ],
   "indentationRules": {
     "increaseIndentPattern": "^.*:\\s*(#.*)?$",
-    "decreaseIndentPattern": "^\\s*$"
+    "decreaseIndentPattern": "^\\s*[}\\]]"
   },
   "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\-\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
 }

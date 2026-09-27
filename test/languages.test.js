@@ -36,6 +36,25 @@ const { load, doc, sleep } = require('./helpers/vscode');
   h.config['saltSyntax.detectJinjaInYaml'] = false;
   await open('{% set a = 1 %}', 'yaml', '/w/off.yaml');
   assert.strictEqual(h.reg.languageSwitches.length, 2, 'setting off');
+
+  // Enter's indentation (#56): VS Code outdents a new line whose text after
+  // the cursor matches decreaseIndentPattern -- empty at the end of a line,
+  // so an empty-line pattern outdented every Enter.
+  const path = require('path');
+  const root = path.join(__dirname, '..');
+  for (const lang of require(path.join(root, 'package.json')).contributes.languages.filter((l) => l.configuration)) {
+    const rules = require(path.join(root, lang.configuration)).indentationRules || {};
+    // VS Code ignores indentationRules unless both patterns are there.
+    assert.ok(rules.increaseIndentPattern && rules.decreaseIndentPattern, `${lang.id}: both indentation patterns`);
+    const decrease = new RegExp(rules.decreaseIndentPattern);
+    for (const after of ['', '  ', '    - name: x']) {
+      assert.ok(!decrease.test(after), `${lang.id}: Enter before ${JSON.stringify(after)} doesn't outdent`);
+    }
+    assert.ok(decrease.test('  }') && decrease.test(']'), `${lang.id}: a closing bracket line still outdents`);
+    const increase = new RegExp(rules.increaseIndentPattern);
+    assert.ok(increase.test('  pkg.installed:') && increase.test('{{ sls }}.state_id:'), `${lang.id}: a key: line indents the next`);
+    assert.ok(!increase.test('    - name: package_name'), `${lang.id}: an argument line doesn't`);
+  }
   console.log('ok');
 })().catch((e) => {
   console.error(e);
