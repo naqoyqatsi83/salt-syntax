@@ -91,7 +91,7 @@ const { load, doc, Position } = require('./helpers/vscode');
 
   // Requisite and common argument keys after "- ".
   const keys = requisite.provideCompletionItems(doc('    - '), new Position(0, 6)) || [];
-  for (const k of ['require', 'watch', 'onchanges', 'onlyif', 'unless', 'name', 'names']) {
+  for (const k of ['require', 'watch', 'onchanges', 'onlyif', 'unless', 'names']) {
     assert.ok(keys.some((i) => i.label === k), `requisite key ${k}`);
   }
   assert.strictEqual(keys.find((i) => i.label === 'require').insertText.value, 'require: ${0}');

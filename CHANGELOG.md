@@ -12,6 +12,14 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- Argument completion after `- ` knows the state function it's under:
+  its own arguments first (required ones marked, defaults as tab stops),
+  then the arguments every state accepts (requisites, `onlyif`, `unless`,
+  `names`, ... from Salt's own `state.py`), without the ones the block
+  already has.
+  [#58](https://github.com/naqoyqatsi83/salt-syntax/issues/58)
+
 ### Fixed
 - State completion no longer inserts argument defaults that break or
   change the YAML: `- minute: *` (`cron.present`), `- contents_delimiter: :`

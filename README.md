@@ -124,8 +124,16 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   modules in the active `saltSyntax.saltVersion` line (`pkg`, `service`,
   `file`, `user`, `cmd`, `mount`, `lvm`, `git`, `win_dacl`, `postgres_user`,
   `rabbitmq_vhost`, ...).
-- After `- ` suggests common requisites/args (`require`, `watch`, `onlyif`,
-  `unless`, `name`, `names`, `source`, `mode`, ...).
+- After `- ` under a state function suggests **that function's own
+  arguments** — for `pkg.installed`: `version`, `refresh`, `pkgs`, ...;
+  required ones first and marked, each inserted with its real default as
+  a tab stop — then the arguments **every state accepts**, taken from
+  Salt's own `state.py`: requisites (`require`, `watch`, `onchanges`,
+  `onfail`, `prereq`, `use`, `listen`, their `_in`/`_any` forms) and
+  `onlyif`, `unless`, `creates`, `names`, `order`, `retry`, `failhard`,
+  `runas`, .... Arguments the block already has are left out; Jinja and
+  comment lines in between don't get in the way. Works for Salt's
+  `pkg:` / `- installed` form too, and follows `saltSyntax.saltVersion`.
 - Type a bare Jinja keyword anywhere outside a tag (`for`, `if`, `set`,
   `macro`, `with`, `call`, `from`, `import`, `include`, `raw`, ...) and pick
   from the shapes that keyword can take — e.g. typing `if` offers

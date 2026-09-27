@@ -2605,14 +2605,68 @@ function buildArgsBody(fields, indent, startTabstop) {
   return { text: lines.join('\n') + '$0', nextTabstop: n };
 }
 
-const REQUISITE_KEYS = [
-  'require', 'require_in', 'watch', 'watch_in', 'onchanges', 'onchanges_in',
-  'onfail', 'onfail_in', 'onfail_all', 'onfail_any', 'listen', 'listen_in',
-  'prereq', 'prereq_in', 'use', 'use_in', 'order', 'unless', 'onlyif',
-  'creates', 'retry', 'name', 'names', 'source', 'source_hash', 'mode',
-  'user', 'group', 'makedirs', 'recurse', 'template', 'context', 'defaults',
-  'contents', 'enable', 'persist', 'reload'
-];
+// Arguments every state accepts, whatever its function (#58): Salt's own
+// STATE_REQUISITE_KEYWORDS, STATE_REQUISITE_IN_KEYWORDS and the user-facing
+// STATE_RUNTIME_KEYWORDS in salt/state.py (3008.2: requisites from
+// salt/utils/requisite.py's RequisiteType), identical in 3006.27 and 3008.2
+// but for no_log (3008 only) -- plus `names`, which the state compiler
+// handles itself. Left out: Salt-internal keywords (`fun`, `state`,
+// `prerequired`, `__*__`).
+const GLOBAL_STATE_ARGS = {
+  requisite: [
+    'require', 'require_any', 'require_in', 'watch', 'watch_any', 'watch_in',
+    'onchanges', 'onchanges_any', 'onchanges_in', 'onfail', 'onfail_any',
+    'onfail_all', 'onfail_in', 'onfail_stop', 'prereq', 'prereq_in', 'use',
+    'use_in', 'listen', 'listen_in'
+  ],
+  runtime: [
+    'names', 'onlyif', 'unless', 'creates', 'check_cmd', 'retry', 'order',
+    'parallel', 'failhard', 'reload_modules', 'reload_grains', 'reload_pillar',
+    'runas', 'runas_password', 'fire_event', 'saltenv', 'umask',
+    'cmd_opts_exclude', 'no_log'
+  ],
+  onlyIn: { no_log: '3008' }
+};
+
+// The state function a `- ` argument line at `dashIndent` belongs to, and
+// the argument keys its block already has (#58). Walks up to the function
+// line -- `mod.fn:`, or Salt's other form, `mod:` with the function as a
+// bare `- fn` item -- then down to the block's end, skipping Jinja and
+// comment lines and anything nested deeper (a requisite's own list).
+// { mod, fn } are null when there's no function line above.
+function stateArgumentContext(document, line, dashIndent) {
+  const used = new Set();
+  const bare = [];
+  const skip = (text) => text.trim() === '' || /^\s*(\{[%#]|#)/.test(text);
+  const indentOf = (text) => text.match(/^\s*/)[0].length;
+  const collect = (text) => {
+    const key = text.match(/^\s*-\s*([A-Za-z_]\w*)\s*:/);
+    if (key) used.add(key[1]);
+    const item = text.match(/^\s*-\s*([A-Za-z_]\w*)\s*$/);
+    if (item) bare.push(item[1]);
+  };
+  let mod = null;
+  let fn = null;
+  for (let i = line - 1; i >= 0; i--) {
+    const text = document.lineAt(i).text;
+    if (skip(text) || indentOf(text) > dashIndent) continue;
+    if (indentOf(text) === dashIndent && /^\s*-/.test(text)) {
+      collect(text);
+      continue;
+    }
+    const decl = text.match(/^\s*([A-Za-z_]\w*)(?:\.([A-Za-z_]\w*))?\s*:\s*$/);
+    if (decl && indentOf(text) < dashIndent) [, mod, fn] = decl;
+    break;
+  }
+  for (let i = line + 1; i < document.lineCount; i++) {
+    const text = document.lineAt(i).text;
+    if (skip(text) || indentOf(text) > dashIndent) continue;
+    if (indentOf(text) < dashIndent || !/^\s*-/.test(text)) break;
+    collect(text);
+  }
+  if (mod && !fn) fn = bare.find((b) => !used.has(b)) || null;
+  return { mod, fn: mod && fn ? fn : null, used };
+}
 
 const JINJA_KEYWORDS = [
   'if', 'elif', 'else', 'endif', 'for', 'endfor', 'in', 'is', 'not', 'and', 'or',
@@ -3901,24 +3955,55 @@ async function activate(context) {
     '.'
   );
 
-  // Requisite / common state-argument keys after "- ".
+  // Argument keys after "- " (#58): the enclosing state function's own
+  // arguments from the active dataset -- required ones first, each with its
+  // default as a tab stop -- then the ones every state accepts
+  // (GLOBAL_STATE_ARGS), minus those the block already has.
   const requisiteProvider = vscode.languages.registerCompletionItemProvider(
     selector,
     {
       provideCompletionItems(document, position) {
         const linePrefix = document.lineAt(position).text.slice(0, position.character);
-        const m = linePrefix.match(/^\s*-(\s*)[A-Za-z_]*$/);
+        const m = linePrefix.match(/^(\s*)-(\s*)[A-Za-z_]*$/);
         if (!m) {
           return undefined;
         }
         // Right after the dash (it's a trigger character) there's no space
         // yet: insert it too, or the result is `-key:`, not a list item (#57).
-        const space = m[1] ? '' : ' ';
-        return REQUISITE_KEYS.map((key) => {
-          const item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Property);
-          item.insertText = new vscode.SnippetString(`${space}${key}: \${0}`);
-          return item;
-        });
+        const space = m[2] ? '' : ' ';
+        const dataset = activeDataset();
+        const version = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008') === '3006' ? '3006' : '3008';
+        const { mod, fn, used } = stateArgumentContext(document, position.line, m[1].length);
+        const items = [];
+        const offered = new Set(used);
+        const key = mod && fn ? `${mod}.${fn}` : null;
+        if (key && (dataset.moduleFunctions[mod] || []).includes(fn)) {
+          const required = dataset.mandatoryFields[key] || [];
+          // Basic (curated + required) first, then the rest of the signature.
+          const fields = [...getBasicFields(mod, fn, dataset), ...(dataset.fullFunctionFields[key] || [])];
+          fields.forEach(([arg, placeholder], i) => {
+            if (offered.has(arg)) return;
+            offered.add(arg);
+            const isRequired = required.includes(arg);
+            const item = new vscode.CompletionItem(arg, vscode.CompletionItemKind.Property);
+            item.insertText = new vscode.SnippetString(`${space}${arg}: \${1:${yamlPlaceholder(placeholder)}}`);
+            item.detail = `${key}${isRequired ? ' — required' : ''}`;
+            item.sortText = `${isRequired ? '0' : '1'}_${String(i).padStart(3, '0')}`;
+            items.push(item);
+          });
+        }
+        for (const [kind, args] of [['requisite', GLOBAL_STATE_ARGS.requisite], ['runtime', GLOBAL_STATE_ARGS.runtime]]) {
+          args.forEach((arg, i) => {
+            if (offered.has(arg) || (GLOBAL_STATE_ARGS.onlyIn[arg] && GLOBAL_STATE_ARGS.onlyIn[arg] !== version)) return;
+            offered.add(arg);
+            const item = new vscode.CompletionItem(arg, vscode.CompletionItemKind.Property);
+            item.insertText = new vscode.SnippetString(`${space}${arg}: \${0}`);
+            item.detail = kind === 'requisite' ? 'Salt requisite' : 'Salt global state argument';
+            item.sortText = `${kind === 'requisite' ? '2' : '3'}_${String(i).padStart(3, '0')}`;
+            items.push(item);
+          });
+        }
+        return items;
       }
     },
     '-'
