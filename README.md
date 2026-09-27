@@ -188,6 +188,30 @@ Requisites and the other global arguments are always fine, and keys
 built by Jinja (`- {{ key }}: ...`) aren't checked. The rendered preview
 runs the same check on the rendered states, with Salt's own message.
 
+### Unknown state functions, and your own
+
+A state module or function Salt doesn't have — `pkg.instaled:` — is a
+warning (`saltSyntax.functionCheck`), with a quick fix to the closest real
+one. Your own are known too:
+
+- **A formula's `_states/*.py`** — found in the workspace automatically,
+  by file name and `__virtualname__`, and kept up to date as they change.
+- **A dictionary**, like a spell checker's: `saltSyntax.knownStateFunctions`
+  lists `module.function` entries, or `module.*` for a whole module (say,
+  from a salt-extension package). On the warning, `Ctrl+.` offers *Add to
+  the workspace dictionary* — `.vscode/settings.json`, so it's shared
+  through the repo — or *to the user dictionary*. When the name looks
+  like a typo of a real function, *Change to …* comes first.
+  **Salt Syntax: Manage Known State Functions** lists every entry with
+  where it lives; uncheck to remove. An entry that looks like a typo of a
+  real Salt function is marked, in case one was added by mistake.
+
+Once your module is known, typos in it are caught as well
+(`mycompany_app.deplyoed` → *did you mean `mycompany_app.deployed`?*),
+completion offers its functions, and the rendered preview stops calling
+it suspicious. Pillar files (under a `pillar` folder) and `top.sls` aren't
+checked — they aren't states.
+
 ### Matching Jinja block highlight
 
 Put the cursor on any Jinja block tag and every tag of that same block
@@ -382,7 +406,7 @@ features, minus the ones that only make sense in a state file:
 | Jinja keyword / filter / block completion | ✓ | ✓ |
 | Rendered preview | ✓ | ✓ |
 | `module.` → state function completion, arguments after `- ` | ✓ | — |
-| Hover info, argument check | ✓ | — |
+| Hover info, argument and function checks | ✓ | — |
 
 - **`.jinja` files** are Salt Jinja automatically.
 - **`.yaml` / `.yml` files** switch to Salt Jinja when they open if a line
@@ -518,6 +542,8 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line to work against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped): state modules, functions and their arguments for completion, hover and the argument check, and the rules the rendered preview checks by. Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
+| `saltSyntax.functionCheck` | `true` | Warn about an unknown state module or function, with a quick fix to the closest real one — see [Unknown state functions, and your own](#unknown-state-functions-and-your-own). |
+| `saltSyntax.knownStateFunctions` | `[]` | Your own state functions (`module.function`, or `module.*`), known besides Salt's and your formula's `_states/*.py`. Added by the warning's quick fixes; **Salt Syntax: Manage Known State Functions** removes them. |
 | `saltSyntax.argumentCheck` | `true` | Flag a state argument its function doesn't take: a warning where Salt fails the state, a hint for a near-miss on a function that takes `**kwargs` — see [Hover info and the argument check](#hover-info-and-the-argument-check). |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheckStyle` | `either` | Which indentation style the check accepts: `either` (one style per file), `outside` (spaces before `{%`), `inside` (tag at column 0, spaces after `{%-`) or `mixed`. |

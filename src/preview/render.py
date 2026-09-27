@@ -753,6 +753,9 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
     functions = (state_data or {}).get("functions") or {}
     mandatory = (state_data or {}).get("mandatory") or {}
     strict = (state_data or {}).get("strict") or {}  # parameters of functions without **kwargs (#62)
+    # saltSyntax.knownStateFunctions (#64): `mod.fn`, or `mod.*` for a whole module.
+    known = (state_data or {}).get("known") or []
+    known_modules = {k[:-2] for k in known if k.endswith(".*")}
     internal = STATE_INTERNAL_KEYWORDS["3006" if v3006 else "3008"]
 
     def check_call(mod, fn, node, given, args_known):
@@ -761,9 +764,9 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
         default must be in the state's data -- `name` always is, it
         defaults to the ID. Skipped for a formula's custom _states module
         (it may define or override anything)."""
-        if not functions or mod in custom_modules:
-            return
         full = f"{mod}.{fn}"
+        if not functions or mod in custom_modules or mod in known_modules or full in known:
+            return
         if mod not in functions:
             found.append({
                 "message": f"'{mod}' isn't a state module in Salt {version} -- Salt fails the state (\"State '{full}' "
