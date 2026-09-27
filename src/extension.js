@@ -2869,17 +2869,30 @@ function stateArgumentContext(document, line, dashIndent) {
   return { mod, fn: mod && fn ? fn : null, used };
 }
 
-// Edit distance, for "did you mean" (#62).
-function levenshtein(a, b) {
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+// The global arguments worth suggesting for a misspelled key (#62): the
+// requisites and the commonly written runtime ones. The rest (umask, no_log,
+// saltenv, parallel, ...) are valid but rarely written, and too close to
+// real options: `unmask` (service.running) is one edit from `umask`.
+const SUGGESTED_GLOBAL_ARGS = new Set([
+  ...GLOBAL_STATE_ARGS.requisite,
+  'names', 'onlyif', 'unless', 'creates', 'check_cmd', 'retry', 'order', 'failhard', 'runas',
+  'reload_modules', 'reload_grains', 'reload_pillar'
+]);
+
+// Edit distance for "did you mean" (#62): insertions, deletions,
+// substitutions, and two neighbouring letters swapped counting as one
+// (optimal string alignment) -- `pgks` is one edit from `pkgs`.
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
   for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
     for (let j = 1; j <= b.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
     }
-    prev = cur;
   }
-  return prev[b.length];
+  return d[a.length][b.length];
 }
 
 // Hover info (#61): where each global state argument is documented, as a
@@ -2936,7 +2949,8 @@ function functionHover(mod, fn, dataset, version) {
 // invalid keyword argument for 'mod.fn'" -- beyond STATE_INTERNAL_KEYWORDS
 // (GLOBAL_STATE_ARGS, plus internal ones: fun, state, prerequired, __*),
 // unless the function takes **kwargs (KWARGS_FUNCTIONS_*): then any extra
-// option passes, and only a near-miss of a real parameter is worth a hint.
+// option passes, and only a near-miss of a real parameter is worth a hint
+// (editDistance 1, or 2 for keys of five letters or more).
 // Keys built by Jinja, nested values and unknown functions aren't checked.
 // Returns [{ line, start, end, key, suggestion, strict, message }].
 function findArgumentIssues(document, dataset, version) {
@@ -2953,9 +2967,9 @@ function findArgumentIssues(document, dataset, version) {
     const full = `${mod}.${fn}`;
     const params = ['name', ...getBasicFields(mod, fn, dataset).map(([k]) => k), ...(dataset.fullFunctionFields[full] || []).map(([k]) => k)];
     if (params.includes(key) || globals.includes(key) || internal(key)) continue;
-    const near = [...new Set([...params, ...globals])]
-      .map((c) => [c, levenshtein(key, c)])
-      .filter(([, d]) => d <= (key.length >= 6 ? 2 : 1))
+    const near = [...new Set([...params, ...globals.filter((g) => SUGGESTED_GLOBAL_ARGS.has(g))])]
+      .map((c) => [c, editDistance(key, c)])
+      .filter(([, d]) => d <= (key.length >= 5 ? 2 : 1))
       .sort((a, b) => a[1] - b[1])[0];
     const suggestion = near ? near[0] : null;
     const strict = !dataset.kwargsFunctions.has(full);

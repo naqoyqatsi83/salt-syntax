@@ -40,6 +40,17 @@ const { load, doc } = require('./helpers/vscode');
   assert.match(check(pkg('pakgs')).list[0].message, /^'pakgs' isn't a parameter of 'pkg\.installed' -- did you mean 'pkgs'\?/);
   assert.deepStrictEqual(fixes(pkg('pakgs')), [["Change to 'pkgs'", [[2, 6, 11, 'pkgs']]]]);
   assert.deepStrictEqual(found(pkg('hold')), [], 'a real extra option (hold)');
+  // Typos as people make them: two edits on a 5+ letter key, swapped letters as one.
+  assert.deepStrictEqual(found('x:\n  pkg.installed:\n    - pagks:\n      - test\n'), [[2, 'pagks', I]], 'pagks: 2 edits');
+  assert.match(check(pkg('pagks')).list[0].message, /did you mean 'pkgs'\?/);
+  assert.deepStrictEqual(found(pkg('pgks')).map((f) => f[1]), ['pgks'], 'pgks: a swap is one edit');
+  assert.deepStrictEqual(found(user('shlel')).map((f) => f[1]), ['shlel']);
+  assert.deepStrictEqual(fixes(user('shlel')).map((f) => f[0]), ["Change to 'shell'"], 'shlel: a swap');
+  // Suggestions from the global arguments: the common ones only -- `unmask`
+  // (a real service.running option) isn't taken for a misspelled `umask`,
+  // while `requre` still gets `require`.
+  assert.deepStrictEqual(found('x:\n  service.running:\n    - unmask: True\n'), [], 'unmask: a real option');
+  assert.match(check('x:\n  service.running:\n    - requre:\n      - pkg: a\n').list[0].message, /did you mean 'require'\?/);
 
   // Not checked: keys built by Jinja, nested values (a requisite's list),
   // unknown functions. Jinja/comment lines in between don't matter, and
