@@ -64,6 +64,31 @@ c: 3
   h.change(d);
   assert.strictEqual(onType.provideOnTypeFormattingEdits(d, new Position(2, 0), '\n')[0].newText, '  ', 'blank line after {% for %}');
 
+  // #52, the inside style: a blank line after a tag line starts at the
+  // block's column (0); a pushed-down tag gets its padding inside the tag.
+  h.config['saltSyntax.jinjaIndentStyle'] = 'inside';
+  const inside = '{%- for p in ps %}\n{%-   if p %}\n{{ p }}\n{%-   endif %}\n{%- endfor %}';
+  const withBlank = inside.split('\n');
+  withBlank.splice(2, 0, '  ');
+  const d2 = doc(withBlank.join('\n'));
+  h.change(d2);
+  assert.strictEqual(onType.provideOnTypeFormattingEdits(d2, new Position(2, 2), '\n')[0].newText, '', 'inside: blank line after a tag at column 0');
+  const pushedText = (src2, line, col, auto) => {
+    const d3 = doc(src2);
+    h.change(d3);
+    const ls = src2.split('\n');
+    const after = ls[line].slice(col);
+    ls.splice(line, 1, ls[line].slice(0, col), auto + after.trimStart());
+    d3.setText(ls.join('\n'));
+    h.change(d3);
+    const edits = onType.provideOnTypeFormattingEdits(d3, new Position(line + 1, auto.length), '\n');
+    const moved = auto + after.trimStart();
+    return edits.length ? edits[0].newText + moved.slice(edits[0].range.end.character) : moved;
+  };
+  assert.strictEqual(pushedText('{%- for p in ps %}\n{%-   if p %}\n{{ p }}{%- endif %}\n{%- endfor %}', 2, 7, '  '), '{%-   endif %}', 'inside: pushed endif level with its if');
+  assert.strictEqual(pushedText('{%- for p in ps %}\n{%-   if p %}\n{{ p }}{%- set x = 1 %}\n{%-   endif %}', 2, 7, ''), '{%-     set x = 1 %}', 'inside: pushed tag nested');
+  h.config['saltSyntax.jinjaIndentStyle'] = 'outside';
+
   // saltSyntax.jinjaEnterIndent = column0
   h.config['saltSyntax.jinjaEnterIndent'] = 'column0';
   assert.strictEqual(enterAt(src, 13, 4, ''), 0, 'column0 mode');

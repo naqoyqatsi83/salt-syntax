@@ -162,13 +162,35 @@
         "saltSyntax.jinjaIndentCheck": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Warn when a Jinja `{% %}` tag's indentation doesn't follow block nesting: every tag inside a block should be indented two spaces deeper than the block's opening tag, and a block's own `elif`/`else`/`end...` tags level with its opening tag — so an `{% if %}` inside a `{% for %}` can't sit at column 0 and read as if it were outside the loop. Only tags that start their line are checked; each warning offers a quick fix to re-indent it, or every flagged tag in the file."
+          "markdownDescription": "Warn when a Jinja `{% %}` tag's (or `{# #}` comment line's) indentation doesn't follow block nesting: every tag inside a block should be one step deeper than the block's opening tag, and a block's own `elif`/`else`/`end...` tags level with its opening tag — so an `{% if %}` inside a `{% for %}` can't read as if it were outside the loop. Which style counts as right is set by `#saltSyntax.jinjaIndentCheckStyle#`. Only tags that start their line are checked; each warning offers a quick fix to re-indent it, or every flagged tag in the file."
+        },
+        "saltSyntax.jinjaIndentCheckStyle": {
+          "type": "string",
+          "enum": ["outside", "inside", "either", "mixed"],
+          "enumDescriptions": [
+            "Indentation in front of the tag: `  {% if %}`, two spaces deeper per level.",
+            "Indentation inside the tag, which stays at column 0: `{%-   if %}`, the keyword two columns further right per level, lined up whether the tag opens with `{%` or `{%-`.",
+            "Either style, but one per file: the first tag that fits only one style decides, and tags in the other style are flagged.",
+            "Either style, tag by tag, even mixed within a file."
+          ],
+          "default": "outside",
+          "markdownDescription": "Which Jinja indentation style `#saltSyntax.jinjaIndentCheck#` accepts. Quick fixes re-indent to that style — the file's style under `either`, `#saltSyntax.jinjaIndentStyle#` under `mixed`."
+        },
+        "saltSyntax.jinjaIndentStyle": {
+          "type": "string",
+          "enum": ["outside", "inside"],
+          "enumDescriptions": [
+            "Indent in front of the tag: `  {% if %}`.",
+            "Keep the tag at column 0 and indent inside it: `{%-   if %}` (template-formula's TOFS style)."
+          ],
+          "default": "outside",
+          "markdownDescription": "How the extension writes Jinja indentation: Enter after a tag line, keyword completion right after `{%`, block snippets (typing `for`, `if`, ...), and the indentation check's quick fixes under `mixed`. Set `#saltSyntax.jinjaIndentCheckStyle#` to match (or to `either`/`mixed`), or the check flags what gets written."
         },
         "saltSyntax.jinjaEnterIndent": {
           "type": "string",
           "enum": ["followNesting", "column0"],
           "enumDescriptions": [
-            "Indent the new line two spaces deeper than the innermost open Jinja block (top level: same indentation as the tag line), so the next tag lands where the Jinja indentation check expects it.",
+            "Indent the new line where the next tag belongs: two spaces deeper than the innermost open Jinja block, or in the inside style (`#saltSyntax.jinjaIndentStyle#`) at that block's column (top level: same indentation as the tag line).",
             "Always start the new line at column 0."
           ],
           "default": "followNesting",
