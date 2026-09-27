@@ -93,6 +93,21 @@ const { load, doc } = require('./helpers/vscode');
   assert.strictEqual(fixAll(flat.replace('{% set', '{% if a %}\n{% set').replace('{% endfor', '{% endif %}\n{% endfor')), '{% for x in y %}\n  {% if a %}\n    {% set z = x %}\n  {% endif %}\n{% endfor %}');
   style('either', 'inside');
   assert.strictEqual(fixAll(flat.replace('{% set', '{% if a %}\n{% set').replace('{% endfor', '{% endif %}\n{% endfor')), '{% for x in y %}\n{%   if a %}\n{%     set z = x %}\n{%   endif %}\n{% endfor %}');
+  // A tag or comment with nothing after its opener on the line (a docstring
+  // opening `{#-`, its text below) has no keyword to line up: only where it
+  // starts counts -- and it doesn't decide a file's style.
+  const doc1 = '{%- macro m() %}\n{#-\n    Returns a thing.\n#}\n{%-   set x = 1 %}\n{%- endmacro %}';
+  const doc2 = '{%- macro m() %}\n{#-\n    Returns a thing.\n#}\n  {%- set x = 1 %}\n{%- endmacro %}';
+  assert.deepStrictEqual(lines(doc1), [], 'either: bare {#- in an inside file');
+  assert.deepStrictEqual(lines(doc2), [2], 'either: a bare {#- at column 0 doesn\'t make an outside file inside');
+  assert.strictEqual(fixAll(doc2), doc2.replace('\n{#-\n', '\n  {#-\n'), 'outside fix of a bare {#-: moved, no trailing space');
+  style('inside');
+  assert.deepStrictEqual(lines(doc1), [], 'inside: bare {#- at the start of the line');
+  assert.deepStrictEqual(lines(doc1.replace('\n{#-\n', '\n  {#-\n')), [2], 'inside: bare {#- still has to start the line');
+  assert.match(warnings(doc1.replace('\n{#-\n', '\n  {#-\n')).list[0].message, /expected the tag at the start of the line \(inside \{% macro %\} on line 1\), found 2 spaces before it\./);
+  assert.strictEqual(fixAll(doc1.replace('\n{#-\n', '\n  {#-\n')), doc1, 'fix only moves it');
+
+  style('either');
   // Mixing allowed: each tag passes in either style; fixes follow jinjaIndentStyle.
   style('mixed', 'inside');
   assert.deepStrictEqual(lines(insideFirst), [], 'mixed: both files pass');

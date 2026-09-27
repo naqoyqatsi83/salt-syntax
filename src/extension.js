@@ -2957,14 +2957,16 @@ function jinjaIndentOptions() {
 
 // A line (or line prefix) that starts with a Jinja tag or comment, taken
 // apart: leading whitespace, opener (`{%`, `{%-`, `{#-`, ...), the
-// whitespace after it, and the column the keyword starts at. null for
-// anything else, commented-out tags included.
+// whitespace after it, and the column the keyword starts at. `bare` when
+// nothing follows the opener on the line (a docstring's `{#-` with its text
+// below): there's no keyword to line up. null for anything else,
+// commented-out tags included.
 function jinjaTagLine(line) {
   const m = line.match(/^([ \t]*)(\{[%#][-+]?)([ \t]*)/);
   if (!m || /^\{#[%{]/.test(line.slice(m[1].length))) {
     return null;
   }
-  return { lead: m[1], opener: m[2], pad: m[3], kwCol: m[0].length };
+  return { lead: m[1], opener: m[2], pad: m[3], kwCol: m[0].length, bare: m[0].length === line.length };
 }
 
 // How a tag line should start, up to its keyword, given its block's
@@ -3021,13 +3023,19 @@ function analyzeJinjaIndent(text, options = { check: 'either', write: 'outside' 
     const line = lineOf(tag.start);
     const tabs = t.lead.includes('\t');
     const okOut = !tabs && t.lead.length === place.outLead;
-    const okIn = !tabs && !t.pad.includes('\t') && t.lead.length === place.inLead && t.kwCol === place.inKw;
+    const okIn = !tabs && t.lead.length === place.inLead && (t.bare || (!t.pad.includes('\t') && t.kwCol === place.inKw));
     const lead = 'Jinja tag indentation doesn\'t follow block nesting';
     records.push({
       okOut,
       okIn,
+      // A bare opener fits the inside style trivially: it doesn't get to
+      // decide a file's style under 'either'.
+      decides: !t.bare,
       issue(style) {
-        const fix = { end: t.kwCol, text: jinjaTagPrefix(style, place, t.opener) };
+        // A bare opener is only moved: no keyword to pad up to.
+        const fix = t.bare
+          ? { end: t.lead.length, text: ' '.repeat(style === 'outside' ? place.outLead : place.inLead) }
+          : { end: t.kwCol, text: jinjaTagPrefix(style, place, t.opener) };
         if (style === 'outside') {
           return {
             line,
@@ -3036,8 +3044,16 @@ function analyzeJinjaIndent(text, options = { check: 'either', write: 'outside' 
             message: `${lead}: expected ${plural(place.outLead, 'space')} (${reason}), found ${tabs ? 'tab indentation' : plural(t.lead.length, 'space')}.`
           };
         }
-        const pad = fix.text.length - place.inLead - t.opener.length;
         const where = place.inLead === 0 ? 'the tag at the start of the line' : `${plural(place.inLead, 'space')} before the tag`;
+        if (t.bare) {
+          return {
+            line,
+            fix,
+            title: `Re-indent Jinja tag to ${plural(place.inLead, 'space')}`,
+            message: `${lead}: expected ${where} (${reason}), found ${tabs ? 'tab indentation' : `${plural(t.lead.length, 'space')} before it`}.`
+          };
+        }
+        const pad = fix.text.length - place.inLead - t.opener.length;
         const found = tabs || t.pad.includes('\t') ? 'tab indentation' : `${plural(t.lead.length, 'space')} before it and ${t.pad.length} after`;
         return {
           line,
@@ -3050,7 +3066,7 @@ function analyzeJinjaIndent(text, options = { check: 'either', write: 'outside' 
   });
   let style = options.check;
   if (style === 'either') {
-    const decider = records.find((r) => r.okOut !== r.okIn);
+    const decider = records.find((r) => r.decides && r.okOut !== r.okIn);
     style = decider ? (decider.okOut ? 'outside' : 'inside') : options.write;
   }
   const issues = style === 'mixed'
