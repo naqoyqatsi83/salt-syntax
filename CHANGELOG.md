@@ -12,16 +12,6 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
-### Added
-- Unknown state functions in the editor (`pkg.instaled:`), with a quick
-  fix to the closest real one; your own are known -- the workspace's
-  `_states/*.py` automatically, and a dictionary
-  (`saltSyntax.knownStateFunctions`) the quick fixes add to, workspace or
-  user, and *Manage Known State Functions* removes from. Known custom
-  functions are completed, and the preview no longer calls them
-  suspicious. New setting `saltSyntax.functionCheck`.
-  [#64](https://github.com/naqoyqatsi83/salt-syntax/issues/64)
-
 ## [0.13.0] - 2026-09-27
 
 ### Added
@@ -49,6 +39,15 @@ version heading when that state gets tagged and merged to `main`.
   in the template -- or selects the whole `{{ }}` that printed it; traced
   on demand, only when it's used.
   [#60](https://github.com/naqoyqatsi83/salt-syntax/issues/60)
+
+- Unknown state functions in the editor (`pkg.instaled:`), with a quick
+  fix to the closest real one; your own are known -- the workspace's
+  `_states/*.py` automatically, and a dictionary
+  (`saltSyntax.knownStateFunctions`) the quick fixes add to, workspace or
+  user, and *Manage Known State Functions* removes from. Known custom
+  functions are completed, and the preview no longer calls them
+  suspicious. New setting `saltSyntax.functionCheck`.
+  [#64](https://github.com/naqoyqatsi83/salt-syntax/issues/64)
 
 ### Changed
 - The README covers everything shipped (preview, hover, checks), and

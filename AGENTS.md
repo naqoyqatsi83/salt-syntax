@@ -39,9 +39,11 @@ rest of this file stays current.
   arguments (#61), and the state-argument check (#62; `**kwargs` data in
   `KWARGS_FUNCTIONS_*`), F12 to the exact character (#60, character
   origins rendered on demand; its PoC hover and blank-line hints were
-  dropped), README caught up (#63). v0.13.0 was tagged twice before and
-  withdrawn each time to take in more; this is the release. No open
-  issues. v0.12.0:
+  dropped), README caught up (#63), unknown state functions with a
+  dictionary of your own (#64: `_states/*.py` auto-detected,
+  `saltSyntax.knownStateFunctions`). v0.13.0 was tagged three times
+  before and withdrawn each time to take in more; this is the release.
+  No open issues. v0.12.0:
   argument completion after `-` from the state function's real
   signature plus Salt's global state arguments (#57, #58), Enter no
   longer outdenting (#56), completion defaults quoted for YAML (#55),
