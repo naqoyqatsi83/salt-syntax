@@ -1,8 +1,13 @@
-# Design notes: Jinja render preview (experimental)
+# Design notes: Jinja render preview
 
-Status: **proof of concept** on branch `experimental/template-inputs-poc`
-(tracked by #23): a working rendered preview with an inputs panel — see
-[PoC status](#poc-status). Brainstorm originally captured 2026-09-24.
+Status: **shipped in v0.10.0** — graduated from the prototype branch
+`experimental/template-inputs-poc` as #39–#46 (umbrella #23), with the
+line map's features (#48–#50) on top. [What shipped](#what-shipped)
+describes it as it is; [Coverage](#coverage-of-salts-failure-modes) maps
+what it catches of Salt's failure modes. The sections from *Goal* to
+*Phased plan* are the original brainstorm (2026-09-24), kept as the
+record of why it's built this way; where the build went another way,
+[What shipped](#what-shipped) says so.
 
 ## Goal
 
@@ -95,7 +100,7 @@ appears.
 Once rendered to plain YAML, reuse data the extension already ships:
 
 - **Duplicate state IDs after rendering** (classic loop bug, invisible in
-  the template) — *done in the PoC:* the rendered output is parsed the way
+  the template) — *done:* the rendered output is parsed the way
   Salt's own loader does (`SaltYamlSafeLoader.construct_mapping`), so a key
   repeated in the same mapping at any level is reported with Salt's own
   message, `found conflicting ID '…'`, at the second occurrence plus where
@@ -131,17 +136,23 @@ Once rendered to plain YAML, reuse data the extension already ships:
 5. **Optional exact mode** — real Jinja2 (Python or Pyodide), or
    `salt-call` behind the safety opt-in above.
 
-## PoC status
+## What shipped
 
-Implemented on `experimental/template-inputs-poc`:
+Compared with the brainstorm: rendering is **real Jinja2 through the
+user's Python**, not Nunjucks (fidelity won — see the coverage map
+below); answers are kept per file rather than in named profiles; nothing
+Salt-side is ever executed, with no opt-in to change that. Profiles,
+branch dimming, hover values and profile diffs weren't built.
 
 - **Rendered preview** (`src/preview.js`) — *Salt Syntax: Open Rendered
-  Preview (experimental)*, the preview button in the editor title bar, or
-  `Ctrl+K V`: the rendered YAML opens beside the formula as a read-only
-  virtual document, live-updating (debounced) as the formula is edited or
-  any file is saved. A header comment names the file, `sls`/`tpldir`, how
-  many inputs are answered / defaulted / unknown, and any render error or
-  invalid-YAML output (with its line).
+  Preview*, the preview button in the editor title bar, or `Ctrl+K V`:
+  the rendered YAML opens beside the formula as a read-only virtual
+  document, live-updating (debounced) as the formula is edited or any
+  file is saved. A header comment names the file, `sls`/`tpldir`, the
+  Salt version it's checked as, how many inputs are answered / defaulted /
+  unknown, and every problem found (with its line). Problems are also
+  real diagnostics (squiggles, Problems panel), on the formula line and
+  the rendered line.
 - **Salt Preview panel** (bottom panel, webview) — every external input
   the render needed, grouped (grains, pillar, config/opts, other
   `salt[...]` calls, undefined variables), each with a status dot
@@ -157,8 +168,8 @@ Implemented on `experimental/template-inputs-poc`:
   workspace folder; else the file's grandparent dir), `import_yaml` /
   `import_json` / `import_text` (rendered through Jinja first, as Salt
   does) and `load_*` blocks, `salt://` and `./relative` imports, `do` and
-  loop-control extensions, Salt's common filters (unknown ones become
-  pass-throughs with a warning). `grains.filter_by` and the merge helpers
+  loop-control extensions, and every one of Salt's filters (see the
+  coverage map). `grains.filter_by` and the merge helpers
   (`slsutil.merge`, `defaults.merge`, ...) are *computed*; every other
   external read is a question. Unanswered inputs use the code's default if
   it has one, else render as `«kind:key»`. Nothing Salt-side is executed.
@@ -166,8 +177,23 @@ Implemented on `experimental/template-inputs-poc`:
   the render actually reaches them (answering `os_family: RedHat` is what
   brings up `osmajorrelease`; each loop iteration's computed pillar key
   appears with the map's default).
+- **Line map** (`render.py`'s `mark_lines` / `line_map`, #48) — which
+  formula line produced each rendered line. A second render, used only for
+  mapping, puts an invisible marker before every newline of template text
+  (placed by Jinja's own lexer, so never inside a tag; captured
+  `set`/`filter`/`load_yaml` blocks are skipped); each rendered line then
+  names its source line and the markers are stripped. If stripping doesn't
+  give back exactly the normal render (e.g. template text passed through
+  `tojson`), there's no map rather than a wrong one. The displayed preview
+  is always the normal render. It drives:
+  - **scroll sync** (#48) — each side follows the other to the matching
+    line, toggled by the lock button on the preview (`saltSyntax.preview.scrollSync`);
+    no map → both scroll by the same fraction of the file;
+  - **problems on the formula line** (#49) — every rendered-output problem
+    also on the line that produced it, linked to the preview line(s);
+  - **Go to Formula Line** (#50) — F12 / context menu in the preview.
 
-Findings / limits so far:
+Limits:
 
 - A missing import (e.g. a state file whose `map.jinja` isn't under the
   resolved root) stops the render with a clear error naming the path
@@ -178,8 +204,8 @@ Findings / limits so far:
 - Salt's `pillar` / `grains` objects in templates are plain dicts;
   `pillar.get('a:b')` here also resolves nested keys, which is more lenient
   than real Salt (only `salt['pillar.get']` does that).
-- Not yet: profiles (named answer sets per mock minion), branch dimming,
-  rendered-output checks — see the phased plan.
+- Not built: profiles (named answer sets per mock minion), branch
+  dimming, hover values.
 
 ## Coverage of Salt's failure modes
 
@@ -267,14 +293,12 @@ Not catchable by a preview at all: failures while states *run* on a minion
 (a missing package, a failing command) — the preview renders and checks,
 it never executes.
 
-## Graduation checklist
+## Graduation (done)
 
-When the preview moves from `experimental/template-inputs-poc` to
-`develop`: merge the branch, open one issue per user-facing feature group
-below (each closed with its commits and the tests that verify it, per
-AGENTS.md), add one `[Unreleased]` bullet per issue, drop the
-"(experimental)" labels from the command / panel / settings / README if
-it's ready, close #23 pointing at them, then release as 0.10.0.
+The preview moved from `experimental/template-inputs-poc` to `develop` in
+bf7607e, one issue per user-facing feature group below (#39–#46, each
+closed with its commits and tests), #23 closed pointing at them, and it
+was released in 0.10.0. The table is the record of what went in:
 
 | Feature group (issue) | Commits | Verified by |
 |---|---|---|
@@ -289,17 +313,12 @@ it's ready, close #23 pointing at them, then release as 0.10.0.
 
 ## Open questions
 
-- How heavily do real formulas lean on `map.jinja` / `import_yaml` /
-  `grains.filter_by`? Determines how much of Salt the mocks must cover.
-- Is Salt available locally, or would a Docker-based exact mode be wanted?
-- Is "never execute" a hard rule, or acceptable as a trusted-workspace
-  opt-in?
-- Questionnaire UI: sequential input boxes (`QuickInput`) vs. a form
-  (webview) listing all known inputs at once?
+Settled by the build: real formulas lean on `map.jinja` / `import_yaml`
+/ `grains.filter_by` heavily, so those are emulated for real; "never
+execute" is a hard rule; the questionnaire is a webview form (the Salt
+Preview panel) listing every input at once. Still open:
 
-## Honest assessment
-
-A full simulator is a big job with uncertain fidelity (Nunjucks ≠ Jinja2,
-Salt's filters/tags/loader aren't free). The inventory panel is the cheap,
-certain-value slice; everything past it should be justified by how useful
-that first slice turns out to be.
+- Named profiles (mock minions) — worth it, or are per-file answers
+  enough in practice?
+- 3007 (STS) or a future 3009 — model them when someone needs them (see
+  the coverage map's intro for what that takes).

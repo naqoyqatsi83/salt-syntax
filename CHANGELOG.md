@@ -12,6 +12,13 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Changed
+- Docs brought up to date: the preview's design notes describe what
+  shipped (including the line map), the README's Development section
+  covers the preview, tests and CI, and the settings table lists
+  `saltSyntax.enforceIndentSize`.
+  [#53](https://github.com/naqoyqatsi83/salt-syntax/issues/53)
+
 ## [0.11.0] - 2026-09-27
 
 ### Added

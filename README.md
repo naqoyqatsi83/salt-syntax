@@ -457,6 +457,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.showWhitespace` | `true` | Render whitespace (`editor.renderWhitespace`) in `.sls` files. |
 | `saltSyntax.enforceLfLineEndings` | `true` | Enforce LF line endings (`files.eol`) in `.sls` files regardless of platform. |
 | `saltSyntax.enforceFinalNewline` | `true` | Ensure every `.sls` file ends with exactly one trailing blank line on save (`files.insertFinalNewline` + `files.trimFinalNewlines`). |
+| `saltSyntax.enforceIndentSize` | `true` | Enforce 2-space indentation (`editor.tabSize`, `editor.insertSpaces`, `editor.detectIndentation`) in `.sls` files — YAML doesn't allow tabs. Written as an explicit `"[sls]"` override, so it wins over a tab size you've set for every other language. |
 | `saltSyntax.jinjaWhitespaceControl` | `false` | Include Jinja's `-` whitespace-control marker (leading side only) on `{% %}` blocks this extension inserts — `{%- if %}` instead of `{% if %}`. |
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
@@ -476,8 +477,10 @@ thin, discoverable wrapper around the editor defaults described above — disabl
 it actively writes an explicit `"[sls]"` override into your settings
 restoring VS Code's own built-in default for that setting (`selection` /
 `auto` / `false`); re-enabling removes that override again, falling back to
-this extension's defaults as normal. Synced on activation and immediately
-whenever you change one — no reload needed.
+this extension's defaults as normal. `enforceIndentSize` goes one step
+further: on, it writes the 2-space values as an explicit override too
+(off: tab size `4`, auto-detected indentation). Synced on activation and
+immediately whenever you change one — no reload needed.
 
 ## Installation
 
@@ -506,16 +509,23 @@ Development Host with it loaded live from source.
 
 ```
 salt-syntax/
-├── package.json                    # Extension manifest (languages, grammars, snippets, settings)
-├── language-configuration.json     # Comments, brackets, auto-close, indentation
-├── syntaxes/sls.tmLanguage.json    # TextMate grammar
-├── snippets/sls-snippets.json      # Static snippets
-├── src/extension.js                # Completion providers (plain JS, no build step)
-├── examples/uninstall_formula.sls  # Sample file used while developing the grammar
-├── AGENTS.md                       # Workflow policy + how to regenerate the module/function data
-├── CHANGELOG.md                    # Keep a Changelog, per the branching policy below
-├── LICENSE                         # MIT
-└── .github/workflows/build.yml     # CI (see below)
+├── package.json                         # Extension manifest (languages, grammars, snippets, settings, commands)
+├── language-configuration.json          # Comments, brackets, auto-close, indentation
+├── syntaxes/sls.tmLanguage.json         # TextMate grammar
+├── syntaxes/salt-jinja.tmLanguage.json  # Salt Jinja language: includes the sls grammar under its own scope
+├── snippets/sls-snippets.json           # Static snippets
+├── src/extension.js                     # Completion, checks, highlight, comment toggle, Enter/indent handling (plain JS)
+├── src/preview.js                       # Rendered preview: preview document, Salt Preview panel, diagnostics, scroll sync
+├── src/preview/render.py                # Preview renderer: real Jinja2 with Salt's environment emulated, Salt's checks
+├── src/templateInputs.js                # Static scan for a template's inputs (the panel's line numbers)
+├── test/                                # node test/run.js — one *.test.js / *.test.py per feature, vscode mock in helpers/
+├── examples/                            # Sample formula, and every Salt filter per version (salt_filters_*.sls)
+├── docs/design/jinja-render-preview.md  # The preview's design notes and coverage of Salt's failure modes
+├── images/                              # Icon (edit the SVG, re-render the PNG)
+├── AGENTS.md                            # Workflow policy + how to regenerate the module/function data
+├── CHANGELOG.md                         # Keep a Changelog, per the branching policy below
+├── LICENSE                              # MIT
+└── .github/workflows/build.yml          # CI (see below)
 ```
 
 No build step — `src/extension.js` runs as-is. `npm run package` (or
@@ -526,9 +536,19 @@ No build step — `src/extension.js` runs as-is. `npm run package` (or
 see [AGENTS.md](AGENTS.md#updating-the-salt-modulefunction-list) for the
 exact rules and how to regenerate either one against a newer Salt release.
 
+Tests: `node test/run.js` runs every `test/*.test.js` (node) and
+`test/*.test.py` (python3, needs `jinja2` + `pyyaml`), each in its own
+process; `node test/run.js <part-of-name>` runs a subset, `-v` shows each
+test's output. The JS tests run the extension against a mock of the
+`vscode` API (`test/helpers/vscode.js`); the grammar tests tokenize with VS
+Code's own engine, and the preview's parity tests run Salt's own code
+(fetched into `test/.cache`) against the renderer's. A test that can't run
+here (no python3, no network) is reported as skipped. Run them before
+committing — CI only runs on a release tag.
+
 CI (`.github/workflows/build.yml`) runs only on a `v*` tag push (or manually
 via `workflow_dispatch`): validates every JSON file, checks `extension.js`
-syntax, packages the extension, uploads the `.vsix` as a build artifact,
+syntax, runs the test suite, packages the extension, uploads the `.vsix` as a build artifact,
 and attaches it to a GitHub Release. It deliberately doesn't run on every
 `develop`/`main` push — the release flow pushes the same already-tested
 commit to `develop`, then `main`, then the tag, and running full CI on

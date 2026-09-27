@@ -95,6 +95,7 @@ turns the source tree into a `.vsix`.
 | `src/extension.js` | Completion, diagnostics, highlight, comment-toggle and formatting providers — `sls` gets everything, `salt-jinja` everything but the state-only completions (`SALT_LANGUAGES` / `jinjaSelector`) |
 | `src/preview.js`, `src/preview/render.py`, `src/templateInputs.js` | Rendered preview: the VS Code side (preview document, inputs panel, diagnostics), the Python renderer (real Jinja2 with Salt's environment emulated, checks against Salt's rules per version), the static inputs extractor. Design notes and coverage map: `docs/design/jinja-render-preview.md` |
 | `examples/uninstall_formula.sls` | Sample file used while developing the grammar |
+| `examples/salt_filters_3008.sls`, `examples/salt_filters_3006.sls` | Every Salt Jinja filter with an example and its expected output, per Salt version — for testing the preview by hand; not packaged (#51) |
 | `images/icon.svg` / `icon.png` | Extension icon — edit the SVG, re-render the 256×256 PNG from it (e.g. `@resvg/resvg-js`); only the PNG is packaged |
 | `test/` | `run.js` runner, `helpers/vscode.js` mock, one `*.test.js` / `*.test.py` per feature — see "Tests" below |
 | `CHANGELOG.md` | Keep a Changelog, per the Workflow section above |
