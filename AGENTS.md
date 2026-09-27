@@ -33,13 +33,13 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** the latest release is `v0.12.0`. A v0.13.0 was
-  tagged and then withdrawn (release and tag deleted) so that 0.13.0 can
-  also carry hover info and the argument check; `develop` has #59 (the
-  preview traces rendered lines into the templates they came from: Go to
-  Source Line, click to reveal) under `[Unreleased]`, and `package.json`
-  already says 0.13.0. #60 (per-character whitespace origins) is open,
-  waiting for the user's decision after using #59. v0.12.0:
+- **Where things stand:** `develop` and `main` are at `v0.13.0`: the
+  preview traces rendered lines into the templates they came from (Go to
+  Source Line, click to reveal; #59), hover info for state functions and
+  arguments (#61), and the state-argument check (#62; `**kwargs` data in
+  `KWARGS_FUNCTIONS_*`). An earlier v0.13.0 tag without #61/#62 was
+  withdrawn. #60 (per-character whitespace origins) is open, waiting for
+  the user's decision after using #59. v0.12.0:
   argument completion after `-` from the state function's real
   signature plus Salt's global state arguments (#57, #58), Enter no
   longer outdenting (#56), completion defaults quoted for YAML (#55),
