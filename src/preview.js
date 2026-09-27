@@ -76,6 +76,11 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     });
   }
 
+  const renderRequest = (state, source, saltVersion) => ({
+    source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers,
+    saltVersion, stateData: stateDataFor(saltVersion)
+  });
+
   async function render(uriString) {
     const state = states.get(uriString);
     if (!state) return;
@@ -88,10 +93,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const source = doc ? doc.getText() : state.lastSource || '';
     state.lastSource = source;
     const saltVersion = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008');
-    state.result = await runRenderer({
-      source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers,
-      saltVersion, stateData: stateDataFor(saltVersion)
-    });
+    state.result = await runRenderer(renderRequest(state, source, saltVersion));
     state.saltVersion = saltVersion;
     state.lines = staticLines(source);
     state.running = false;
@@ -435,6 +437,33 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
 
   const editorFor = (uri) => vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString());
 
+  // Character origins (#60), for Go to Source Line only: rendered on demand
+  // when it's used -- the same render with every piece of template text and
+  // every {{ }} output traced to its source character -- and used only if it
+  // produced exactly the text the preview shows. Null otherwise.
+  async function charOriginsFor(state) {
+    const r = state.result;
+    if (!r || r.fatal || r.error || state.lastSource === undefined) return null;
+    const traced = await runRenderer({ ...renderRequest(state, state.lastSource, state.saltVersion || '3008'), charOrigins: true });
+    return traced && traced.charOrigins && traced.rendered === r.rendered ? traced : null;
+  }
+
+  // The run of a preview line that `character` falls in -- { run, uri, line
+  // (0-based), col } with `col` that character's own column for template
+  // text, the tag's for an expression's output -- or null.
+  function charOriginAt(state, traced, previewLine, character) {
+    const i = previewLine - headerLines(state).length;
+    const runs = traced && i >= 0 ? traced.charOrigins[i] : null;
+    const run = runs && runs.find((x) => character >= x[0] && character < x[1]);
+    if (!run) return null;
+    return {
+      run,
+      uri: run[2] === 0 ? state.uri : vscode.Uri.file(traced.charFiles[run[2]]),
+      line: run[3] - 1,
+      col: run[5] === 'E' ? run[4] : run[4] + (character - run[0])
+    };
+  }
+
   // Go to Source Line (#50, #59): from the preview's cursor line to the
   // template line that produced it -- in the formula, or the macro library /
   // included file it really came from -- selected, in the formula's own
@@ -448,6 +477,17 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     if (!r || r.fatal || r.error) return;
     const line = editor.selection.active.line;
     if (line < headerLines(state).length) return;
+    // Character origins (#60): straight to the character, where known.
+    const exact = charOriginAt(state, await charOriginsFor(state), line, editor.selection.active.character);
+    if (exact && exact.run[5] !== 'X') {
+      await vscode.workspace.openTextDocument(exact.uri);
+      const open = editorFor(exact.uri) || editorFor(state.uri);
+      await vscode.window.showTextDocument(exact.uri, {
+        viewColumn: open ? open.viewColumn : vscode.ViewColumn.One,
+        selection: new vscode.Range(exact.line, exact.col, exact.line, exact.col + (exact.run[5] === 'E' ? exact.run[6].length : 1))
+      });
+      return;
+    }
     const origin = originOf(state, line);
     if (!origin) {
       vscode.window.showInformationMessage("Salt Syntax: this line can't be traced to its source (the template text is transformed on its way to the output, e.g. passed through tojson).");
