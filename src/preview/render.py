@@ -997,7 +997,7 @@ def line_map(marked_output, rendered):
     return main, origins
 
 
-# Character origins (#60, experimental): while mapping, every piece of
+# Character origins (#60, for Go to Source Line): while mapping, every piece of
 # template text and every {{ }} output is preceded by a marker naming its
 # source -- `\ue010<file>:<offset>:<T|E>\ue011`, T for template text (each
 # following character is the next one of that file), E for an expression's
@@ -1005,7 +1005,6 @@ def line_map(marked_output, rendered):
 # Jinja's parse tree, not the source text, so whitespace control behaves
 # exactly as without markers.
 CHAR_MARK = re.compile("\ue010(\\d+):(\\d+):([TE])\ue011")
-JINJA_TAG_RE = re.compile(r"\{%.*?%\}|\{#.*?#\}", re.S)
 PRINT_SCAN_RE = re.compile(r"\{#.*?#\}|\{%-?\s*raw\s*-?%\}.*?\{%-?\s*endraw\s*-?%\}|(\{\{.*?\}\})", re.S)
 
 
@@ -1084,57 +1083,6 @@ def char_origins(marked_output, rendered, sources):
     return [runs if got == want else None for got, want, runs in zip(clean, wanted, lines)]
 
 
-def blank_line_hints(rendered, origins, sources, originals, files):
-    """Rendered lines that are empty or whitespace, made entirely of one
-    source line's text where that line has nothing but Jinja tags on it --
-    the newline a `{% else %}` line leaves behind. Each: {line (1-based,
-    rendered), file, sourceLine, tag (the source line, as written), fix}.
-    `fix` is that line with `{%-` / `{#-` on its first tag, which trims the
-    newline before it without touching the next line's indentation (as
-    `-%}` would) -- offered only when, at this very place in the output, the
-    newline before this line is the one `{%-` would trim (not on a file's
-    first line, nor when a `-` is already there). A line pieced together
-    from several source lines (an indentation from one, a newline from
-    another -- a loop iteration where an `if` was false) gets no hint: the
-    hover explains each character. `sources` are what Jinja parsed (Salt's
-    own tags rewritten, line numbers kept); `originals` the text as
-    written."""
-    hints = []
-    tag_spans = {f: [(m.start(), m.end()) for m in JINJA_TAG_RE.finditer(src)] for f, src in sources.items()}
-    for i, text in enumerate(rendered.split("\n")[:-1]):
-        runs = origins[i] if i < len(origins) else None
-        if text.strip() or not runs or any(r[4] != "T" for r in runs) or len({r[2] for r in runs}) != 1:
-            continue
-        file = runs[0][2]
-        src = sources[file]
-        newline = runs[-1][3] + (runs[-1][1] - runs[-1][0]) - 1  # the source offset of the line's own newline
-        line_start = src.rfind("\n", 0, newline) + 1
-        if any(not line_start <= r[3] <= newline for r in runs):
-            continue  # pieced together from several source lines
-        covering = [(a, b) for a, b in tag_spans[file] if b > line_start and a < newline]
-        rest = src[line_start:newline]
-        for a, b in covering:
-            rest = rest.replace(src[max(a, line_start):min(b, newline)], "", 1)
-        if not covering or rest.strip():
-            continue
-        start = covering[0][0]
-        first_line = src.count("\n", 0, start) + 1
-        written = originals[file].split("\n")
-        tag = "\n".join(written[first_line - 1:src.count("\n", 0, newline) + 1]).strip()
-        opener = re.search(r"\{[%#]", written[first_line - 1])
-        before = src.rfind("\n", 0, start)  # the newline `{%-` would trim
-        previous = origins[i - 1][-1] if i > 0 and origins[i - 1] else None  # what ends the line above, here
-        trimmable = opener and written[first_line - 1][opener.end():opener.end() + 1] not in ("-", "+") \
-            and before >= 0 and not src[before + 1:start].strip() and previous is not None and previous[4] == "T" \
-            and (previous[2], previous[3] + (previous[1] - previous[0]) - 1) == (file, before)
-        fix = None
-        if trimmable:
-            line = written[first_line - 1]
-            fix = (line[:opener.end()] + "-" + line[opener.end():]).strip()
-        hints.append({"line": i + 1, "file": files[file], "sourceLine": first_line, "tag": tag, "fix": fix})
-    return hints
-
-
 def with_positions(origins, sources):
     """char_origins' runs with each source offset as a 1-based line and a
     0-based column (of the preprocessed source: Salt's own tags rewritten,
@@ -1202,7 +1150,6 @@ class SaltEnvironment(jinja2.sandbox.SandboxedEnvironment):
     # and file index -> source, for every template parsed; None otherwise.
     origin_files = None
     origin_sources = None
-    origin_originals = None  # file index -> the text as written (Salt's tags not rewritten)
 
     def _parse(self, source, name, filename):
         tree = super()._parse(source, name, filename)
@@ -1210,11 +1157,6 @@ class SaltEnvironment(jinja2.sandbox.SandboxedEnvironment):
             path = os.path.abspath(self.loader.override_paths.get(name, filename or name))
             index = self.origin_files.setdefault(path, len(self.origin_files))
             self.origin_sources[index] = source
-            if name in self.loader.overrides:
-                self.origin_originals[index] = self.loader.overrides[name]
-            else:
-                with open(path, encoding="utf-8") as fh:
-                    self.origin_originals[index] = fh.read()
             instrument_origins(tree, source, index)
         return tree
 
@@ -1940,25 +1882,23 @@ def main():
             env.loader.mark = None
             session.questions, session.warnings, session.strict_errors = saved
 
-    # Character origins (#60, experimental): one more render, with every
-    # template's parse tree marked (instrument_origins).
+    # Character origins (#60): on request only (Go to Source Line asks for
+    # them when it's used) -- one more render, with every template's parse
+    # tree marked (instrument_origins).
     result["charOrigins"] = result["charFiles"] = None
-    result["blankLineHints"] = []
-    if result["error"] is None:
+    if result["error"] is None and req.get("charOrigins"):
         saved = (dict(session.questions), list(session.warnings), list(session.strict_errors))
         try:
-            env.origin_files, env.origin_sources, env.origin_originals = {os.path.abspath(req["path"]): 0}, {}, {}
+            env.origin_files, env.origin_sources = {os.path.abspath(req["path"]): 0}, {}
             env.cache.clear()
             origins = char_origins(env.get_template(rel_main).render(), result["rendered"], env.origin_sources)
             if origins is not None:
                 result["charFiles"] = list(env.origin_files)
                 result["charOrigins"] = with_positions(origins, env.origin_sources)
-                result["blankLineHints"] = blank_line_hints(result["rendered"], origins, env.origin_sources,
-                                                            env.origin_originals, result["charFiles"])
         except Exception:  # noqa: BLE001 - no origins is the fallback, never an error
             result["charOrigins"] = None
         finally:
-            env.origin_files = env.origin_sources = env.origin_originals = None
+            env.origin_files = env.origin_sources = None
             env.cache.clear()
             session.questions, session.warnings, session.strict_errors = saved
 

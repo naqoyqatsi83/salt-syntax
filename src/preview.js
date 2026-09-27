@@ -76,6 +76,11 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     });
   }
 
+  const renderRequest = (state, source, saltVersion) => ({
+    source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers,
+    saltVersion, stateData: stateDataFor(saltVersion)
+  });
+
   async function render(uriString) {
     const state = states.get(uriString);
     if (!state) return;
@@ -88,10 +93,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const source = doc ? doc.getText() : state.lastSource || '';
     state.lastSource = source;
     const saltVersion = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008');
-    state.result = await runRenderer({
-      source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers,
-      saltVersion, stateData: stateDataFor(saltVersion)
-    });
+    state.result = await runRenderer(renderRequest(state, source, saltVersion));
     state.saltVersion = saltVersion;
     state.lines = staticLines(source);
     state.running = false;
@@ -248,15 +250,6 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
             add(state.uri, s);
           }
           onSource.get(k).relatedInformation.push(new vscode.DiagnosticRelatedInformation(here, 'in the rendered preview'));
-        }
-        // Empty lines left by tag-only lines (#60, experimental): information
-        // on the preview line, linked to the tag.
-        for (const b of r.blankLineHints || []) {
-          const d = make(at(b.line), `Empty line: the newline after \`${b.tag}\` (${shortName(state, b.file)} line ${b.sourceLine})${b.fix ? ` -- \`${b.fix}\` would remove it` : ''}.`, vscode.DiagnosticSeverity.Information);
-          d.code = 'blank-line';
-          d.relatedInformation = [new vscode.DiagnosticRelatedInformation(
-            new vscode.Location(vscode.Uri.file(b.file), new vscode.Range(b.sourceLine - 1, 0, b.sourceLine - 1, 0)), 'the tag')];
-          add(previewUri, d);
         }
       }
     }
@@ -444,40 +437,31 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
 
   const editorFor = (uri) => vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString());
 
-  // Character origins (#60, experimental): the run of a preview line that
-  // `character` falls in -- { run, uri, file, line (0-based), col } with
-  // `col` that character's own column for template text -- or null.
-  function charOriginAt(state, previewLine, character) {
+  // Character origins (#60), for Go to Source Line only: rendered on demand
+  // when it's used -- the same render with every piece of template text and
+  // every {{ }} output traced to its source character -- and used only if it
+  // produced exactly the text the preview shows. Null otherwise.
+  async function charOriginsFor(state) {
     const r = state.result;
+    if (!r || r.fatal || r.error || state.lastSource === undefined) return null;
+    const traced = await runRenderer({ ...renderRequest(state, state.lastSource, state.saltVersion || '3008'), charOrigins: true });
+    return traced && traced.charOrigins && traced.rendered === r.rendered ? traced : null;
+  }
+
+  // The run of a preview line that `character` falls in -- { run, uri, line
+  // (0-based), col } with `col` that character's own column for template
+  // text, the tag's for an expression's output -- or null.
+  function charOriginAt(state, traced, previewLine, character) {
     const i = previewLine - headerLines(state).length;
-    const runs = r && r.charOrigins && i >= 0 ? r.charOrigins[i] : null;
+    const runs = traced && i >= 0 ? traced.charOrigins[i] : null;
     const run = runs && runs.find((x) => character >= x[0] && character < x[1]);
     if (!run) return null;
-    const file = r.charFiles[run[2]];
     return {
       run,
-      file,
-      uri: run[2] === 0 ? state.uri : vscode.Uri.file(file),
+      uri: run[2] === 0 ? state.uri : vscode.Uri.file(traced.charFiles[run[2]]),
       line: run[3] - 1,
       col: run[5] === 'E' ? run[4] : run[4] + (character - run[0])
     };
-  }
-
-  // A template's file as the hover and hints name it: relative to the
-  // formula's folder.
-  function shortName(state, file) {
-    return path.relative(path.dirname(state.uri.fsPath), file) || path.basename(file);
-  }
-
-  // A source line's text: the open document's, else the file's.
-  function sourceLineText(uri, line) {
-    const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-    try {
-      const text = open ? open.getText() : require('fs').readFileSync(uri.fsPath, 'utf8');
-      return text.split('\n')[line];
-    } catch (e) {
-      return undefined;
-    }
   }
 
   // Go to Source Line (#50, #59): from the preview's cursor line to the
@@ -494,7 +478,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const line = editor.selection.active.line;
     if (line < headerLines(state).length) return;
     // Character origins (#60): straight to the character, where known.
-    const exact = charOriginAt(state, line, editor.selection.active.character);
+    const exact = charOriginAt(state, await charOriginsFor(state), line, editor.selection.active.character);
     if (exact && exact.run[5] !== 'X') {
       await vscode.workspace.openTextDocument(exact.uri);
       const open = editorFor(exact.uri) || editorFor(state.uri);
@@ -559,31 +543,6 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     clickHighlight,
     vscode.commands.registerCommand('saltSyntax.preview.goToSource', goToSource),
     vscode.window.onDidChangeTextEditorSelection(revealClicked),
-    // Hover in the preview (#60, experimental): where the character under
-    // the mouse came from -- template text (with the source line and a caret
-    // under the character, so stray whitespace is easy to place) or the
-    // {{ }} expression that printed it.
-    vscode.languages.registerHoverProvider({ scheme: SCHEME }, {
-      provideHover(document, position) {
-        const state = states.get(sourceOfPreview(document.uri));
-        if (!state || !state.result || state.result.error) return undefined;
-        const o = charOriginAt(state, position.line, position.character);
-        if (!o) return undefined;
-        const where = `${shortName(state, o.file)} line ${o.line + 1}`;
-        const range = new vscode.Range(position.line, o.run[0], position.line, o.run[1]);
-        if (o.run[5] === 'E') {
-          return new vscode.Hover(new vscode.MarkdownString(`Output of \`${o.run[6]}\` · ${where}`), range);
-        }
-        if (o.run[5] === 'X') {
-          return new vscode.Hover(new vscode.MarkdownString(`Template text from ${where}, changed on the way (by a filter)`), range);
-        }
-        const ch = document.lineAt(position.line).text[position.character];
-        const what = ch === ' ' ? 'a space' : ch === '\t' ? 'a tab' : `\`${ch}\``;
-        const text = sourceLineText(o.uri, o.line);
-        const caret = text === undefined ? '' : `\n\n\`\`\`\n${text}\n${' '.repeat(o.col)}^\n\`\`\``;
-        return new vscode.Hover(new vscode.MarkdownString(`Template text: ${what} from ${where}, column ${o.col + 1}${caret}`), range);
-      }
-    }),
     vscode.commands.registerCommand('saltSyntax.preview.lockScroll', () => setScrollSync(true)),
     vscode.commands.registerCommand('saltSyntax.preview.unlockScroll', () => setScrollSync(false)),
     vscode.window.onDidChangeTextEditorVisibleRanges((e) => syncScroll(e.textEditor)),

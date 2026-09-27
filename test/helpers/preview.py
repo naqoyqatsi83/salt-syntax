@@ -39,10 +39,11 @@ def renderer():
     return module
 
 
-def render(source, path, roots, answers=None, version="3008", state_data=None):
-    """A full render through the script, exactly as the extension runs it."""
+def render(source, path, roots, answers=None, version="3008", state_data=None, char_origins=False):
+    """A full render through the script, exactly as the extension runs it
+    (with char_origins: as Go to Source Line asks for it, #60)."""
     request = {"source": source, "path": path, "roots": roots, "answers": answers or {},
-               "saltVersion": version, "stateData": state_data}
+               "saltVersion": version, "stateData": state_data, "charOrigins": char_origins}
     out = subprocess.run([sys.executable, RENDERER], input=json.dumps(request), capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 

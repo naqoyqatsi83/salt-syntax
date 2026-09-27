@@ -50,8 +50,7 @@ const FILE = path.join(ROOT, 'f', 'init.sls');
     }, 30)
   );
   const previewLines = () => previewDoc.getText().split('\n');
-  // The problems on the preview (the blank-line hints of #60 have their own test).
-  const onPreview = () => (diags.get(previewDoc.uri) || []).filter((d) => d.code !== 'blank-line');
+  const onPreview = () => diags.get(previewDoc.uri) || [];
   const edit = async (text, settled) => {
     source.setText(text);
     await h.change(source);
