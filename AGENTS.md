@@ -33,7 +33,11 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.12.0`:
+- **Where things stand:** `develop` and `main` are at `v0.13.0`: the
+  preview traces rendered lines into the templates they came from (Go to
+  Source Line, click to reveal; #59). #60 (per-character whitespace
+  origins) is open, waiting for the user's decision after using #59.
+  v0.12.0 before it:
   argument completion after `-` from the state function's real
   signature plus Salt's global state arguments (#57, #58), Enter no
   longer outdenting (#56), completion defaults quoted for YAML (#55),
