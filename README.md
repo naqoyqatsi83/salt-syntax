@@ -107,8 +107,9 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   and `managed (full)`, which includes *every* parameter `file.managed`
   actually accepts (49 of them), each defaulted to its real value from
   Salt's own source (`source: None`, `keep_source: True`,
-  `sig_backend: 'gpg'`, ...), all as tab stops. Functions with nothing
-  beyond `name` (e.g. `archive.extracted` has none) don't get a redundant
+  `sig_backend: gpg`, ...), all as tab stops — quoted where YAML would
+  otherwise misread them (`minute: '*'`, `char: '#'`). Functions with
+  nothing beyond `name` (e.g. `alias.absent`) don't get a redundant
   `(full)` entry. Data for both variants — and which arguments count as
   mandatory for `basic` — is extracted the same way as the module list
   itself (see below), not hand-written.

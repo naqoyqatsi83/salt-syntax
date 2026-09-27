@@ -27,6 +27,10 @@ version heading when that state gets tagged and merged to `main`.
   covers the preview, tests and CI, and the settings table lists
   `saltSyntax.enforceIndentSize`.
   [#53](https://github.com/naqoyqatsi83/salt-syntax/issues/53)
+- Tests for state completion, the Salt version switch and the
+  editor-settings toggles, which had none; the README no longer claims
+  `archive.extracted` has no `(full)` variant.
+  [#54](https://github.com/naqoyqatsi83/salt-syntax/issues/54)
 
 ## [0.11.0] - 2026-09-27
 

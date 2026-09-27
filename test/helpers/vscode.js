@@ -128,7 +128,11 @@ function createVscode(config) {
     contentProviders: {},
     webviews: {},
     languageSwitches: [],
-    info: []
+    info: [],
+    // Language-scoped settings ("[sls]": {...}) by language id, and every
+    // settings write, in order: { languageId, key, value }.
+    languageConfig: {},
+    configWrites: []
   };
   const on = (name) => (f) => {
     reg.listeners[name].push(f);
@@ -184,6 +188,11 @@ function createVscode(config) {
         this.value = value;
       }
     },
+    MarkdownString: class {
+      constructor(value) {
+        this.value = value;
+      }
+    },
     CompletionItem: class {
       constructor(label, k) {
         this.label = label;
@@ -234,16 +243,27 @@ function createVscode(config) {
     }),
     workspace: lenient({
       textDocuments: [],
-      getConfiguration: (section) => ({
-        get: (k, d) => {
-          const full = section ? `${section}.${k}` : k;
-          return full in config ? config[full] : d;
-        },
-        inspect: () => ({}),
-        update: async (k, v) => {
-          config[section ? `${section}.${k}` : k] = v;
-        }
-      }),
+      // With a { languageId } scope, reads see that language's overrides
+      // first, and update(..., overrideInLanguage = true) writes one.
+      getConfiguration: (section, scope) => {
+        const languageId = scope && scope.languageId;
+        const full = (k) => (section ? `${section}.${k}` : k);
+        const overrides = () => (reg.languageConfig[languageId] = reg.languageConfig[languageId] || {});
+        return {
+          get: (k, d) => {
+            if (languageId && full(k) in overrides()) return overrides()[full(k)];
+            return full(k) in config ? config[full(k)] : d;
+          },
+          inspect: (k) => ({ globalValue: config[full(k)], globalLanguageValue: languageId ? overrides()[full(k)] : undefined }),
+          update: async (k, v, target, overrideInLanguage) => {
+            const inLanguage = Boolean(overrideInLanguage && languageId);
+            reg.configWrites.push({ languageId: inLanguage ? languageId : undefined, key: full(k), value: v });
+            const store = inLanguage ? overrides() : config;
+            if (v === undefined) delete store[full(k)];
+            else store[full(k)] = v;
+          }
+        };
+      },
       getWorkspaceFolder: () => undefined,
       onDidOpenTextDocument: on('open'),
       onDidChangeTextDocument: on('change'),
