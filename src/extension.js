@@ -1497,8 +1497,8 @@ const FULL_FUNCTION_FIELDS_3008 = {
   'system.join_domain': [['username', 'None'], ['password', 'None'], ['account_ou', 'None'], ['account_exists', 'False'], ['restart', 'False']],
   'system.reboot': [['message', 'None'], ['timeout', '5'], ['force_close', 'True'], ['in_seconds', 'False'], ['only_on_pending_reboot', 'True']],
   'system.shutdown': [['message', 'None'], ['timeout', '5'], ['force_close', 'True'], ['reboot', 'False'], ['in_seconds', 'False'], ['only_on_pending_reboot', 'False']],
-  'task.absent': [['location', '\\\\']],
-  'task.present': [['location', '\\\\'], ['user_name', 'System'], ['password', 'None'], ['force', 'False']],
+  'task.absent': [['location', '\\']],
+  'task.present': [['location', '\\'], ['user_name', 'System'], ['password', 'None'], ['force', 'False']],
   'test.check_pillar': [['present', 'None'], ['boolean', 'None'], ['integer', 'None'], ['string', 'None'], ['listing', 'None'], ['dictionary', 'None'], ['verbose', 'False']],
   'test.configurable_test_state': [['changes', 'True'], ['result', 'True'], ['comment', '\'\''], ['warnings', 'None'], ['allow_test_mode_failure', 'False']],
   'test.show_notification': [['text', 'None']],
@@ -2569,10 +2569,36 @@ function activeDataset() {
 // MANDATORY_FIELDS_3008/MANDATORY_FIELDS_3006 above), so that invite-more-args
 // line wasn't earning its keep; add another `- key: value` line by hand same
 // as any other YAML edit.
+// An argument's default as its snippet placeholder (#55). The datasets hold
+// each default as its value, with a string's quotes stripped, so a
+// string default YAML would read as something else -- `*` an alias, `#...`
+// a comment, `a: b` or `{x}` a mapping, `=` a tag, `yes` a boolean, `%...`
+// a directive, a newline or backslash -- is quoted: double quotes (escaped)
+// when it has a newline, backslash or control character, single quotes
+// otherwise. Python literals (None, True, 8080, [], {'a': 1}, '...')
+// stay as they are, and so does a plain string YAML reads back unchanged.
+// Then `$`, `}` and `\` are escaped for the snippet syntax.
+const PYTHON_LITERAL_RE = /^(None|True|False|-?\d+(\.\d+)?|\[.*\]|\{\s*\}|\{.*:.*\}|'.*'|".*"|\(.*\))$/s;
+function yamlPlaceholder(value) {
+  let text = value;
+  const plainIsSafe =
+    !/^[-?:,[\]{}#&*!|>'"%@`=]/.test(value) &&
+    !/: |:$| #|\t|\\/.test(value) &&
+    value === value.trim() &&
+    !/^(y|n|yes|no|on|off|true|false|null|~)$/i.test(value) &&
+    !/^[-+.]?\d/.test(value);
+  if (value !== '' && !PYTHON_LITERAL_RE.test(value) && !plainIsSafe) {
+    // JSON's string syntax is valid YAML double-quoted: escapes newlines
+    // and backslashes both ways.
+    text = /[\n\\\u0000-\u001f]/.test(value) ? JSON.stringify(value) : `'${value.replace(/'/g, "''")}'`;
+  }
+  return text.replace(/[$}\\]/g, '\\$&');
+}
+
 function buildArgsBody(fields, indent, startTabstop) {
   let n = startTabstop;
   const lines = fields.map(([key, placeholder]) => {
-    const line = `${indent}- ${key}: \${${n}:${placeholder}}`;
+    const line = `${indent}- ${key}: \${${n}:${yamlPlaceholder(placeholder)}}`;
     n += 1;
     return line;
   });

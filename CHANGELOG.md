@@ -12,6 +12,15 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Fixed
+- State completion no longer inserts argument defaults that break or
+  change the YAML: `- minute: *` (`cron.present`), `- contents_delimiter: :`
+  (`file.managed (full)`), `- char: #` (read as null), `{stage}_...`
+  (a mapping, and a broken snippet), ... are now quoted, in both Salt
+  versions. `task.absent`/`task.present`'s `location` default is now one
+  backslash, as in Salt.
+  [#55](https://github.com/naqoyqatsi83/salt-syntax/issues/55)
+
 ### Changed
 - Docs brought up to date: the preview's design notes describe what
   shipped (including the line map), the README's Development section
