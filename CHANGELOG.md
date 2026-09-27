@@ -12,8 +12,6 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
-## [0.13.0] - 2026-09-27
-
 ### Added
 - The preview traces lines into the templates they came from: **Go to
   Source Line** (F12, formerly *Go to Formula Line*) opens the macro
