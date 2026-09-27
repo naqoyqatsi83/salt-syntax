@@ -87,8 +87,14 @@ rest of this file stays current.
   - Debug suspicious coloring by tokenizing with `vscode-textmate`
     against the real theme file, per "Verifying grammar changes" below —
     not by eyeballing a screenshot.
-- **Next up:** nothing committed to; candidates: refreshing the Salt
-  datasets against newer 3006/3008 point releases.
+- **Next up:** nothing committed to. Candidates, none started:
+  - execution-module data from Salt's `salt/modules/*.py` (both versions,
+    extracted like the state data), for checking / hovering / completing
+    `salt['mod.fn']` in Jinja -- and `__slot__:salt:mod.fn(...)` values,
+    whose highlighting and syntax check the user put on hold;
+  - naming the answered inputs in the preview header ("1 answered
+    (`test`)"), after a stale panel answer caused confusion;
+  - refreshing the Salt datasets against newer 3006/3008 point releases.
 
 ## Project Nature
 
