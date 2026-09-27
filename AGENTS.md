@@ -186,7 +186,18 @@ To regenerate one dataset against a newer tag on its line:
      (e.g. `win_network.py`/`network.py`, `nxos_upgrade.py`/`nxos.py` — real
      SLS is written the same way regardless of which one actually loads on a
      given minion), merge their functions under the one shared name.
-4. Diff against the previous version and manually verify anything that
+4. Regenerate the two facts that sit next to each dataset (#61, #62) from
+   the same files: `KWARGS_FUNCTIONS_*` (every `mod.fn` whose function has
+   a `**kwargs` parameter, `ast.arguments.kwarg`; where platform alternates
+   both provide a function, it counts if either takes `**kwargs`) and
+   `STATE_MODULE_FILES_*` (module -> `salt/states/<file>.py` stem, only
+   where they differ, for the docs links). Every dataset function must be
+   found; list any that aren't. Also refresh `STATE_INTERNAL_KEYWORDS` in
+   `src/preview/render.py` from `salt/state.py` (`STATE_REQUISITE_KEYWORDS`
+   -- in 3008 built from `RequisiteType` in `salt/utils/requisite.py` --
+   `STATE_REQUISITE_IN_KEYWORDS`, `STATE_RUNTIME_KEYWORDS`) and
+   `GLOBAL_STATE_ARGS` in `extension.js` (their user-facing part).
+5. Diff against the previous version and manually verify anything that
    changed shape (new/removed modules, function list changes) before
    committing — don't just trust the automated pass blind, the same way the
    original extraction caught `module.run` and `postgres_cluster/schema

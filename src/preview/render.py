@@ -686,6 +686,40 @@ REQUISITES = {
 }
 
 
+# The extra arguments a state may carry beyond its function's own
+# parameters: STATE_INTERNAL_KEYWORDS in salt/state.py (requisites, their
+# _in forms, runtime keywords, Salt's internal __*__ keys) at the pinned
+# tags. salt.utils.args.format_call (identical in both) rejects anything
+# else a function without **kwargs doesn't name (#62).
+STATE_INTERNAL_KEYWORDS = {
+    "3006": frozenset([
+        "__env__", "__id__", "__orchestration_jid__", "__prereq__", "__prerequired__", "__pub_arg",
+        "__pub_fun", "__pub_jid", "__pub_pid", "__pub_ret", "__pub_tgt", "__pub_tgt_type",
+        "__pub_user", "__sls__", "__umask__", "check_cmd", "cmd_opts_exclude", "creates",
+        "failhard", "fire_event", "fun", "listen", "listen_in", "onchanges",
+        "onchanges_any", "onchanges_in", "onfail", "onfail_all", "onfail_any", "onfail_in",
+        "onfail_stop", "onlyif", "order", "parallel", "prereq", "prereq_in",
+        "prerequired", "reload_grains", "reload_modules", "reload_pillar", "require", "require_any",
+        "require_in", "retry", "runas", "runas_password", "saltenv", "state",
+        "umask", "unless", "use", "use_in", "watch", "watch_any",
+        "watch_in",
+    ]),
+    "3008": frozenset([
+        "__env__", "__id__", "__orchestration_jid__", "__prereq__", "__prerequiring__", "__pub_arg",
+        "__pub_fun", "__pub_jid", "__pub_minion_is_target", "__pub_pid", "__pub_pure_resource_target", "__pub_resource_job",
+        "__pub_resource_target", "__pub_resource_targets", "__pub_ret", "__pub_tgt", "__pub_tgt_type", "__pub_user",
+        "__sls__", "__sls_included_from__", "__umask__", "check_cmd", "cmd_opts_exclude", "creates",
+        "failhard", "fire_event", "fun", "listen", "listen_in", "no_log",
+        "onchanges", "onchanges_any", "onchanges_in", "onfail", "onfail_all", "onfail_any",
+        "onfail_in", "onfail_stop", "onlyif", "order", "parallel", "prereq",
+        "prereq_in", "prerequired", "reload_grains", "reload_modules", "reload_pillar", "require",
+        "require_any", "require_in", "retry", "runas", "runas_password", "saltenv",
+        "state", "umask", "unless", "use", "use_in", "watch",
+        "watch_any", "watch_in",
+    ]),
+}
+
+
 def _is_empty(node):
     # Nothing at all after the colon -- as opposed to an explicit null / ~,
     # which is somebody's deliberate choice.
@@ -717,6 +751,8 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
 
     functions = (state_data or {}).get("functions") or {}
     mandatory = (state_data or {}).get("mandatory") or {}
+    strict = (state_data or {}).get("strict") or {}  # parameters of functions without **kwargs (#62)
+    internal = STATE_INTERNAL_KEYWORDS["3006" if v3006 else "3008"]
 
     def check_call(mod, fn, node, given, args_known):
         """State.verify_data() (identical in 3006 and 3008) when the state
@@ -745,6 +781,18 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
                 if param not in given:
                     found.append({"message": f"Missing parameter {param} for state {full}",
                                   "line": node.start_mark.line + 1, "reject": True, "lead": "state"})
+            # salt.utils.args.format_call (#62): a function without **kwargs
+            # rejects any argument it doesn't name, beyond Salt's internal
+            # keywords; `names` is expanded away before it gets there.
+            if full in strict:
+                extra = [k for k in given if k not in strict[full] and k not in internal and k != "names"]
+                if len(extra) == 1:
+                    message = f"'{extra[0]}' is an invalid keyword argument for '{full}'"
+                elif extra:
+                    message = "{} and '{}' are invalid keyword arguments for '{}'".format(
+                        ", ".join(f"'{e}'" for e in extra[:-1]), extra[-1], full)
+                if extra:
+                    found.append({"message": message, "line": node.start_mark.line + 1, "reject": True, "lead": "state"})
 
     for id_node, body in root.value:
         id_ = py(id_node)
@@ -761,7 +809,7 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
         # and a second `mod.other:` for the same module is an error.
         if isinstance(body, yaml.ScalarNode) and body.tag == "tag:yaml.org,2002:str" and "." in body.value:
             mod, fn = body.value.split(".", 1)
-            check_call(mod, fn, body, {"name"}, True)
+            check_call(mod, fn, body, {"name": None}, True)
             continue
         if not isinstance(body, yaml.MappingNode):
             message = f"ID {id_} in SLS {sls} is not a dictionary"
@@ -802,7 +850,10 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
             funs = 1 if "." in state else 0
             fun_names = [state.split(".", 1)[1]] if "." in state else []
             fun_nodes = [key_node] if "." in state else []
-            given = {"name"}  # compile_high_data() starts every state's data with its ID as `name`
+            # compile_high_data() starts every state's data with its ID as
+            # `name`; a dict keeps the written order (format_call lists
+            # invalid arguments in it).
+            given = {"name": None}
             args_known = True
             for arg in value.value:
                 arg_value = py(arg)
@@ -819,7 +870,7 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
                     continue
                 argfirst = py(arg.value[0][0])
                 arg_val_node = arg.value[0][1]
-                given.update(str(py(k)) for k, _v in arg.value)
+                given.update((str(py(k)), None) for k, _v in arg.value)
                 # `names:` entries can carry their own arguments ({name: [{arg: v}]});
                 # don't guess at what each expanded state ends up with.
                 if argfirst == "names" and isinstance(arg_val_node, yaml.SequenceNode) and any(

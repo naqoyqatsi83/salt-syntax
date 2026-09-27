@@ -20,6 +20,18 @@ version heading when that state gets tagged and merged to `main`.
   (`saltSyntax.preview.clickToSource`). Text a filter transforms (e.g.
   `tojson`) now leaves only its own lines unmapped, not the whole file.
   [#59](https://github.com/naqoyqatsi83/salt-syntax/issues/59)
+- Hover info: a state function's signature for the selected Salt version
+  (defaults, required arguments, `**kwargs`) with a link to its section
+  of Salt's docs; an argument key's default, or what a requisite / global
+  argument is and where it's documented.
+  [#61](https://github.com/naqoyqatsi83/salt-syntax/issues/61)
+- Argument check: a state argument the function doesn't take is a
+  warning where Salt fails the state (`'shel' is an invalid keyword
+  argument for 'user.present'`), with a quick fix to the closest real
+  one, and a hint for a near-miss on functions that take `**kwargs`
+  (`pakgs` → `pkgs`). The preview checks rendered states the same way.
+  New setting `saltSyntax.argumentCheck`.
+  [#62](https://github.com/naqoyqatsi83/salt-syntax/issues/62)
 
 ## [0.12.0] - 2026-09-27
 

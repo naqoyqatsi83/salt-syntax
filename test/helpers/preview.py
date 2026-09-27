@@ -48,17 +48,17 @@ def render(source, path, roots, answers=None, version="3008", state_data=None):
 
 
 def datasets():
-    """{version: {functions, mandatory}} -- the module/function lists and
-    required parameters src/extension.js ships, read out of it with node."""
+    """{version: state data} -- exactly what src/extension.js sends the
+    preview (stateDataFor: functions, mandatory, strict), via node with the
+    test suite's vscode mock."""
     node = os.environ.get("NODE", "node")
     script = r"""
-const src = require('fs').readFileSync(process.argv[1], 'utf8');
-const get = (n) => { const i = src.indexOf('const ' + n + ' = {'); let d = 0, j = i + ('const ' + n + ' = ').length;
-  for (; j < src.length; j++) { if (src[j] === '{') d++; if (src[j] === '}') { d--; if (!d) break; } }
-  return Function('return ' + src.slice(i + ('const ' + n + ' = ').length, j + 1))(); };
-const out = {}; for (const v of ['3006', '3008']) out[v] = { functions: get('MODULE_FUNCTIONS_' + v), mandatory: get('MANDATORY_FIELDS_' + v) };
-process.stdout.write(JSON.stringify(out));"""
-    out = subprocess.run([node, "-e", script, os.path.join(ROOT, "src", "extension.js")], capture_output=True, text=True, check=True)
+const { load } = require('./test/helpers/vscode');
+load().then(() => {
+  const { stateDataFor } = require('./src/extension.js');
+  process.stdout.write(JSON.stringify({ '3006': stateDataFor('3006'), '3008': stateDataFor('3008') }));
+});"""
+    out = subprocess.run([node, "-e", script], cwd=ROOT, capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
 

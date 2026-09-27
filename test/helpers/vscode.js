@@ -129,6 +129,7 @@ function createVscode(config) {
     webviews: {},
     languageSwitches: [],
     info: [],
+    hover: [],
     // Language-scoped settings ("[sls]": {...}) by language id, and every
     // settings write, in order: { languageId, key, value }.
     languageConfig: {},
@@ -199,6 +200,12 @@ function createVscode(config) {
         this.value = value;
       }
     },
+    Hover: class {
+      constructor(contents, range) {
+        this.contents = contents;
+        this.range = range;
+      }
+    },
     CompletionItem: class {
       constructor(label, k) {
         this.label = label;
@@ -231,6 +238,7 @@ function createVscode(config) {
       registerCompletionItemProvider: (sel, provider, ...triggers) => (reg.completion.push({ sel, provider, triggers }), { dispose() {} }),
       registerCodeActionsProvider: (sel, provider) => (reg.codeActions.push({ sel, provider }), { dispose() {} }),
       registerDocumentHighlightProvider: (sel, provider) => (reg.highlight.push({ sel, provider }), { dispose() {} }),
+      registerHoverProvider: (sel, provider) => (reg.hover.push({ sel, provider }), { dispose() {} }),
       registerOnTypeFormattingEditProvider: (sel, provider, ...triggers) => (reg.onType.push({ sel, provider, triggers }), { dispose() {} }),
       async setTextDocumentLanguage(d, languageId) {
         reg.languageSwitches.push([d.uri.toString(), languageId]);

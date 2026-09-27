@@ -10,7 +10,8 @@ const { load, doc, sleep } = require('./helpers/vscode');
   assert.strictEqual(langs(h.reg.completion.find((c) => c.triggers.includes('|')).sel), 'salt-jinja,sls', 'Jinja completion: both');
   assert.strictEqual(langs(h.reg.highlight[0].sel), 'salt-jinja,sls');
   assert.strictEqual(langs(h.reg.onType[0].sel), 'salt-jinja,sls');
-  h.reg.codeActions.forEach((c) => assert.strictEqual(langs(c.sel), 'salt-jinja,sls'));
+  // Quick fixes serve both, except the state-argument check's (#62): states live in .sls only.
+  assert.deepStrictEqual(h.reg.codeActions.map((c) => langs(c.sel)).filter((l) => l !== 'salt-jinja,sls'), ['sls']);
 
   // Checks run on salt-jinja documents too.
   await h.open(doc('{% for x in y %}\n{% set z = 1 %}\n{% endfor %}\nn: "café"', { languageId: 'salt-jinja', path: '/w/map.jinja' }));

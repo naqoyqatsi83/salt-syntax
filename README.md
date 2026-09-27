@@ -151,6 +151,33 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
   what you're actually typing (a word, or right after `{{`/`{%`/`|`) — it
   won't re-dump the full list on every space.
 
+### Hover info and the argument check
+
+Hover a state function (`pkg.installed:`, or Salt's `pkg:` / `- installed`
+form) to see its signature for your `saltSyntax.saltVersion` — Salt's
+parameter order, real defaults, which arguments are required, whether it
+also takes other options (`**kwargs`) — with a link to its section of
+Salt's docs. Hover an argument key (`- refresh:`) for that parameter's
+default, or, for a requisite or other global argument (`require`,
+`onlyif`, `names`, `order`, ...), what it is and where it's documented.
+
+Arguments are also checked (`saltSyntax.argumentCheck`, on by default):
+
+- A function without `**kwargs` — `user.present`, `group.present`,
+  `cron.present`, ... — rejects an argument it doesn't name, and Salt
+  fails the state: `'shel' is an invalid keyword argument for
+  'user.present'`. That's a **warning**, with a quick fix to the closest
+  real argument (`shell`).
+- A function with `**kwargs` — `pkg.installed`, `file.managed`,
+  `service.running`, `cmd.run`, ... — takes any extra option (`hold` on
+  `pkg.installed`), so an unknown key is only flagged when it's a
+  near-miss of a real parameter: `pakgs` gets a **hint**, "did you mean
+  `pkgs`?".
+
+Requisites and the other global arguments are always fine, and keys
+built by Jinja (`- {{ key }}: ...`) aren't checked. The rendered preview
+runs the same check on the rendered states, with Salt's own message.
+
 ### Matching Jinja block highlight
 
 Put the cursor on any Jinja block tag and every tag of that same block
@@ -475,6 +502,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.smartTopLevelDetection` | `true` | Module completion with some leading indentation and no valid state id directly above inserts the full block anyway, reset to column 0, instead of a nested stub. Disable for strict indentation-only detection. |
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
+| `saltSyntax.argumentCheck` | `true` | Flag a state argument its function doesn't take: a warning where Salt fails the state, a hint for a near-miss on a function that takes `**kwargs` — see [Hover info and the argument check](#hover-info-and-the-argument-check). |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheckStyle` | `either` | Which indentation style the check accepts: `either` (one style per file), `outside` (spaces before `{%`), `inside` (tag at column 0, spaces after `{%-`) or `mixed`. |
 | `saltSyntax.jinjaIndentStyle` | `outside` | How the extension writes Jinja indentation (Enter, completion, block snippets): `outside` or `inside`. |

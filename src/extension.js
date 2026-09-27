@@ -2541,18 +2541,219 @@ const FULL_FUNCTION_FIELDS_3006 = {
 // The two Salt release lines this extension can offer completions for --
 // see the comment above MODULE_FUNCTIONS_3008. Keyed by the exact string
 // values of the saltSyntax.saltVersion setting (package.json's enum).
+// Which state functions also take **kwargs (#61, #62), and which
+// salt/states/<file>.py a module's functions live in where the file isn't
+// named after the module (for docs links). Extracted from Salt's own source
+// at the same tags as the datasets above (v3008.2, v3006.27): an AST parse
+// of each file's top-level defs and plain-assignment aliases, with
+// __virtualname__ / __func_alias__ applied; where two files provide the same
+// function (platform alternates), it counts as taking **kwargs if either
+// does. A function that takes **kwargs accepts any extra argument; any
+// other rejects an argument it doesn't name -- salt.utils.args.format_call:
+// "'x' is an invalid keyword argument for 'mod.fn'" -- beyond Salt's own
+// STATE_INTERNAL_KEYWORDS (requisites, onlyif, ...).
+const KWARGS_FUNCTIONS_3008 = new Set([
+  'archive.extracted', 'at.absent', 'beacon.absent', 'beacon.disabled', 'beacon.enabled',
+  'beacon.present', 'blockdev.formatted', 'blockdev.tuned', 'cloud.present', 'cloud.profile',
+  'cloud.volume_absent', 'cloud.volume_attached', 'cloud.volume_detached', 'cloud.volume_present',
+  'cmd.call', 'cmd.run', 'cmd.script', 'cmd.wait', 'cmd.wait_call', 'cmd.wait_script',
+  'cron.absent', 'cron.file', 'debconf.set', 'debconf.set_file', 'etcd.directory', 'etcd.rm',
+  'etcd.set', 'etcd.wait_rm', 'etcd.wait_set', 'event.send', 'file.absent', 'file.accumulated',
+  'file.copy', 'file.directory', 'file.exists', 'file.hardlink', 'file.managed', 'file.missing',
+  'file.patch', 'file.recurse', 'file.rename', 'file.serialize', 'file.shortcut', 'file.symlink',
+  'file.tidied', 'firewall.check', 'git.config_set', 'git.config_unset', 'git.detached',
+  'git.latest', 'gpg.absent', 'gpg.present', 'highstate_doc.note', 'http.query',
+  'http.wait_for_successful_query', 'ipset.absent', 'ipset.flush', 'ipset.present',
+  'ipset.set_absent', 'ipset.set_present', 'iptables.append', 'iptables.delete', 'iptables.flush',
+  'iptables.insert', 'iptables.set_policy', 'keychain.installed', 'lvm.lv_present',
+  'lvm.pv_present', 'lvm.vg_present', 'module.run', 'module.wait', 'mount.mounted',
+  'mount.unmounted', 'netacl.term', 'netconfig.managed', 'netconfig.saved', 'network.managed',
+  'network.routes', 'network.system', 'nftables.append', 'nftables.delete', 'nftables.flush',
+  'nftables.insert', 'nftables.set_policy', 'nftables.table_absent', 'nftables.table_present',
+  'pip.installed', 'pkg.downloaded', 'pkg.group_installed', 'pkg.held', 'pkg.installed',
+  'pkg.latest', 'pkg.patch_downloaded', 'pkg.patch_installed', 'pkg.purged', 'pkg.removed',
+  'pkg.unheld', 'pkg.uptodate', 'pkgrepo.absent', 'pkgrepo.managed', 'raid.present',
+  'salt.function', 'salt.parallel_runners', 'salt.runner', 'salt.state', 'salt.wheel',
+  'saltutil.sync_all', 'saltutil.sync_beacons', 'saltutil.sync_clouds', 'saltutil.sync_engines',
+  'saltutil.sync_executors', 'saltutil.sync_grains', 'saltutil.sync_log_handlers',
+  'saltutil.sync_matchers', 'saltutil.sync_modules', 'saltutil.sync_output',
+  'saltutil.sync_outputters', 'saltutil.sync_pillar', 'saltutil.sync_proxymodules',
+  'saltutil.sync_renderers', 'saltutil.sync_resources', 'saltutil.sync_returners',
+  'saltutil.sync_sdb', 'saltutil.sync_serializers', 'saltutil.sync_states', 'saltutil.sync_thorium',
+  'saltutil.sync_tops', 'saltutil.sync_utils', 'saltutil.sync_wrapper', 'schedule.absent',
+  'schedule.disabled', 'schedule.enabled', 'schedule.present', 'selinux.module', 'service.dead',
+  'service.disabled', 'service.enabled', 'service.running', 'ssh_auth.manage', 'ssh_auth.present',
+  'ssh_pki.certificate_managed', 'ssh_pki.certificate_managed_ssh', 'ssh_pki.private_key_managed',
+  'ssh_pki.private_key_managed_ssh', 'ssh_pki.public_key_managed', 'stateconf.context',
+  'stateconf.set', 'syslog_ng.started', 'task.present', 'test.fail_with_changes',
+  'test.fail_without_changes', 'test.nop', 'test.show_notification', 'test.succeed_with_changes',
+  'test.succeed_without_changes', 'uptime.monitored', 'virtualenv.managed',
+  'win_servermanager.installed', 'x509.certificate_managed', 'x509.crl_managed', 'x509.csr_managed',
+  'x509.pem_managed', 'x509.private_key_managed', 'x509_v2.certificate_managed',
+  'x509_v2.certificate_managed_ssh', 'x509_v2.crl_managed', 'x509_v2.csr_managed',
+  'x509_v2.pem_managed', 'x509_v2.private_key_managed', 'x509_v2.private_key_managed_ssh'
+]);
+const KWARGS_FUNCTIONS_3006 = new Set([
+  'archive.extracted', 'at.absent', 'augeas.change', 'azurearm_compute.availability_set_present',
+  'azurearm_dns.record_set_present', 'azurearm_dns.zone_present',
+  'azurearm_network.load_balancer_present', 'azurearm_network.network_interface_present',
+  'azurearm_network.network_security_group_present', 'azurearm_network.public_ip_address_present',
+  'azurearm_network.route_present', 'azurearm_network.route_table_present',
+  'azurearm_network.security_rule_present', 'azurearm_network.subnet_present',
+  'azurearm_network.virtual_network_present', 'azurearm_resource.policy_assignment_present',
+  'azurearm_resource.policy_definition_present', 'azurearm_resource.resource_group_present',
+  'beacon.absent', 'beacon.disabled', 'beacon.enabled', 'beacon.present', 'bigip.create_monitor',
+  'bigip.create_profile', 'bigip.manage_monitor', 'bigip.manage_profile', 'bigip.modify_monitor',
+  'bigip.modify_profile', 'blockdev.formatted', 'blockdev.tuned',
+  'boto3_elasticache.cache_cluster_absent', 'boto3_elasticache.cache_cluster_present',
+  'boto3_elasticache.cache_subnet_group_absent', 'boto3_elasticache.cache_subnet_group_present',
+  'boto3_elasticache.replication_group_absent', 'boto3_elasticache.replication_group_present',
+  'boto_ec2.snapshot_created', 'boto_elasticache.cache_cluster_absent',
+  'boto_elasticache.cache_cluster_present', 'boto_elasticache.replication_group_present',
+  'boto_elbv2.create_target_group', 'boto_elbv2.targets_deregistered',
+  'boto_elbv2.targets_registered', 'boto_route53.rr_absent', 'boto_route53.rr_present',
+  'btrfs.properties', 'buildout.installed', 'ceph.quorum', 'chef.client', 'chef.solo',
+  'cloud.present', 'cloud.profile', 'cloud.volume_absent', 'cloud.volume_attached',
+  'cloud.volume_detached', 'cloud.volume_present', 'cmd.call', 'cmd.run', 'cmd.script', 'cmd.wait',
+  'cmd.wait_call', 'cmd.wait_script', 'cron.absent', 'cron.file', 'ddns.absent', 'ddns.present',
+  'debconf.set', 'debconf.set_file', 'docker_container.run', 'docker_container.running',
+  'docker_container.stopped', 'docker_image.present', 'docker_network.present', 'etcd.directory',
+  'etcd.rm', 'etcd.set', 'etcd.wait_rm', 'etcd.wait_set', 'ethtool.coalesce', 'ethtool.offload',
+  'ethtool.pause', 'ethtool.ring', 'event.send', 'file.absent', 'file.accumulated', 'file.copy',
+  'file.directory', 'file.exists', 'file.hardlink', 'file.managed', 'file.missing', 'file.patch',
+  'file.recurse', 'file.rename', 'file.serialize', 'file.shortcut', 'file.symlink', 'file.tidied',
+  'firewall.check', 'git.config_set', 'git.config_unset', 'git.detached', 'git.latest',
+  'github.absent', 'github.present', 'github.repo_absent', 'github.repo_present',
+  'github.team_absent', 'github.team_present', 'glance_image.present',
+  'glassfish.system_properties_present', 'gnomedesktop.desktop_interface',
+  'gnomedesktop.desktop_lockdown', 'gnomedesktop.wm_preferences', 'gpg.absent', 'gpg.present',
+  'heat.deployed', 'highstate_doc.note', 'http.query', 'http.wait_for_successful_query',
+  'influxdb_continuous_query.absent', 'influxdb_continuous_query.present',
+  'influxdb_database.absent', 'influxdb_database.present', 'influxdb_retention_policy.absent',
+  'influxdb_retention_policy.present', 'influxdb_user.absent', 'influxdb_user.present',
+  'infoblox_a.absent', 'infoblox_a.present', 'infoblox_cname.absent', 'infoblox_cname.present',
+  'infoblox_host_record.absent', 'infoblox_host_record.present', 'infoblox_range.absent',
+  'infoblox_range.present', 'ipmi.boot_device', 'ipmi.power', 'ipmi.user_absent',
+  'ipmi.user_present', 'ipset.absent', 'ipset.flush', 'ipset.present', 'ipset.set_absent',
+  'ipset.set_present', 'iptables.append', 'iptables.delete', 'iptables.flush', 'iptables.insert',
+  'iptables.set_policy', 'jenkins.absent', 'jenkins.present', 'junos.cli', 'junos.commit',
+  'junos.diff', 'junos.file_copy', 'junos.get_table', 'junos.install_config', 'junos.install_os',
+  'junos.load', 'junos.rollback', 'junos.rpc', 'junos.set_hostname', 'junos.shutdown',
+  'kernelpkg.latest_active', 'kernelpkg.latest_installed', 'kernelpkg.latest_wait',
+  'keychain.installed', 'keystone.endpoint_absent', 'keystone.endpoint_present',
+  'keystone.project_absent', 'keystone.project_present', 'keystone.role_absent',
+  'keystone.role_present', 'keystone.service_absent', 'keystone.service_present',
+  'keystone.tenant_absent', 'keystone.tenant_present', 'keystone.user_absent',
+  'keystone.user_present', 'keystone_domain.present', 'keystone_endpoint.absent',
+  'keystone_endpoint.present', 'keystone_group.absent', 'keystone_group.present',
+  'keystone_project.absent', 'keystone_project.present', 'keystone_role.absent',
+  'keystone_role.present', 'keystone_role_grant.absent', 'keystone_role_grant.present',
+  'keystone_service.present', 'keystone_user.absent', 'keystone_user.present',
+  'kubernetes.configmap_absent', 'kubernetes.configmap_present', 'kubernetes.deployment_absent',
+  'kubernetes.deployment_present', 'kubernetes.namespace_absent', 'kubernetes.namespace_present',
+  'kubernetes.node_label_absent', 'kubernetes.node_label_folder_absent',
+  'kubernetes.node_label_present', 'kubernetes.pod_absent', 'kubernetes.pod_present',
+  'kubernetes.secret_absent', 'kubernetes.secret_present', 'kubernetes.service_absent',
+  'kubernetes.service_present', 'libcloud_loadbalancer.balancer_absent',
+  'libcloud_loadbalancer.balancer_present', 'libcloud_loadbalancer.member_absent',
+  'libcloud_loadbalancer.member_present', 'logadm.rotate', 'lvm.lv_present', 'lvm.pv_present',
+  'lvm.vg_present', 'lxc.set_pass', 'module.run', 'module.wait', 'mount.mounted', 'mount.unmounted',
+  'mssql_database.absent', 'mssql_database.present', 'mssql_login.absent', 'mssql_login.present',
+  'mssql_role.absent', 'mssql_role.present', 'mssql_user.absent', 'mssql_user.present',
+  'mysql_database.absent', 'mysql_database.present', 'mysql_grants.absent', 'mysql_grants.present',
+  'mysql_query.run', 'mysql_query.run_file', 'mysql_user.absent', 'mysql_user.present',
+  'napalm_yang.configured', 'napalm_yang.managed', 'netacl.term', 'netconfig.managed',
+  'netconfig.saved', 'network.managed', 'network.routes', 'network.system',
+  'neutron_network.absent', 'neutron_network.present', 'neutron_secgroup.absent',
+  'neutron_secgroup.present', 'neutron_secgroup_rule.absent', 'neutron_secgroup_rule.present',
+  'neutron_subnet.present', 'nftables.append', 'nftables.delete', 'nftables.flush',
+  'nftables.insert', 'nftables.set_policy', 'nftables.table_absent', 'nftables.table_present',
+  'nxos.image_running', 'pagerduty_escalation_policy.absent', 'pagerduty_escalation_policy.present',
+  'pagerduty_schedule.absent', 'pagerduty_schedule.present', 'pagerduty_service.absent',
+  'pagerduty_service.present', 'pagerduty_user.absent', 'pagerduty_user.present', 'pdbedit.managed',
+  'pdbedit.present', 'pip.installed', 'pkg.downloaded', 'pkg.group_installed', 'pkg.held',
+  'pkg.installed', 'pkg.latest', 'pkg.patch_downloaded', 'pkg.patch_installed', 'pkg.purged',
+  'pkg.removed', 'pkg.unheld', 'pkg.uptodate', 'pkgrepo.absent', 'pkgrepo.managed', 'raid.present',
+  'redis.absent', 'redis.slaveof', 'redis.string', 'salt.function', 'salt.parallel_runners',
+  'salt.runner', 'salt.state', 'salt.wheel', 'saltutil.sync_all', 'saltutil.sync_beacons',
+  'saltutil.sync_clouds', 'saltutil.sync_engines', 'saltutil.sync_executors',
+  'saltutil.sync_grains', 'saltutil.sync_log_handlers', 'saltutil.sync_matchers',
+  'saltutil.sync_modules', 'saltutil.sync_output', 'saltutil.sync_outputters',
+  'saltutil.sync_pillar', 'saltutil.sync_proxymodules', 'saltutil.sync_renderers',
+  'saltutil.sync_returners', 'saltutil.sync_sdb', 'saltutil.sync_serializers',
+  'saltutil.sync_states', 'saltutil.sync_thorium', 'saltutil.sync_utils', 'schedule.absent',
+  'schedule.disabled', 'schedule.enabled', 'schedule.present', 'selinux.module',
+  'serverdensity_device.monitored', 'service.dead', 'service.disabled', 'service.enabled',
+  'service.running', 'slack.post_message', 'solrcloud.alias', 'solrcloud.collection',
+  'splunk.absent', 'splunk.present', 'splunk_search.present', 'ssh_auth.manage', 'ssh_auth.present',
+  'stateconf.context', 'stateconf.set', 'statuspage.create', 'statuspage.update',
+  'supervisord.dead', 'supervisord.running', 'syslog_ng.started', 'sysrc.absent', 'sysrc.managed',
+  'test.fail_with_changes', 'test.fail_without_changes', 'test.nop', 'test.show_notification',
+  'test.succeed_with_changes', 'test.succeed_without_changes', 'uptime.monitored',
+  'vagrant.initialized', 'vagrant.running', 'victorops.create_event', 'virt.keys',
+  'virtualenv.managed', 'win_servermanager.installed', 'x509.certificate_managed',
+  'x509.crl_managed', 'x509.csr_managed', 'x509.pem_managed', 'x509.private_key_managed',
+  'x509_v2.certificate_managed', 'x509_v2.crl_managed', 'x509_v2.csr_managed',
+  'x509_v2.pem_managed', 'x509_v2.private_key_managed', 'xml.value_present', 'zabbix_action.absent',
+  'zabbix_action.present', 'zabbix_host.absent', 'zabbix_host.assign_templates',
+  'zabbix_host.present', 'zabbix_hostgroup.absent', 'zabbix_hostgroup.present',
+  'zabbix_mediatype.absent', 'zabbix_mediatype.present', 'zabbix_template.absent',
+  'zabbix_template.is_present', 'zabbix_template.present', 'zabbix_user.absent',
+  'zabbix_user.admin_password_present', 'zabbix_user.present', 'zabbix_usergroup.absent',
+  'zabbix_usergroup.present', 'zabbix_usermacro.absent', 'zabbix_usermacro.present',
+  'zabbix_valuemap.absent', 'zabbix_valuemap.present', 'zone.resource_present'
+]);
+const STATE_MODULE_FILES_3008 = {
+  acl: 'linux_acl', ansible: 'ansiblegate', appx: 'win_appx', assistive: 'mac_assistive', certutil:
+  'win_certutil', debconf: 'debconfmod', dism: 'win_dism', dsc_resource: 'win_dsc_resource', etcd:
+  'etcd_mod', ini: 'ini_manage', keychain: 'mac_keychain', lgpo: 'win_lgpo', lgpo_reg:
+  'win_lgpo_reg', license: 'win_license', pip: 'pip_state', powercfg: 'win_powercfg', raid:
+  'mdadm_raid', salt: 'saltmod', shortcut: 'win_shortcut', system: 'win_system', task: 'win_task',
+  virtualenv: 'virtualenv_mod', wua: 'win_wua', wusa: 'win_wusa', xattr: 'mac_xattr'
+};
+const STATE_MODULE_FILES_3006 = {
+  acl: 'linux_acl', ansible: 'ansiblegate', apt: 'aptpkg', assistive: 'mac_assistive', buildout:
+  'zcbuildout', certutil: 'win_certutil', debconf: 'debconfmod', dism: 'win_dism', etcd: 'etcd_mod',
+  ini: 'ini_manage', keychain: 'mac_keychain', lgpo: 'win_lgpo', lgpo_reg: 'win_lgpo_reg', license:
+  'win_license', napalm_yang: 'net_napalm_yang', pip: 'pip_state', powercfg: 'win_powercfg', raid:
+  'mdadm_raid', rbac: 'rbac_solaris', redis: 'redismod', salt: 'saltmod', shortcut: 'win_shortcut',
+  system: 'win_system', virtualenv: 'virtualenv_mod', wua: 'win_wua', wusa: 'win_wusa', xattr:
+  'mac_xattr'
+};
+
 const MODULE_DATASETS = {
   '3008': {
     moduleFunctions: MODULE_FUNCTIONS_3008,
     fullFunctionFields: FULL_FUNCTION_FIELDS_3008,
-    mandatoryFields: MANDATORY_FIELDS_3008
+    mandatoryFields: MANDATORY_FIELDS_3008,
+    kwargsFunctions: KWARGS_FUNCTIONS_3008,
+    moduleFiles: STATE_MODULE_FILES_3008
   },
   '3006': {
     moduleFunctions: MODULE_FUNCTIONS_3006,
     fullFunctionFields: FULL_FUNCTION_FIELDS_3006,
-    mandatoryFields: MANDATORY_FIELDS_3006
+    mandatoryFields: MANDATORY_FIELDS_3006,
+    kwargsFunctions: KWARGS_FUNCTIONS_3006,
+    moduleFiles: STATE_MODULE_FILES_3006
   }
 };
+
+// What the preview's state checks need of a Salt line (render.py's
+// compiler_problems): each module's functions, their required parameters,
+// and -- for the functions that don't take **kwargs, the only ones where
+// an unknown argument fails the state (#62) -- every parameter they name.
+function stateDataFor(version) {
+  const ds = MODULE_DATASETS[version] || MODULE_DATASETS['3008'];
+  const strict = {};
+  for (const [mod, fns] of Object.entries(ds.moduleFunctions)) {
+    for (const fn of fns) {
+      const full = `${mod}.${fn}`;
+      if (ds.kwargsFunctions.has(full)) continue;
+      strict[full] = [...new Set(['name', ...getBasicFields(mod, fn, ds).map(([k]) => k), ...(ds.fullFunctionFields[full] || []).map(([k]) => k)])];
+    }
+  }
+  return { functions: ds.moduleFunctions, mandatory: ds.mandatoryFields, strict };
+}
 
 // Reads live (not cached), same as stateIdPrefix() below, so switching
 // saltSyntax.saltVersion (via the settings UI or the "Salt Syntax: Set Salt
@@ -2666,6 +2867,108 @@ function stateArgumentContext(document, line, dashIndent) {
   }
   if (mod && !fn) fn = bare.find((b) => !used.has(b)) || null;
   return { mod, fn: mod && fn ? fn : null, used };
+}
+
+// Edit distance, for "did you mean" (#62).
+function levenshtein(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+// Hover info (#61): where each global state argument is documented, as a
+// page under docs.saltproject.io/en/<version>/ref/states/ (+ its section).
+const GLOBAL_ARG_DOCS = {
+  require: 'requisites.html#require', watch: 'requisites.html#watch', onchanges: 'requisites.html#onchanges',
+  onfail: 'requisites.html#onfail', onfail_all: 'requisites.html#onfail', onfail_stop: 'requisites.html#onfail',
+  prereq: 'requisites.html#prereq', use: 'requisites.html#use', listen: 'requisites.html#listen',
+  unless: 'requisites.html#unless', onlyif: 'requisites.html#onlyif', creates: 'requisites.html#creates',
+  runas: 'requisites.html#runas', runas_password: 'requisites.html#runas-password', check_cmd: 'requisites.html#check-cmd',
+  fire_event: 'requisites.html#fire-event-notifications', retry: 'requisites.html#retrying-states',
+  umask: 'requisites.html#run-state-with-a-different-umask', reload_modules: 'requisites.html#reload',
+  reload_grains: 'requisites.html#reload', reload_pillar: 'requisites.html#reload',
+  names: 'highstate.html#names-declaration', order: 'ordering.html#the-order-option',
+  parallel: 'parallel.html', failhard: 'failhard.html'
+};
+function globalArgDocs(arg) {
+  if (GLOBAL_ARG_DOCS[arg]) return GLOBAL_ARG_DOCS[arg];
+  if (arg.endsWith('_in')) return 'requisites.html#the-in-version-of-requisites';
+  if (arg.endsWith('_any')) return 'requisites.html#the-any-version-of-requisites';
+  return 'requisites.html';
+}
+
+// A default as Python writes it: literals as they are, strings quoted.
+function pythonDefault(value) {
+  if (PYTHON_LITERAL_RE.test(value)) return value;
+  return `'${value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/'/g, "\\'")}'`;
+}
+
+// A state function's hover (#61): its signature -- name first, then Salt's
+// parameter order with real defaults, required ones bare, **kwargs if taken --
+// what's required, and a link to its section of Salt's docs.
+function functionHover(mod, fn, dataset, version) {
+  const full = `${mod}.${fn}`;
+  const required = new Set(['name', ...(dataset.mandatoryFields[full] || [])]);
+  const params = ['name', ...(dataset.fullFunctionFields[full] || []).map(([k, v]) => (required.has(k) ? k : `${k}=${pythonDefault(v)}`))];
+  const kwargs = dataset.kwargsFunctions.has(full);
+  if (kwargs) params.push('**kwargs');
+  const file = dataset.moduleFiles[mod] || mod;
+  const url = `https://docs.saltproject.io/en/${version}/ref/states/all/salt.states.${file}.html#salt.states.${file}.${fn}`;
+  return [
+    `**${full}** · Salt ${version} · [Salt docs](${url})`,
+    '```python\n' + `${full}(${params.join(', ')})` + '\n```',
+    `Required: ${[...required].map((k) => `\`${k}\``).join(', ')} — \`name\` defaults to the state's ID.`,
+    kwargs
+      ? 'It also takes other options (`**kwargs`), passed on to the module or ignored.'
+      : "Takes no other arguments: Salt fails the state on one it doesn't name (requisites and other global arguments aside)."
+  ].join('\n\n');
+}
+
+// The state-argument check (#62, saltSyntax.argumentCheck). Salt's state
+// compiler (salt.utils.args.format_call, identical in 3006 and 3008) fails
+// a state whose function doesn't name one of its arguments -- "'x' is an
+// invalid keyword argument for 'mod.fn'" -- beyond STATE_INTERNAL_KEYWORDS
+// (GLOBAL_STATE_ARGS, plus internal ones: fun, state, prerequired, __*),
+// unless the function takes **kwargs (KWARGS_FUNCTIONS_*): then any extra
+// option passes, and only a near-miss of a real parameter is worth a hint.
+// Keys built by Jinja, nested values and unknown functions aren't checked.
+// Returns [{ line, start, end, key, suggestion, strict, message }].
+function findArgumentIssues(document, dataset, version) {
+  const globals = [...GLOBAL_STATE_ARGS.requisite, ...GLOBAL_STATE_ARGS.runtime]
+    .filter((a) => !GLOBAL_STATE_ARGS.onlyIn[a] || GLOBAL_STATE_ARGS.onlyIn[a] === version);
+  const internal = (key) => key === 'fun' || key === 'state' || key === 'prerequired' || key.startsWith('__');
+  const issues = [];
+  for (let line = 0; line < document.lineCount; line++) {
+    const m = document.lineAt(line).text.match(/^(\s*)-(\s*)([A-Za-z_]\w*)\s*:(\s|$)/);
+    if (!m) continue;
+    const key = m[3];
+    const { mod, fn } = stateArgumentContext(document, line, m[1].length);
+    if (!mod || !fn || !(dataset.moduleFunctions[mod] || []).includes(fn)) continue;
+    const full = `${mod}.${fn}`;
+    const params = ['name', ...getBasicFields(mod, fn, dataset).map(([k]) => k), ...(dataset.fullFunctionFields[full] || []).map(([k]) => k)];
+    if (params.includes(key) || globals.includes(key) || internal(key)) continue;
+    const near = [...new Set([...params, ...globals])]
+      .map((c) => [c, levenshtein(key, c)])
+      .filter(([, d]) => d <= (key.length >= 6 ? 2 : 1))
+      .sort((a, b) => a[1] - b[1])[0];
+    const suggestion = near ? near[0] : null;
+    const strict = !dataset.kwargsFunctions.has(full);
+    if (!strict && !suggestion) continue; // a real extra option, most likely
+    const start = m[1].length + 1 + m[2].length;
+    issues.push({
+      line, start, end: start + key.length, key, suggestion, strict,
+      message: strict
+        ? `'${key}' is an invalid keyword argument for '${full}' -- Salt fails this state${suggestion ? ` (did you mean '${suggestion}'?)` : ''}.`
+        : `'${key}' isn't a parameter of '${full}' -- did you mean '${suggestion}'? '${full}' also takes other options (**kwargs), so Salt doesn't reject it: it's passed on as an option, or ignored.`
+    });
+  }
+  return issues;
 }
 
 const JINJA_KEYWORDS = [
@@ -3440,10 +3743,7 @@ async function activate(context) {
   // Rendered preview + inputs panel (#23) -- see src/preview.js.
   // The preview checks state calls against the selected Salt line's module /
   // function lists and required parameters (MODULE_DATASETS, below).
-  require('./preview').register(context, vscode, isSaltLanguage, (version) => {
-    const ds = MODULE_DATASETS[version] || MODULE_DATASETS['3008'];
-    return { functions: ds.moduleFunctions, mandatory: ds.mandatoryFields };
-  });
+  require('./preview').register(context, vscode, isSaltLanguage, stateDataFor);
 
   vscode.workspace.textDocuments.forEach(maybeSwitchYamlToSaltJinja);
   context.subscriptions.push(
@@ -3633,6 +3933,121 @@ async function activate(context) {
       }
     },
     { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+  );
+
+  // Hover info (#61): on `mod.fn` (or Salt's `mod:` + `- fn` item) the
+  // function's signature and docs link; on an argument key, that parameter
+  // or the global argument and its docs section. .sls only; follows
+  // saltSyntax.saltVersion.
+  context.subscriptions.push(vscode.languages.registerHoverProvider(selector, {
+    provideHover(document, position) {
+      const text = document.lineAt(position.line).text;
+      const version = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008') === '3006' ? '3006' : '3008';
+      const dataset = activeDataset();
+      const known = (mod, fn) => (dataset.moduleFunctions[mod] || []).includes(fn);
+      const within = (start, end) => position.character >= start && position.character <= end;
+      const range = (start, end) => new vscode.Range(position.line, start, position.line, end);
+      // `mod.fn:`
+      const decl = text.match(/^(\s*)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*:/);
+      if (decl && known(decl[2], decl[3]) && within(decl[1].length, decl[1].length + decl[2].length + 1 + decl[3].length)) {
+        return new vscode.Hover(new vscode.MarkdownString(functionHover(decl[2], decl[3], dataset, version)),
+          range(decl[1].length, decl[1].length + decl[2].length + 1 + decl[3].length));
+      }
+      const item = text.match(/^(\s*)-(\s*)([A-Za-z_]\w*)(\s*:)?/);
+      if (!item) return undefined;
+      const start = item[1].length + 1 + item[2].length;
+      const end = start + item[3].length;
+      if (!within(start, end)) return undefined;
+      const { mod, fn } = stateArgumentContext(document, position.line, item[1].length);
+      // `- fn` under `mod:`
+      if (!item[4]) {
+        return mod && known(mod, item[3])
+          ? new vscode.Hover(new vscode.MarkdownString(functionHover(mod, item[3], dataset, version)), range(start, end))
+          : undefined;
+      }
+      // `- key:` -- the function's parameter, else a global argument.
+      const key = item[3];
+      const full = mod && fn && known(mod, fn) ? `${mod}.${fn}` : null;
+      if (full) {
+        const fields = [['name', 'name'], ...(dataset.fullFunctionFields[full] || [])];
+        const field = fields.find(([k]) => k === key);
+        if (field) {
+          const required = key === 'name' ? "required (defaults to the state's ID)"
+            : (dataset.mandatoryFields[full] || []).includes(key) ? 'required' : `default \`${pythonDefault(field[1])}\``;
+          const file = dataset.moduleFiles[mod] || mod;
+          const url = `https://docs.saltproject.io/en/${version}/ref/states/all/salt.states.${file}.html#salt.states.${file}.${fn}`;
+          return new vscode.Hover(new vscode.MarkdownString(`\`${key}\` — parameter of **${full}**, ${required} · Salt ${version} · [Salt docs](${url})`), range(start, end));
+        }
+      }
+      const isRequisite = GLOBAL_STATE_ARGS.requisite.includes(key);
+      if (!isRequisite && !GLOBAL_STATE_ARGS.runtime.includes(key)) return undefined;
+      if (GLOBAL_STATE_ARGS.onlyIn[key] && GLOBAL_STATE_ARGS.onlyIn[key] !== version) return undefined;
+      const url = `https://docs.saltproject.io/en/${version}/ref/states/${globalArgDocs(key)}`;
+      return new vscode.Hover(new vscode.MarkdownString(
+        `\`${key}\` — Salt ${isRequisite ? 'requisite' : 'global state argument'}, accepted by every state · [Salt docs](${url})`), range(start, end));
+    }
+  }));
+
+  // State-argument check (#62, see findArgumentIssues): .sls only, where
+  // states live; a warning where Salt fails the state, information for a
+  // near-miss it would let through. Re-checked when the Salt version changes.
+  const argumentDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-arguments');
+  const argumentIssues = (document) => {
+    const version = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008') === '3006' ? '3006' : '3008';
+    return findArgumentIssues(document, activeDataset(), version);
+  };
+  const refreshArguments = (document) => {
+    if (document.languageId !== 'sls') {
+      return;
+    }
+    if (!vscode.workspace.getConfiguration('saltSyntax').get('argumentCheck', true)) {
+      argumentDiagnostics.delete(document.uri);
+      return;
+    }
+    argumentDiagnostics.set(document.uri, argumentIssues(document).map((issue) => {
+      const d = new vscode.Diagnostic(
+        new vscode.Range(issue.line, issue.start, issue.line, issue.end),
+        issue.message,
+        issue.strict ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Information
+      );
+      d.source = 'Salt Syntax';
+      d.code = 'argument';
+      return d;
+    }));
+  };
+  vscode.workspace.textDocuments.forEach(refreshArguments);
+  context.subscriptions.push(
+    argumentDiagnostics,
+    vscode.workspace.onDidOpenTextDocument(refreshArguments),
+    vscode.workspace.onDidChangeTextDocument((e) => refreshArguments(e.document)),
+    vscode.workspace.onDidCloseTextDocument((document) => argumentDiagnostics.delete(document.uri)),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('saltSyntax.argumentCheck') || e.affectsConfiguration('saltSyntax.saltVersion')) {
+        vscode.workspace.textDocuments.forEach(refreshArguments);
+      }
+    }),
+    // Quick fix: the closest real argument, where there is one.
+    vscode.languages.registerCodeActionsProvider(
+      selector,
+      {
+        provideCodeActions(document, range, ctx) {
+          const ours = ctx.diagnostics.filter((d) => d.code === 'argument');
+          if (ours.length === 0) return [];
+          const issues = argumentIssues(document);
+          return ours.flatMap((diagnostic) => {
+            const issue = issues.find((i) => i.line === diagnostic.range.start.line && i.start === diagnostic.range.start.character);
+            if (!issue || !issue.suggestion) return [];
+            const action = new vscode.CodeAction(`Change to '${issue.suggestion}'`, vscode.CodeActionKind.QuickFix);
+            action.edit = new vscode.WorkspaceEdit();
+            action.edit.replace(document.uri, new vscode.Range(issue.line, issue.start, issue.line, issue.end), issue.suggestion);
+            action.diagnostics = [diagnostic];
+            action.isPreferred = true;
+            return [action];
+          });
+        }
+      },
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+    )
   );
 
   // Enter after a line starting with a {% %} tag: put the new (blank) line
@@ -4140,4 +4555,5 @@ async function activate(context) {
 
 function deactivate() {}
 
-module.exports = { activate, deactivate };
+// stateDataFor: also for the preview's Python tests (test/helpers/preview.py).
+module.exports = { activate, deactivate, stateDataFor };

@@ -159,6 +159,11 @@
           "default": true,
           "markdownDescription": "Warn about non-ASCII characters anywhere in `.sls` files (comments included) — smart quotes, en/em dashes, non-breaking spaces, accented letters and the like, typically pasted in from docs or chat — since older Salt minions (Python 2 based, or running under a non-UTF-8 locale) can fail to render a file containing them. Each warning offers a quick fix replacing it with an ASCII equivalent where one exists; **Salt Syntax: Convert Non-ASCII Characters to ASCII** converts the whole file at once."
         },
+        "saltSyntax.argumentCheck": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Flag a state argument its function doesn't take. For a function without `**kwargs` Salt fails the state (\"'x' is an invalid keyword argument for 'mod.fn'\"), so that's a warning; a function with `**kwargs` accepts any extra option, so only a near-miss of a real parameter (`pakgs` → `pkgs`) gets a hint. Requisites and other global arguments are always fine; keys built by Jinja aren't checked. Follows `#saltSyntax.saltVersion#`."
+        },
         "saltSyntax.jinjaIndentCheck": {
           "type": "boolean",
           "default": true,

@@ -45,6 +45,18 @@ c.eq(lines("a:\n  pkgz.installed: []\n"), [(2, "suspicious")], "unknown module: 
 c.eq(lines("a:\n  boto_vpc.present:\n    - cidr_block: 10.0.0.0/16\n", version="3006"), [], "boto_vpc exists in 3006")
 c.eq(lines("a:\n  boto_vpc.present:\n    - cidr_block: 10.0.0.0/16\n", version="3008"), [(2, "suspicious")], "...but not in 3008 core")
 c.eq(problems("a:\n  acl.absent:\n    - perms: rw\n")[0][2], "Missing parameter acl_type for state acl.absent", "missing parameter")
+# An argument a function without **kwargs doesn't take (#62): Salt's own
+# format_call message, several in the order written; its requisites,
+# runtime keywords and `names` are fine; a **kwargs function takes anything.
+user = "bob:\n  user.present:\n    - name: bob\n"
+c.eq([p[2] for p in problems(user + "    - shel: /bin/sh\n")], ["'shel' is an invalid keyword argument for 'user.present'"], "invalid argument")
+c.eq([p[2] for p in problems(user + "    - shel: x\n    - uidd: 1\n    - hme: /h\n")],
+     ["'shel', 'uidd' and 'hme' are invalid keyword arguments for 'user.present'"], "several, in order")
+c.eq(problems(user + "    - shell: x\n    - require:\n      - pkg: a\n    - onlyif: true\n    - order: 1\n    - failhard: True\n"), [], "real parameters and global ones")
+c.eq(problems("nginx:\n  pkg.installed:\n    - hold: True\n    - pakgs: [a]\n"), [], "**kwargs: anything goes")
+c.eq(problems(user + "    - local: True\n"), [], "3008: user.present local")
+c.eq([p[2] for p in problems(user + "    - local: True\n", "3006")], ["'local' is an invalid keyword argument for 'user.present'"], "3006: not a parameter")
+c.eq(problems("bob:\n  user.present:\n    - names:\n      - a:\n        - shel: x\n"), [], "names: entries with their own arguments: not guessed")
 c.eq(lines("a:\n  acl.absent:\n    - acl_type: user\n    - acl_name: bob\n    - perms: rw\n"), [], "parameters given")
 c.eq(lines("/etc/x:\n  file.managed: []\n"), [], "name defaults to the ID")
 c.eq(lines("a:\n  acl.absent:\n    - names:\n      - x:\n        - acl_type: user\n"), [], "names: with per-name args skipped")
