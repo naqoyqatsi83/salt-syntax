@@ -7,7 +7,7 @@ const { load, doc, Position } = require('./helpers/vscode');
 
 (async () => {
   const h = await load();
-  const hover = h.reg.hover[0].provider;
+  const hover = h.reg.hover.find((x) => x.sel.language === 'sls').provider;
   // Hover at the `|` (removed from the text).
   const at = (text) => {
     const lines = text.split('\n');

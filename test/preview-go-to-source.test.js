@@ -39,8 +39,8 @@ const FILE = path.join(ROOT, 'f', 'init.sls');
   h.vscode.window.visibleTextEditors.push({ document: source, viewColumn: 2, visibleRanges: [] });
   const shown = [];
   h.vscode.window.showTextDocument = async (d, opts) => (shown.push([d.toString(), opts.viewColumn, opts.selection]), {});
-  const goFrom = async (line) => {
-    h.vscode.window.activeTextEditor = { document: previewDoc, viewColumn: 1, selection: new h.vscode.Selection(line, 0, line, 0) };
+  const goFrom = async (line, character = 0) => {
+    h.vscode.window.activeTextEditor = { document: previewDoc, viewColumn: 1, selection: new h.vscode.Selection(line, character, line, character) };
     await h.reg.commands['saltSyntax.preview.goToSource']();
   };
   const lines = () => previewDoc.getText().split('\n');
@@ -49,7 +49,12 @@ const FILE = path.join(ROOT, 'f', 'init.sls');
   await goFrom(lines().indexOf('s2:'));
   const [where, column, sel] = shown.pop();
   assert.deepStrictEqual([where, column], [source.uri.toString(), 2], "the formula, in its own column");
-  assert.deepStrictEqual([sel.start.line, sel.start.character, sel.end.line, sel.end.character], [1, 0, 1, 's{{ i }}:'.length], 'the loop line, selected');
+  // With character origins (#60), straight to the character: the `s` of the
+  // loop line; on the `2`, the whole {{ i }} that printed it.
+  assert.deepStrictEqual([sel.start.line, sel.start.character, sel.end.line, sel.end.character], [1, 0, 1, 1], 'the loop line, its character');
+  await goFrom(lines().indexOf('s2:'), 1);
+  const expr = shown.pop()[2];
+  assert.deepStrictEqual([expr.start.line, expr.start.character, expr.end.character], [1, 1, 1 + '{{ i }}'.length], 'the expression that printed it');
   await goFrom(lines().lastIndexOf('  test.nop'));
   assert.strictEqual(shown.pop()[2].start.line, 5, 'last line');
 
