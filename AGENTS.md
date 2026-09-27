@@ -37,9 +37,11 @@ rest of this file stays current.
   preview traces rendered lines into the templates they came from (Go to
   Source Line, click to reveal; #59), hover info for state functions and
   arguments (#61), and the state-argument check (#62; `**kwargs` data in
-  `KWARGS_FUNCTIONS_*`). An earlier v0.13.0 tag without #61/#62 was
-  withdrawn. #60 (per-character whitespace origins) is open, waiting for
-  the user's decision after using #59. v0.12.0:
+  `KWARGS_FUNCTIONS_*`), F12 to the exact character (#60, character
+  origins rendered on demand; its PoC hover and blank-line hints were
+  dropped), README caught up (#63). v0.13.0 was tagged twice before and
+  withdrawn each time to take in more; this is the release. No open
+  issues. v0.12.0:
   argument completion after `-` from the state function's real
   signature plus Salt's global state arguments (#57, #58), Enter no
   longer outdenting (#56), completion defaults quoted for YAML (#55),
