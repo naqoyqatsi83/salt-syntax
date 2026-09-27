@@ -30,7 +30,7 @@ try:
     v = yaml.safe_load(r["variables"])
     c.eq(v["chrony"], {"pkg": "chrony", "service": "chrony"}, "Debian's map")
     c.eq(yaml.safe_load(one(MAP, {"grains|os_family": "RedHat"})["variables"])["chrony"]["service"], "chronyd", "RedHat's")
-    c.eq(list(v), ["os_map", "chrony"], "exported data only: no macro, no _private, not what it imports")
+    c.eq(list(v), ["chrony", "os_map"], "last set first -- the map -- and exported data only: no macro, no _private, not what it imports")
     c.true("&" not in r["variables"] and "*" not in r["variables"], "every value written out, no anchors/aliases")
     c.eq([q["id"] for q in one(MAP)["questions"]], ["grains|os_family"], "the grain is asked for")
     # Undefined values: their placeholder, without being counted as a use.
@@ -44,4 +44,16 @@ try:
     c.eq(one("{% if %}")["variables"], None, "render error: none")
 finally:
     os.remove(lib)
+
+# Data import_yaml loaded, unchanged: a one-line reference to its file, not
+# a copy; changed by the template: shown in full.
+init = os.path.join(FIXTURES, "origins", "o", "init.sls")
+imp = lambda src: render(src, init, [os.path.join(FIXTURES, "origins")])["variables"]  # noqa: E731
+text = imp('{% import_yaml "o/data.yaml" as data %}{% set port = data.port + 1 %}')
+c.eq(text, "port: 8081\ndata:  # imported from o/data.yaml, as is\n", "the result first, the file as a reference")
+c.eq(yaml.safe_load(text), {"port": 8081, "data": None}, "still valid YAML")
+c.eq(imp('{% import_yaml "o/data.yaml" as data %}{% do data.update({"extra": 1}) %}'), "data:\n  port: 8080\n  extra: 1\n",
+     "changed after importing: shown in full")
+c.eq(imp('{% set a = {"k": [1, 2]} %}{% set b = {"k": [1, 2]} %}{% set n = 0 %}{% set m = 0 %}'),
+     "m: 0\nn: 0\nb:\n  k:\n  - 1\n  - 2\na:  # same as b\n", "a map/list equal to one shown above: a reference (not for plain values)")
 c.done()

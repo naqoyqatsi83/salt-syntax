@@ -488,6 +488,9 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   `{% from "chrony/map.jinja" import chrony %}` would get. For a
   `map.jinja`, which prints nothing, that's the map itself: answer
   `os_family: Debian` in the panel and see Debian's merged values.
+  The last one set comes first — for a map, the map itself. Data files
+  `import_yaml` loaded and the template left unchanged are a one-line
+  reference to the file, and a value equal to one above says "same as".
   Macros and the names it imports aren't shown; the rendered part above
   stays exactly what Jinja printed (`saltSyntax.preview.showVariables`).
 - **Setup:** set `saltSyntax.preview.fileRoots` to your Salt tree (like

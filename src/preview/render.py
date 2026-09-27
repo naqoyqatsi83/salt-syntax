@@ -1117,14 +1117,24 @@ def with_positions(origins, sources):
     return out
 
 
-def template_variables(context):
+def snapshot(value):
+    """A value's content, for telling later whether it changed."""
+    return json.dumps(value, sort_keys=True, default=repr)
+
+
+def template_variables(context, imported=None):
     """The template's variables after rendering, as YAML (#65): its exported
     top-level names -- exactly what another template's `{% from "x" import
     y %}` could import: top-level {% set %}s (import_yaml & co. included),
     not the names it imports itself, nor _private ones -- minus macros,
     imported modules and other callables. None when there are none.
-    Undefined values show as their «...» placeholder, without being recorded
-    as a use (printing one would count as a strict error)."""
+
+    Last set first: in a map.jinja that's the map itself. A value that is
+    import_yaml / import_json data still exactly as loaded (`imported`:
+    id -> (file, snapshot)) is a one-line reference to its file instead of
+    a copy, and a map or list equal to one already shown, a reference to
+    that one ("same as chrony"). Undefined values show as their «...» placeholder, without being
+    recorded as a use (printing one would count as a strict error)."""
     import types
 
     def undefined_marker(value):
@@ -1153,7 +1163,19 @@ def template_variables(context):
             if name in context.exported_vars and (isinstance(value, jinja2.Undefined) or not (isinstance(value, not_data) or callable(value)))}
     if not data:
         return None
-    return yaml.dump(data, Dumper=Dumper, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    out = []
+    shown = {}  # snapshot -> name, of the maps and lists written out so far
+    for name, value in reversed(list(data.items())):
+        source = (imported or {}).get(id(value))
+        if source and snapshot(value) == source[1]:
+            out.append(f"{name}:  # imported from {source[0]}, as is\n")
+        elif isinstance(value, (dict, list)) and value and snapshot(value) in shown:
+            out.append(f"{name}:  # same as {shown[snapshot(value)]}\n")
+        else:
+            if isinstance(value, (dict, list)) and value:
+                shown[snapshot(value)] = name
+            out.append(yaml.dump({name: value}, Dumper=Dumper, default_flow_style=False, sort_keys=False, allow_unicode=True))
+    return "".join(out)
 
 
 class SaltLoader(jinja2.BaseLoader):
@@ -1847,6 +1869,8 @@ def main():
     env.tests["match"] = test_match
     env.tests["equalto"] = lambda value, other: value == other
 
+    imported_values = {}  # id -> (file, snapshot, value): what import_yaml & co. loaded (#65)
+
     def import_serialized(kind):
         # import_yaml & co. render the imported file with Jinja first (as
         # Salt does), in the importing template's context.
@@ -1854,7 +1878,10 @@ def main():
             name = env.join_path(str(path), context.name)
             # Unmarked before parsing when the line map's render marks it (#59).
             text = CHAR_MARK.sub("", LINE_MARK.sub("", env.get_template(name).render(context.get_all())))
-            return {"yaml": yaml.safe_load, "json": json.loads, "text": str}[kind](text)
+            value = {"yaml": yaml.safe_load, "json": json.loads, "text": str}[kind](text)
+            if isinstance(value, (dict, list)):
+                imported_values[id(value)] = (name, snapshot(value), value)  # the value itself keeps its id alive
+            return value
         return jinja2.pass_context(load)
 
     env.globals.update(ctx)
@@ -1912,7 +1939,7 @@ def main():
                 session.questions, session.warnings, session.strict_errors = saved
 
         try:
-            result["variables"] = template_variables(main_context)
+            result["variables"] = template_variables(main_context, imported_values)
         except Exception:  # noqa: BLE001 - no variables section is the fallback
             result["variables"] = None
         result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],
