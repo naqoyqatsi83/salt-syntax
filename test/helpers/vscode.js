@@ -133,7 +133,12 @@ function createVscode(config) {
     // Language-scoped settings ("[sls]": {...}) by language id, and every
     // settings write, in order: { languageId, key, value }.
     languageConfig: {},
-    configWrites: []
+    configWrites: [],
+    // Workspace-scoped settings (the user/global ones are `config`), files
+    // findFiles returns (Uris), and the file watchers created, by glob.
+    workspaceConfig: {},
+    files: [],
+    watchers: []
   };
   const on = (name) => (f) => {
     reg.listeners[name].push(f);
@@ -270,17 +275,30 @@ function createVscode(config) {
             if (languageId && full(k) in overrides()) return overrides()[full(k)];
             return full(k) in config ? config[full(k)] : d;
           },
-          inspect: (k) => ({ globalValue: config[full(k)], globalLanguageValue: languageId ? overrides()[full(k)] : undefined }),
+          inspect: (k) => ({
+            globalValue: config[full(k)],
+            workspaceValue: reg.workspaceConfig[full(k)],
+            globalLanguageValue: languageId ? overrides()[full(k)] : undefined
+          }),
           update: async (k, v, target, overrideInLanguage) => {
             const inLanguage = Boolean(overrideInLanguage && languageId);
-            reg.configWrites.push({ languageId: inLanguage ? languageId : undefined, key: full(k), value: v });
-            const store = inLanguage ? overrides() : config;
+            reg.configWrites.push({ languageId: inLanguage ? languageId : undefined, key: full(k), value: v, target });
+            const store = inLanguage ? overrides() : target === 2 ? reg.workspaceConfig : config;
             if (v === undefined) delete store[full(k)];
             else store[full(k)] = v;
           }
         };
       },
       getWorkspaceFolder: () => undefined,
+      workspaceFolders: undefined,
+      findFiles: async (glob) => reg.files.filter((u) => !glob.includes('_states') || u.fsPath.includes(`${require('path').sep}_states${require('path').sep}`)),
+      fs: { readFile: async (u) => new Uint8Array(require('fs').readFileSync(u.fsPath)) },
+      createFileSystemWatcher: (glob) => {
+        const w = { glob, handlers: [], dispose() {} };
+        w.onDidCreate = w.onDidChange = w.onDidDelete = (f) => (w.handlers.push(f), { dispose() {} });
+        reg.watchers.push(w);
+        return w;
+      },
       onDidOpenTextDocument: on('open'),
       onDidChangeTextDocument: on('change'),
       onDidCloseTextDocument: on('close'),

@@ -39,7 +39,7 @@ const { load, doc, Position } = require('./helpers/vscode');
   await h.reg.commands['saltSyntax.setSaltVersion']();
   assert.deepStrictEqual(offered.map((i) => [i.label, i.description]), [['3008.x', 'current'], ['3006.x', '']]);
   assert.strictEqual(h.config['saltSyntax.saltVersion'], '3006');
-  assert.deepStrictEqual(h.reg.configWrites[h.reg.configWrites.length - 1], { languageId: undefined, key: 'saltSyntax.saltVersion', value: '3006' });
+  assert.deepStrictEqual(h.reg.configWrites[h.reg.configWrites.length - 1], { languageId: undefined, key: 'saltSyntax.saltVersion', value: '3006', target: h.vscode.ConfigurationTarget.Global });
   assert.strictEqual(modules().length, 353, 'completion follows the command');
   // Cancelled: nothing written.
   const writes = h.reg.configWrites.length;

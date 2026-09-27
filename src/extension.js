@@ -1,4 +1,5 @@
 const vscode = require('vscode');
+const path = require('path');
 
 // This extension supports two Salt release lines, selected at runtime by
 // saltSyntax.saltVersion (see activeDataset() below): 3008.x (the default)
@@ -2895,6 +2896,141 @@ function editDistance(a, b) {
   return d[a.length][b.length];
 }
 
+// --- Unknown state functions, and a dictionary of your own (#64) ---------
+
+// A formula's own state module, _states/<stem>.py: the names it answers to
+// (file name, and __virtualname__ if set -- as the preview's
+// custom_state_modules) and its public functions: top-level defs, with
+// __func_alias__ applied; _private ones and mod_* hooks aren't states.
+function parseStateModule(stem, text) {
+  const virtual = text.match(/^__virtualname__\s*=\s*['"](\w+)['"]/m);
+  const aliasBlock = text.match(/^__func_alias__\s*=\s*\{([^}]*)\}/m);
+  const aliases = {};
+  if (aliasBlock) {
+    for (const m of aliasBlock[1].matchAll(/['"](\w+)['"]\s*:\s*['"](\w+)['"]/g)) aliases[m[1]] = m[2];
+  }
+  const functions = new Set();
+  for (const m of text.matchAll(/^def ([A-Za-z]\w*)\s*\(/gm)) {
+    if (!m[1].startsWith('mod_')) functions.add(aliases[m[1]] || m[1]);
+  }
+  return { names: [...new Set([stem, virtual && virtual[1]].filter(Boolean))], functions };
+}
+
+// Everything known, module -> Set of functions, or '*' for a whole module
+// the dictionary accepts: Salt's own for the dataset's version, the
+// workspace's _states modules, then saltSyntax.knownStateFunctions entries
+// (`mod.fn`, or `mod.*`). `source` says where a module came from.
+function knownStateFunctions(dataset, custom, dictionary) {
+  const known = new Map();
+  const source = new Map();
+  for (const [mod, fns] of Object.entries(dataset.moduleFunctions)) {
+    known.set(mod, new Set(fns));
+    source.set(mod, 'salt');
+  }
+  for (const [mod, fns] of custom) {
+    known.set(mod, new Set([...(known.get(mod) || []), ...fns]));
+    if (!source.has(mod)) source.set(mod, 'states');
+  }
+  for (const entry of dictionary) {
+    const m = entry.match(/^([A-Za-z_]\w*)\.(\*|[A-Za-z_]\w*)$/);
+    if (!m) continue;
+    if (m[2] === '*') known.set(m[1], '*');
+    else if (known.get(m[1]) !== '*') known.set(m[1], new Set([...(known.get(m[1]) || []), m[2]]));
+    if (!source.has(m[1])) source.set(m[1], 'dictionary');
+  }
+  return { known, source };
+}
+
+// The state declarations in an .sls (#64): `mod.fn:` or the short form
+// `mod.fn` on a line directly under a state ID (also under `extend:`), `id:
+// mod.fn` on the ID's own line, and Salt's `mod:` + `- fn` form. Names built
+// by Jinja aren't matched. Each: { line, start, end, mod, fn }, the range
+// covering what to replace (`mod.fn`, or the `fn` item).
+function findStateDeclarations(document) {
+  const decls = [];
+  const lines = [];
+  for (let i = 0; i < document.lineCount; i++) lines.push(document.lineAt(i).text);
+  const skip = (t) => t.trim() === '' || /^\s*(\{[%#]|#)/.test(t);
+  const indentOf = (t) => t.match(/^\s*/)[0].length;
+  const parentOf = (i) => {
+    for (let j = i - 1; j >= 0; j--) {
+      if (!skip(lines[j]) && indentOf(lines[j]) < indentOf(lines[i])) return j;
+    }
+    return -1;
+  };
+  // A state ID: a column-0 key other than include/extend, or a key directly under extend:.
+  const isId = (j) => {
+    if (j < 0 || !/:\s*(#.*)?$/.test(lines[j]) || /^\s*-/.test(lines[j])) return false;
+    if (indentOf(lines[j]) === 0) return !/^(include|extend)\s*:/.test(lines[j]);
+    const up = parentOf(j);
+    return up >= 0 && indentOf(lines[up]) === 0 && /^extend\s*:/.test(lines[up]);
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i];
+    if (skip(text)) continue;
+    let m = indentOf(text) === 0 && text.match(/^(\S.*?:\s+)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*$/);
+    if (m && !/^(include|extend)\s*:/.test(text)) {
+      decls.push({ line: i, start: m[1].length, end: text.trimEnd().length, mod: m[2], fn: m[3] });
+      continue;
+    }
+    if (indentOf(text) === 0 || !isId(parentOf(i))) continue;
+    m = text.match(/^(\s+)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*(:\s*)?$/);
+    if (m) {
+      decls.push({ line: i, start: m[1].length, end: m[1].length + m[2].length + 1 + m[3].length, mod: m[2], fn: m[3] });
+      continue;
+    }
+    // `mod:` whose own list has the function as a bare item (at that
+    // list's level -- deeper ones are some argument's data).
+    m = text.match(/^(\s+)([A-Za-z_]\w*)\s*:\s*$/);
+    if (!m) continue;
+    let level = null;
+    for (let j = i + 1; j < lines.length && (skip(lines[j]) || indentOf(lines[j]) > m[1].length); j++) {
+      if (skip(lines[j])) continue;
+      if (level === null) level = indentOf(lines[j]);
+      if (indentOf(lines[j]) !== level) continue;
+      const item = lines[j].match(/^(\s*-\s*)([A-Za-z_]\w*)\s*$/);
+      if (item) {
+        decls.push({ line: j, start: item[1].length, end: item[1].length + item[2].length, mod: m[2], fn: item[2], item: true });
+        break;
+      }
+    }
+  }
+  return decls;
+}
+
+// The unknown ones (#64): { line, start, end, full, suggestion, moduleUnknown, message }.
+function findFunctionIssues(document, dataset, version, custom, dictionary) {
+  const { known, source } = knownStateFunctions(dataset, custom, dictionary);
+  const near = (word, candidates) => candidates
+    .map((c) => [c, editDistance(word, c)])
+    .filter(([, d]) => d <= (word.length >= 5 ? 2 : 1))
+    .sort((a, b) => a[1] - b[1])[0];
+  const everything = [...known].flatMap(([mod, fns]) => (fns === '*' ? [] : [...fns].map((fn) => `${mod}.${fn}`)));
+  const issues = [];
+  for (const d of findStateDeclarations(document)) {
+    const fns = known.get(d.mod);
+    const full = `${d.mod}.${d.fn}`;
+    if (fns === '*' || (fns && fns.has(d.fn))) continue;
+    let suggestion = null;
+    let message;
+    if (fns) {
+      const hit = near(d.fn, [...fns]);
+      suggestion = hit ? `${d.mod}.${hit[0]}` : null;
+      const where = source.get(d.mod) === 'salt' ? `a state function in Salt ${version}`
+        : `a function of '${d.mod}' (${source.get(d.mod) === 'states' ? "your formula's _states" : 'your dictionary'})`;
+      message = `'${full}' isn't ${where}${suggestion ? ` -- did you mean '${suggestion}'?` : '.'}`;
+    } else {
+      const hit = near(full, everything);
+      suggestion = hit ? hit[0] : null;
+      message = `'${d.mod}' isn't a state module in Salt ${version}, your formula's _states or your dictionary${suggestion ? ` -- did you mean '${suggestion}'?` : '.'}`;
+    }
+    // The `- fn` item form replaces only the function name.
+    const replacement = suggestion && d.item ? suggestion.split('.')[1] : suggestion;
+    issues.push({ ...d, full, suggestion, replacement, moduleUnknown: !fns, message });
+  }
+  return issues;
+}
+
 // Hover info (#61): where each global state argument is documented, as a
 // page under docs.saltproject.io/en/<version>/ref/states/ (+ its section).
 const GLOBAL_ARG_DOCS = {
@@ -3757,7 +3893,19 @@ async function activate(context) {
   // Rendered preview + inputs panel (#23) -- see src/preview.js.
   // The preview checks state calls against the selected Salt line's module /
   // function lists and required parameters (MODULE_DATASETS, below).
-  require('./preview').register(context, vscode, isSaltLanguage, stateDataFor);
+  // The dictionary of known state functions (#64), saltSyntax.knownStateFunctions:
+  // its entries per scope, and all of them.
+  const dictionaryScopes = () => {
+    const i = vscode.workspace.getConfiguration('saltSyntax').inspect('knownStateFunctions') || {};
+    return { user: i.globalValue || [], workspace: i.workspaceValue || [] };
+  };
+  const dictionary = () => {
+    const { user, workspace } = dictionaryScopes();
+    return [...user, ...workspace];
+  };
+
+  // ... and the dictionary of known state functions (#64), read per render.
+  require('./preview').register(context, vscode, isSaltLanguage, (version) => ({ ...stateDataFor(version), known: dictionary() }));
 
   vscode.workspace.textDocuments.forEach(maybeSwitchYamlToSaltJinja);
   context.subscriptions.push(
@@ -4003,6 +4151,151 @@ async function activate(context) {
         `\`${key}\` — Salt ${isRequisite ? 'requisite' : 'global state argument'}, accepted by every state · [Salt docs](${url})`), range(start, end));
     }
   }));
+
+  // Unknown state functions, with a dictionary (#64, see
+  // findFunctionIssues): .sls only. Known besides Salt's own: the
+  // workspace's _states/*.py (scanned at activation and whenever one
+  // changes) and saltSyntax.knownStateFunctions, user + workspace.
+  const customStates = new Map(); // module -> Set of functions
+  const functionDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-functions');
+  const functionIssues = (document) => {
+    const version = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008') === '3006' ? '3006' : '3008';
+    return findFunctionIssues(document, activeDataset(), version, customStates, dictionary());
+  };
+  // Not every .sls is states: pillar data (under a `pillar` folder) and
+  // top files map targets to lists (`webserver:` / `- nginx`) that would
+  // read as Salt's `mod:` / `- fn` form.
+  const isStateFile = (document) => {
+    const parts = document.uri.fsPath.split(/[\\/]/);
+    return parts[parts.length - 1] !== 'top.sls' && !parts.slice(0, -1).includes('pillar');
+  };
+  const refreshFunctions = (document) => {
+    if (document.languageId !== 'sls') return;
+    if (!isStateFile(document)) {
+      functionDiagnostics.delete(document.uri);
+      return;
+    }
+    if (!vscode.workspace.getConfiguration('saltSyntax').get('functionCheck', true)) {
+      functionDiagnostics.delete(document.uri);
+      return;
+    }
+    functionDiagnostics.set(document.uri, functionIssues(document).map((issue) => {
+      const d = new vscode.Diagnostic(new vscode.Range(issue.line, issue.start, issue.line, issue.end), issue.message, vscode.DiagnosticSeverity.Warning);
+      d.source = 'Salt Syntax';
+      d.code = 'function';
+      return d;
+    }));
+  };
+  async function scanCustomStates() {
+    const found = new Map();
+    for (const uri of await vscode.workspace.findFiles('**/_states/*.py', '**/node_modules/**')) {
+      const stem = path.basename(uri.fsPath, '.py');
+      if (stem.startsWith('_')) continue;
+      try {
+        const { names, functions } = parseStateModule(stem, Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'));
+        for (const name of names) found.set(name, new Set([...(found.get(name) || []), ...functions]));
+      } catch (e) {
+        // an unreadable file just isn't known
+      }
+    }
+    customStates.clear();
+    for (const [k, v] of found) customStates.set(k, v);
+    vscode.workspace.textDocuments.forEach(refreshFunctions);
+  }
+  let rescanTimer = null;
+  const rescanSoon = () => {
+    clearTimeout(rescanTimer);
+    rescanTimer = setTimeout(scanCustomStates, 300);
+  };
+  const statesWatcher = vscode.workspace.createFileSystemWatcher('**/_states/*.py');
+  statesWatcher.onDidCreate(rescanSoon);
+  statesWatcher.onDidChange(rescanSoon);
+  statesWatcher.onDidDelete(rescanSoon);
+  scanCustomStates();
+  vscode.workspace.textDocuments.forEach(refreshFunctions);
+
+  // Adding to and removing from the dictionary, spell-checker style.
+  const addKnown = async (entry, scope) => {
+    const target = scope === 'workspace' ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    const current = dictionaryScopes()[scope] || [];
+    if (!current.includes(entry)) {
+      await vscode.workspace.getConfiguration('saltSyntax').update('knownStateFunctions', [...current, entry], target);
+    }
+  };
+  const manageKnown = async () => {
+    const scopes = dictionaryScopes();
+    const salt = Object.entries(activeDataset().moduleFunctions).flatMap(([mod, fns]) => fns.map((fn) => `${mod}.${fn}`));
+    const items = ['user', 'workspace'].flatMap((scope) => scopes[scope].map((entry) => {
+      const lookalike = !entry.endsWith('.*') && !salt.includes(entry)
+        ? salt.find((real) => editDistance(entry, real) <= (entry.length >= 5 ? 2 : 1)) : null;
+      return { label: entry, description: scope, picked: true, scope, detail: lookalike ? `looks like '${lookalike}', a Salt state function -- a typo added by mistake?` : undefined };
+    }));
+    if (items.length === 0) {
+      vscode.window.showInformationMessage('Salt Syntax: the dictionary of known state functions is empty.');
+      return;
+    }
+    const kept = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: 'Known state functions -- uncheck the ones to remove' });
+    if (!kept) return;
+    for (const scope of ['user', 'workspace']) {
+      const keep = scopes[scope].filter((entry) => kept.some((k) => k.label === entry && k.scope === scope));
+      if (keep.length !== scopes[scope].length) {
+        const target = scope === 'workspace' ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+        await vscode.workspace.getConfiguration('saltSyntax').update('knownStateFunctions', keep.length ? keep : undefined, target);
+      }
+    }
+  };
+  context.subscriptions.push(
+    functionDiagnostics,
+    statesWatcher,
+    vscode.commands.registerCommand('saltSyntax.addKnownStateFunction', addKnown),
+    vscode.commands.registerCommand('saltSyntax.manageKnownStateFunctions', manageKnown),
+    vscode.workspace.onDidOpenTextDocument(refreshFunctions),
+    vscode.workspace.onDidChangeTextDocument((e) => refreshFunctions(e.document)),
+    vscode.workspace.onDidCloseTextDocument((document) => functionDiagnostics.delete(document.uri)),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (['functionCheck', 'saltVersion', 'knownStateFunctions'].some((k) => e.affectsConfiguration(`saltSyntax.${k}`))) {
+        vscode.workspace.textDocuments.forEach(refreshFunctions);
+      }
+    }),
+    // Quick fixes: the closest real function first (preferred), then add it
+    // to the dictionary -- workspace (shared through the repo) before user;
+    // for a module nobody knows, the whole module too.
+    vscode.languages.registerCodeActionsProvider(
+      selector,
+      {
+        provideCodeActions(document, range, ctx) {
+          const ours = ctx.diagnostics.filter((d) => d.code === 'function');
+          if (ours.length === 0) return [];
+          const issues = functionIssues(document);
+          const hasWorkspace = Boolean(vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length);
+          return ours.flatMap((diagnostic) => {
+            const issue = issues.find((i) => i.line === diagnostic.range.start.line && i.start === diagnostic.range.start.character);
+            if (!issue) return [];
+            const actions = [];
+            if (issue.suggestion) {
+              const change = new vscode.CodeAction(`Change to '${issue.suggestion}'`, vscode.CodeActionKind.QuickFix);
+              change.edit = new vscode.WorkspaceEdit();
+              change.edit.replace(document.uri, new vscode.Range(issue.line, issue.start, issue.line, issue.end), issue.replacement);
+              change.diagnostics = [diagnostic];
+              change.isPreferred = true;
+              actions.push(change);
+            }
+            const add = (entry, scope, what) => {
+              const a = new vscode.CodeAction(`Add ${what}'${entry}' to the ${scope} dictionary`, vscode.CodeActionKind.QuickFix);
+              a.command = { command: 'saltSyntax.addKnownStateFunction', title: a.title, arguments: [entry, scope] };
+              a.diagnostics = [diagnostic];
+              actions.push(a);
+            };
+            const scopes = hasWorkspace ? ['workspace', 'user'] : ['user'];
+            scopes.forEach((scope) => add(issue.full, scope, ''));
+            if (issue.moduleUnknown) scopes.forEach((scope) => add(`${issue.full.split('.')[0]}.*`, scope, 'module '));
+            return actions;
+          });
+        }
+      },
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+    )
+  );
 
   // State-argument check (#62, see findArgumentIssues): .sls only, where
   // states live; a warning where Salt fails the state, information for a
@@ -4312,7 +4605,12 @@ async function activate(context) {
       provideCompletionItems(document, position) {
         const linePrefix = document.lineAt(position).text.slice(0, position.character);
 
-        const dataset = activeDataset();
+        // Salt's own functions plus the workspace's _states and the
+        // dictionary's named ones (#64).
+        const base = activeDataset();
+        const { known } = knownStateFunctions(base, customStates, dictionary());
+        const moduleFunctions = Object.fromEntries([...known].filter(([, fns]) => fns !== '*').map(([mod, fns]) => [mod, [...fns]]));
+        const dataset = { ...base, moduleFunctions };
         const dotMatch = linePrefix.match(/^(\s*)([A-Za-z_][A-Za-z0-9_]*)\.$/);
         if (dotMatch && dataset.moduleFunctions[dotMatch[2]]) {
           const indent = dotMatch[1];

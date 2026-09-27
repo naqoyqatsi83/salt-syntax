@@ -57,6 +57,12 @@ c.eq(problems("nginx:\n  pkg.installed:\n    - hold: True\n    - pakgs: [a]\n"),
 c.eq(problems(user + "    - local: True\n"), [], "3008: user.present local")
 c.eq([p[2] for p in problems(user + "    - local: True\n", "3006")], ["'local' is an invalid keyword argument for 'user.present'"], "3006: not a parameter")
 c.eq(problems("bob:\n  user.present:\n    - names:\n      - a:\n        - shel: x\n"), [], "names: entries with their own arguments: not guessed")
+# The dictionary (#64): a known custom module or function is no problem.
+known = dict(ds["3008"], known=["vault_ext.*", "team.deployed"])
+checked = lambda text: [p["message"] for p in r.check_rendered_yaml(text, "3008", "web.service", known, roots, "web/service.sls")]
+c.eq(checked("a:\n  vault_ext.anything:\n    - name: x\n"), [], "dictionary: a whole module")
+c.eq(checked("a:\n  team.deployed:\n    - name: x\n"), [], "dictionary: a function")
+c.eq(len(checked("a:\n  team.other:\n    - name: x\n")), 1, "not in it: still flagged")
 c.eq(lines("a:\n  acl.absent:\n    - acl_type: user\n    - acl_name: bob\n    - perms: rw\n"), [], "parameters given")
 c.eq(lines("/etc/x:\n  file.managed: []\n"), [], "name defaults to the ID")
 c.eq(lines("a:\n  acl.absent:\n    - names:\n      - x:\n        - acl_type: user\n"), [], "names: with per-name args skipped")
