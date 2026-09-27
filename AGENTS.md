@@ -33,7 +33,9 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.10.0`: the
+- **Where things stand:** `develop` and `main` are at `v0.11.0`: the
+  "inside the tag" Jinja indentation style (#52; the check defaults to
+  `either`, one style per file), on top of v0.10.0's
   rendered preview (#39-#46, graduated from
   `experimental/template-inputs-poc`; #23 the umbrella), grammar tests
   (#47), and on top of the preview's line map: scroll sync (#48),

@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.11.0] - 2026-09-27
+
 ### Added
 - The "inside the tag" Jinja indentation style (`{%-   if %}`, tags at
   column 0, as in template-formula's TOFS macros) alongside today's
