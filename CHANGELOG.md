@@ -12,6 +12,15 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- The preview traces lines into the templates they came from: **Go to
+  Source Line** (F12, formerly *Go to Formula Line*) opens the macro
+  library or `{% include %}`d file a rendered line really came from, and
+  a mouse click in the preview highlights and reveals that source line
+  (`saltSyntax.preview.clickToSource`). Text a filter transforms (e.g.
+  `tojson`) now leaves only its own lines unmapped, not the whole file.
+  [#59](https://github.com/naqoyqatsi83/salt-syntax/issues/59)
+
 ## [0.12.0] - 2026-09-27
 
 ### Added

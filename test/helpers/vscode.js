@@ -123,7 +123,7 @@ function createVscode(config) {
     onType: [],
     commands: {},
     executed: [],
-    listeners: { open: [], change: [], close: [], save: [], config: [], active: [], visibleRanges: [] },
+    listeners: { open: [], change: [], close: [], save: [], config: [], active: [], visibleRanges: [], selection: [] },
     collections: {},
     contentProviders: {},
     webviews: {},
@@ -164,6 +164,12 @@ function createVscode(config) {
     },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
     TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
+    TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2, Command: 3 },
+    ThemeColor: class {
+      constructor(id) {
+        this.id = id;
+      }
+    },
     CodeAction: class {
       constructor(title, k) {
         this.title = title;
@@ -237,6 +243,8 @@ function createVscode(config) {
       // Editors on screen: tests push { document, visibleRanges, revealRange }.
       visibleTextEditors: [],
       onDidChangeTextEditorVisibleRanges: on('visibleRanges'),
+      onDidChangeTextEditorSelection: on('selection'),
+      createTextEditorDecorationType: (options) => ({ options, dispose() {} }),
       showInformationMessage: (m) => reg.info.push(m),
       showTextDocument: async () => ({}),
       registerWebviewViewProvider: (id, provider) => ((reg.webviews[id] = provider), { dispose() {} })
@@ -278,7 +286,9 @@ function createVscode(config) {
         const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === u.toString());
         if (open && !reg.contentProviders[u.scheme]) return open;
         const provider = reg.contentProviders[u.scheme];
-        const d = doc(provider ? provider.provideTextDocumentContent(u) : '', { languageId: 'plaintext', path: u.path, scheme: u.scheme });
+        // A file not open yet is read from disk, as VS Code does.
+        const onDisk = !provider && u.scheme === 'file' && require('fs').existsSync(u.fsPath) ? require('fs').readFileSync(u.fsPath, 'utf8') : '';
+        const d = doc(provider ? provider.provideTextDocumentContent(u) : onDisk, { languageId: 'plaintext', path: u.path, scheme: u.scheme });
         d.uri = u;
         vscode.workspace.textDocuments.push(d);
         reg.opened = reg.opened || [];
@@ -329,6 +339,9 @@ async function load({ config = {} } = {}) {
     close: (d) => fire('close', d),
     // Tell the extension an editor scrolled (so its top line is `line`).
     scroll: (textEditor, line) => fire('visibleRanges', { textEditor, visibleRanges: [new vscode.Range(line, 0, line + 30, 0)] }),
+    // Tell the extension the cursor moved to `line` in an editor (kind: 'Mouse', 'Keyboard', ...).
+    select: (textEditor, line, kind = 'Mouse') =>
+      fire('selection', { textEditor, kind: vscode.TextEditorSelectionChangeKind[kind], selections: [new vscode.Selection(line, 0, line, 0)] }),
     save: (d) => fire('save', d),
     fireConfig: (setting) => fire('config', { affectsConfiguration: (s) => s === setting || setting.startsWith(`${s}.`) }),
     // The provider registered for a given kind; `pick` filters (e.g. by trigger characters).

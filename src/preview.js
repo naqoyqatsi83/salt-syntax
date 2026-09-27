@@ -236,8 +236,9 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
               new vscode.Location(previewUri, new vscode.Range(at(other[0]), 0, at(other[0]), 0)), other[1])];
           }
           add(previewUri, d);
-          const sourceLine = y.line && r.lineMap ? r.lineMap[Math.min(y.line, r.lineMap.length) - 1] - 1 : null;
-          if (sourceLine === null) continue;
+          const mapped = y.line && r.lineMap ? r.lineMap[Math.min(y.line, r.lineMap.length) - 1] : null;
+          if (mapped == null) continue; // no map, or a line it couldn't trace
+          const sourceLine = mapped - 1;
           const here = new vscode.Location(previewUri, new vscode.Range(at(y.line), 0, at(y.line), 0));
           const k = `${sourceLine}|${d.message}`;
           if (!onSource.has(k)) {
@@ -413,29 +414,84 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     other.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
   }
 
-  // Go to Formula Line (#50): from the preview's cursor line to the formula
-  // line that produced it, selected, in the formula's own column (Go to
-  // Definition would open it in the preview's).
+  // Where a preview line came from (#59): { uri, line } (0-based) in the
+  // template that produced it -- the formula itself, a macro library, an
+  // included file -- or null (header, no map, a line the mapping couldn't
+  // trace). `calling` also gives the formula line that pulled it in.
+  function originOf(state, previewLine) {
+    const r = state.result;
+    const head = headerLines(state).length;
+    const i = previewLine - head;
+    if (!r.lineOrigins || i < 0) return null;
+    const origin = r.lineOrigins[Math.min(i, r.lineOrigins.length - 1)];
+    const calling = r.lineMap && r.lineMap[Math.min(i, r.lineMap.length - 1)];
+    if (!origin) return null;
+    return {
+      uri: origin[0] === 0 ? state.uri : vscode.Uri.file(r.lineFiles[origin[0]]),
+      line: origin[1] - 1,
+      calling: calling ? { uri: state.uri, line: calling - 1 } : null
+    };
+  }
+
+  const editorFor = (uri) => vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString());
+
+  // Go to Source Line (#50, #59): from the preview's cursor line to the
+  // template line that produced it -- in the formula, or the macro library /
+  // included file it really came from -- selected, in the formula's own
+  // column (Go to Definition would open it in the preview's), or wherever
+  // that file is already open.
   async function goToSource() {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.uri.scheme !== SCHEME) return;
     const state = states.get(sourceOfPreview(editor.document.uri));
     const r = state && state.result;
     if (!r || r.fatal || r.error) return;
-    const head = headerLines(state).length;
     const line = editor.selection.active.line;
-    if (line < head) return;
-    if (!r.lineMap) {
-      vscode.window.showInformationMessage("Salt Syntax: this render's lines can't be traced to the formula (the template's own text is transformed on its way to the output, e.g. passed through tojson).");
+    if (line < headerLines(state).length) return;
+    const origin = originOf(state, line);
+    if (!origin) {
+      vscode.window.showInformationMessage("Salt Syntax: this line can't be traced to its source (the template text is transformed on its way to the output, e.g. passed through tojson).");
       return;
     }
-    const target = sourceLineOf(r.lineMap, head, line);
-    const source = await vscode.workspace.openTextDocument(state.uri);
-    const sourceEditor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === state.uri.toString());
-    await vscode.window.showTextDocument(state.uri, {
-      viewColumn: sourceEditor ? sourceEditor.viewColumn : vscode.ViewColumn.One,
-      selection: new vscode.Range(target, 0, target, source.lineAt(target).text.length)
+    const target = await vscode.workspace.openTextDocument(origin.uri);
+    const open = editorFor(origin.uri) || editorFor(state.uri);
+    await vscode.window.showTextDocument(origin.uri, {
+      viewColumn: open ? open.viewColumn : vscode.ViewColumn.One,
+      selection: new vscode.Range(origin.line, 0, origin.line, target.lineAt(origin.line).text.length)
     });
+  }
+
+  // Click to reveal (#59, saltSyntax.preview.clickToSource): a mouse click
+  // in the preview highlights and reveals the line it came from -- in that
+  // file if it's open, else the formula line that pulled it in -- leaving
+  // the cursor in the preview. Moving by keyboard clears the highlight.
+  const clickHighlight = vscode.window.createTextEditorDecorationType({
+    isWholeLine: true,
+    backgroundColor: new vscode.ThemeColor('editor.rangeHighlightBackground')
+  });
+  let highlighted = null; // editor currently carrying clickHighlight
+  const clearHighlight = () => {
+    if (highlighted) highlighted.setDecorations(clickHighlight, []);
+    highlighted = null;
+  };
+  function revealClicked(e) {
+    if (e.textEditor.document.uri.scheme !== SCHEME) return;
+    const state = states.get(sourceOfPreview(e.textEditor.document.uri));
+    const r = state && state.result;
+    clearHighlight();
+    if (e.kind !== vscode.TextEditorSelectionChangeKind.Mouse || !r || r.fatal || r.error) return;
+    if (!vscode.workspace.getConfiguration('saltSyntax.preview').get('clickToSource', true)) return;
+    const origin = originOf(state, e.selections[0].active.line);
+    if (!origin) return;
+    const target = editorFor(origin.uri) ? origin : origin.calling;
+    const editor = target && editorFor(target.uri);
+    if (!editor) return;
+    // Scroll sync would otherwise move the preview to follow.
+    scrolledByUs.set(target.uri.toString(), Date.now());
+    const range = new vscode.Range(target.line, 0, target.line, 0);
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    editor.setDecorations(clickHighlight, [range]);
+    highlighted = editor;
   }
 
   function setScrollSync(on) {
@@ -444,7 +500,9 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
 
   const timers = new Map();
   context.subscriptions.push(
+    clickHighlight,
     vscode.commands.registerCommand('saltSyntax.preview.goToSource', goToSource),
+    vscode.window.onDidChangeTextEditorSelection(revealClicked),
     vscode.commands.registerCommand('saltSyntax.preview.lockScroll', () => setScrollSync(true)),
     vscode.commands.registerCommand('saltSyntax.preview.unlockScroll', () => setScrollSync(false)),
     vscode.window.onDidChangeTextEditorVisibleRanges((e) => syncScroll(e.textEditor)),
@@ -509,9 +567,16 @@ function previewLineOf(map, head, sourceLine) {
 
 // The formula line for a preview's top line: the source line that
 // produced it (the header maps to the top).
+// A line the mapping couldn't trace (null, #59) takes the nearest traced
+// line -- the one above when two are equally near.
 function sourceLineOf(map, head, previewLine) {
   if (previewLine < head || !map.length) return 0;
-  return map[Math.min(previewLine - head, map.length - 1)] - 1;
+  const i = Math.min(previewLine - head, map.length - 1);
+  for (let d = 0; d < map.length; d++) {
+    if (map[i - d] != null) return map[i - d] - 1;
+    if (map[i + d] != null) return map[i + d] - 1;
+  }
+  return 0;
 }
 
 // Without a line map: a stand-in that spreads the rendered lines evenly

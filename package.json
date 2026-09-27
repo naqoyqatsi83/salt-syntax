@@ -233,6 +233,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Scroll the formula and its rendered preview together: each follows the other to the matching line (through the rendered lines' source lines, so loops and includes stay lined up). Toggled by the lock button on the preview's title bar."
+        },
+        "saltSyntax.preview.clickToSource": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A mouse click in the rendered preview highlights and reveals the source line that produced the clicked line — in the macro library or included file it came from, if that file is open, else the formula line that pulled it in. The cursor stays in the preview. **F12** (*Go to Source Line*) opens the file instead."
         }
       }
     },
@@ -262,7 +267,7 @@
       },
       {
         "command": "saltSyntax.preview.goToSource",
-        "title": "Salt Syntax: Go to Formula Line"
+        "title": "Salt Syntax: Go to Source Line"
       },
       {
         "command": "saltSyntax.preview.unlockScroll",

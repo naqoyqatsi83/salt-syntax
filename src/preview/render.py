@@ -6,7 +6,9 @@ Reads one JSON request on stdin, writes one JSON result on stdout:
   request  {"source": str, "path": str, "roots": [str], "answers": {id: str}}
   result   {"rendered": str, "questions": [...], "warnings": [...],
             "error": {...} | null, "yamlErrors": [{...}], "context": {...},
-            "lineMap": [source line per rendered line] | null}
+            "lineMap": [main-file line per rendered line | null] | null,
+            "lineOrigins": [[file index, line] | null per rendered line] | null,
+            "lineFiles": [absolute path per file index; 0 = the main file] | null}
 
 Real Jinja2 does the rendering, with Salt's Jinja environment emulated:
 Salt's context variables (sls, tpldir, ...) derived from the file's path,
@@ -876,12 +878,13 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
     return found
 
 
-# Line markers for the line map (#48): private-use characters around a
-# source line number, placed just before that line's newline.
-LINE_MARK = re.compile("\ue000(\\d+)\ue001")
+# Line markers for the line map (#48, #59): private-use characters around a
+# file index and a source line number, `\ue000<file>:<line>\ue001`, placed
+# just before that line's newline.
+LINE_MARK = re.compile("\ue000(\\d+):(\\d+)\ue001")
 
 
-def mark_lines(env, text):
+def mark_lines(env, text, file_index=0):
     """`text` with a line marker before every newline that is template text
     -- outside any tag, and outside {% set %}...{% endset %} (so also
     {% load_yaml %}) and {% filter %} blocks, whose text is captured rather
@@ -901,46 +904,73 @@ def mark_lines(env, text):
             tag.append(value)
         elif kind == "data" and not depth:
             marked.update(range(lineno, lineno + value.count("\n")))
-    return "\n".join(f"{line}\ue000{n}\ue001" if n in marked else line for n, line in enumerate(text.split("\n"), 1))
+    return "\n".join(f"{line}\ue000{file_index}:{n}\ue001" if n in marked else line
+                     for n, line in enumerate(text.split("\n"), 1))
 
 
 def line_map(marked_output, rendered):
-    """The source line (1-based) behind each line of `rendered`, read from the
-    marked render's output: a marked line is its marker's; an unmarked one
-    (a printed value's own newlines, an included file's text) belongs to the
-    next marker down -- the source line whose newline ends it. None when the
-    markers changed more than themselves (e.g. captured text that went
-    through tojson): no map rather than a wrong one."""
-    if LINE_MARK.sub("", marked_output) != rendered:
-        return None
-    result, pending = [], 0
-    for line in marked_output.split("\n"):
-        found = LINE_MARK.findall(line)
-        if found:
-            result.extend([int(found[-1])] * (pending + 1))
-            pending = 0
-        else:
-            pending += 1
-    return result + [result[-1] if result else 1] * pending
+    """Where each line of `rendered` came from, read from the marked render's
+    output: (lineMap, lineOrigins).
+    - lineOrigins: [file, line] -- a marked line is its last marker's; an
+      unmarked one (a printed value's own newlines) belongs to the next
+      marker down, the source line whose newline ends it.
+    - lineMap: the same with only the main file's (0) markers counted, so a
+      line another template produced maps to the main-file line that pulled
+      it in.
+    A line the markers changed beyond themselves (template text that went
+    through tojson, ...) gets null in both: no mapping rather than a wrong
+    one. If they changed the line count, nothing lines up: (None, None)."""
+    stripped = LINE_MARK.sub("", marked_output).split("\n")
+    wanted = rendered.split("\n")
+    if len(stripped) != len(wanted):
+        return None, None
+    lines = marked_output.split("\n")
+
+    def spread(pick):
+        result, pending = [], 0
+        for line in lines:
+            found = pick(LINE_MARK.findall(line))
+            if found is not None:
+                result.extend([found] * (pending + 1))
+                pending = 0
+            else:
+                pending += 1
+        return result + [result[-1] if result else None] * pending
+
+    origins = spread(lambda found: [int(found[-1][0]), int(found[-1][1])] if found else None)
+    main = spread(lambda found: next((int(n) for f, n in reversed(found) if f == "0"), None))
+    for i, (got, want) in enumerate(zip(stripped, wanted)):
+        if got != want:
+            origins[i] = main[i] = None
+    return main, origins
 
 
 class SaltLoader(jinja2.BaseLoader):
-    def __init__(self, roots, overrides):
+    def __init__(self, roots, overrides, override_paths=None):
         self.roots = roots
         self.overrides = overrides  # template name -> unsaved editor text
-        self.mark = None  # template name to serve with line markers (#48)
+        self.override_paths = override_paths or {}  # template name -> its file on disk
+        # While mapping (#48, #59): absolute path -> file index for every
+        # template served, the main file's first. None: serve them unmarked.
+        self.mark = None
+
+    def _marked(self, environment, text, path):
+        if self.mark is None:
+            return text
+        index = self.mark.setdefault(os.path.abspath(path), len(self.mark))
+        return mark_lines(environment, text, index)
 
     def get_source(self, environment, template):
         name = template[len("salt://"):] if template.startswith("salt://") else template
         name = name.lstrip("/")
         if name in self.overrides:
             text = preprocess(self.overrides[name])
-            return (mark_lines(environment, text) if name == self.mark else text), name, lambda: False
+            return self._marked(environment, text, self.override_paths.get(name, name)), name, lambda: False
         for root in self.roots:
             path = os.path.join(root, name)
             if os.path.isfile(path):
                 with open(path, encoding="utf-8") as fh:
-                    return preprocess(fh.read()), path, lambda: False
+                    return self._marked(environment, preprocess(fh.read()), path), path, lambda: False
         raise jinja2.TemplateNotFound(f"{name} (looked in: {', '.join(self.roots)})")
 
 
@@ -1573,7 +1603,7 @@ def main():
             return False
 
     env = SaltEnvironment(
-        loader=SaltLoader(roots, {rel_main: req["source"]}),
+        loader=SaltLoader(roots, {rel_main: req["source"]}, {rel_main: req["path"]}),
         undefined=RecordingUndefined,
         extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"],
         keep_trailing_newline=True,
@@ -1597,7 +1627,8 @@ def main():
         # Salt does), in the importing template's context.
         def load(context, path):
             name = env.join_path(str(path), context.name)
-            text = env.get_template(name).render(context.get_all())
+            # Unmarked before parsing when the line map's render marks it (#59).
+            text = LINE_MARK.sub("", env.get_template(name).render(context.get_all()))
             return {"yaml": yaml.safe_load, "json": json.loads, "text": str}[kind](text)
         return jinja2.pass_context(load)
 
@@ -1652,17 +1683,19 @@ def main():
         result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],
                                                    req.get("stateData"), roots, rel_main, render_included)
 
-    # The line map (#48): the same render again, with the main file's lines
-    # marked -- after everything else, and with anything it asks or records
-    # dropped, so the preview and its checks never see it.
-    result["lineMap"] = None
+    # The line map (#48, #59): the same render again, with every template's
+    # lines marked -- after everything else, and with anything it asks or
+    # records dropped, so the preview and its checks never see it.
+    result["lineMap"] = result["lineOrigins"] = result["lineFiles"] = None
     if result["error"] is None:
         saved = (dict(session.questions), list(session.warnings), list(session.strict_errors))
         try:
-            env.loader.mark = rel_main
-            result["lineMap"] = line_map(env.get_template(rel_main).render(), result["rendered"])
+            env.loader.mark = {os.path.abspath(req["path"]): 0}
+            result["lineMap"], result["lineOrigins"] = line_map(env.get_template(rel_main).render(), result["rendered"])
+            if result["lineOrigins"] is not None:
+                result["lineFiles"] = list(env.loader.mark)
         except Exception:  # noqa: BLE001 - no map is the fallback, never an error
-            pass
+            result["lineMap"] = result["lineOrigins"] = None
         finally:
             env.loader.mark = None
             session.questions, session.warnings, session.strict_errors = saved

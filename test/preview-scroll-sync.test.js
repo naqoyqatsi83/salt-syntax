@@ -29,6 +29,11 @@ assert.strictEqual(previewLineOf(loopMap, 2, 99), loopMap.length - 1 + 2, 'past 
 assert.strictEqual(sourceLineOf(loopMap, 2, 1), 0, 'header: top of the formula');
 assert.strictEqual(sourceLineOf(loopMap, 2, 2 + 4), 1, 'second pass of the loop: the loop body line');
 assert.deepStrictEqual(proportionalMap('a\nb\nc\nd', 2, 99, true), [1, 1, 2, 2], 'no map: spread evenly');
+// A line the mapping couldn't trace (#59): the nearest traced one.
+assert.strictEqual(sourceLineOf([1, null, null, 7], 0, 2), 6, 'untraced: the nearest traced line');
+assert.strictEqual(sourceLineOf([1, null, 7], 0, 1), 0, 'untraced, equally near: the one above');
+assert.strictEqual(sourceLineOf([null, 4], 0, 0), 3, 'untraced at the top: nearest below');
+assert.strictEqual(previewLineOf([1, null, 5], 0, 3), 2, 'untraced lines are skipped going the other way');
 
 (async () => {
   const h = await load({ config: { 'saltSyntax.preview.fileRoots': [ROOT] } });
