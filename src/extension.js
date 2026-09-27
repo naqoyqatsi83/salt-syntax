@@ -3947,8 +3947,10 @@ async function activate(context) {
       const known = (mod, fn) => (dataset.moduleFunctions[mod] || []).includes(fn);
       const within = (start, end) => position.character >= start && position.character <= end;
       const range = (start, end) => new vscode.Range(position.line, start, position.line, end);
-      // `mod.fn:`
-      const decl = text.match(/^(\s*)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*:/);
+      // `mod.fn:`, or the short form of a function without arguments:
+      // `mod.fn` on its own line, or on the ID's (`id: mod.fn`). An
+      // unindented `mod.fn:` is a state ID, whatever it looks like.
+      const decl = text.match(/^(\s+)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*(:\s*)?$/) || text.match(/^(\S.*?:\s+)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*$/);
       if (decl && known(decl[2], decl[3]) && within(decl[1].length, decl[1].length + decl[2].length + 1 + decl[3].length)) {
         return new vscode.Hover(new vscode.MarkdownString(functionHover(decl[2], decl[3], dataset, version)),
           range(decl[1].length, decl[1].length + decl[2].length + 1 + decl[3].length));

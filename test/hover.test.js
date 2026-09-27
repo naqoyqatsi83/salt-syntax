@@ -35,6 +35,16 @@ const { load, doc, Position } = require('./helpers/vscode');
   assert.ok(r.text.includes(`${docs}/all/salt.states.linux_acl.html#salt.states.linux_acl.absent`), 'module file differs from its name (linux_acl.py)');
   // Defaults quoted the way Python shows them.
   assert.match(at('x:\n  file.man|aged:\n').text, /sig_backend='gpg'/);
+  // The short form, a function without arguments: no colon, on its own line
+  // or on the ID's.
+  r = at('x:\n  test.succeed_with_ch|anges\n');
+  assert.deepStrictEqual(r.range, [1, 2, 27]);
+  assert.match(r.text, /^\*\*test\.succeed_with_changes\*\*/);
+  r = at('{{ sls }}.x: test.n|op\n');
+  assert.deepStrictEqual(r.range, [0, 13, 21]);
+  assert.match(r.text, /^\*\*test\.nop\*\*/);
+  // At column 0 it's a state ID, whatever it looks like.
+  assert.strictEqual(at('pkg.inst|alled:\n  test.nop\n'), undefined);
   // Salt's `mod:` + `- fn` form: hover the function item.
   assert.match(at('x:\n  pkg:\n    - inst|alled\n').text, /^\*\*pkg\.installed\*\*/);
 
