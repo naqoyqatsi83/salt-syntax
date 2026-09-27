@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.12.0] - 2026-09-27
+
 ### Added
 - Argument completion after `- ` knows the state function it's under:
   its own arguments first (required ones marked, defaults as tab stops),

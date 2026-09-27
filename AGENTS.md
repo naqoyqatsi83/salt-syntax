@@ -33,7 +33,12 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.11.0`: the
+- **Where things stand:** `develop` and `main` are at `v0.12.0`:
+  argument completion after `-` from the state function's real
+  signature plus Salt's global state arguments (#57, #58), Enter no
+  longer outdenting (#56), completion defaults quoted for YAML (#55),
+  tests for state completion / Salt version / settings sync (#54), docs
+  (#53). Before that, v0.11.0: the
   "inside the tag" Jinja indentation style (#52; the check defaults to
   `either`, one style per file), on top of v0.10.0's
   rendered preview (#39-#46, graduated from
