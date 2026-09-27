@@ -173,7 +173,7 @@
             "Either style, but one per file: the first tag that fits only one style decides, and tags in the other style are flagged.",
             "Either style, tag by tag, even mixed within a file."
           ],
-          "default": "outside",
+          "default": "either",
           "markdownDescription": "Which Jinja indentation style `#saltSyntax.jinjaIndentCheck#` accepts. Quick fixes re-indent to that style — the file's style under `either`, `#saltSyntax.jinjaIndentStyle#` under `mixed`."
         },
         "saltSyntax.jinjaIndentStyle": {

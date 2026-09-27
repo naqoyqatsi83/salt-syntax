@@ -101,6 +101,10 @@ const { load, doc } = require('./helpers/vscode');
   assert.strictEqual(fixAll(flat), '{% for x in y %}\n{%   set z = x %}\n{% endfor %}');
   delete h.config['saltSyntax.jinjaIndentCheckStyle'];
   delete h.config['saltSyntax.jinjaIndentStyle'];
+  // The default is 'either': a vendored inside-style macro passes as is,
+  // and outside-style mistakes are still caught.
+  assert.deepStrictEqual(lines(tofs), [], 'default: the TOFS macro passes');
+  assert.deepStrictEqual(lines(bad), [3, 7, 11], 'default: outside-style nesting still checked');
 
   const { d } = warnings(bad);
   h.vscode.workspace.textDocuments.push(d);

@@ -2948,10 +2948,10 @@ const JINJA_CHECK_STYLES = ['outside', 'inside', 'either', 'mixed'];
 // The two Jinja indentation settings, read live.
 function jinjaIndentOptions() {
   const config = vscode.workspace.getConfiguration('saltSyntax');
-  const check = config.get('jinjaIndentCheckStyle', 'outside');
+  const check = config.get('jinjaIndentCheckStyle', 'either');
   return {
     write: config.get('jinjaIndentStyle', 'outside') === 'inside' ? 'inside' : 'outside',
-    check: JINJA_CHECK_STYLES.includes(check) ? check : 'outside'
+    check: JINJA_CHECK_STYLES.includes(check) ? check : 'either'
   };
 }
 
@@ -2980,7 +2980,7 @@ function jinjaTagPrefix(style, place, opener) {
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function analyzeJinjaIndent(text, options = { check: 'outside', write: 'outside' }) {
+function analyzeJinjaIndent(text, options = { check: 'either', write: 'outside' }) {
   const lineOf = (offset) => {
     let line = 0;
     for (let i = text.indexOf('\n'); i !== -1 && i < offset; i = text.indexOf('\n', i + 1)) {

@@ -17,8 +17,8 @@ version heading when that state gets tagged and merged to `main`.
   column 0, as in template-formula's TOFS macros) alongside today's
   "outside" one: `saltSyntax.jinjaIndentStyle` picks how Enter, completion,
   block snippets and fixes write it; `saltSyntax.jinjaIndentCheckStyle`
-  which one the indentation check accepts (`outside`, `inside`, `either`
-  one per file, or `mixed`). `{# #}` comment lines now follow the nesting
+  which one the indentation check accepts (`either` one per file, the
+  default; `outside`; `inside`; or `mixed`). `{# #}` comment lines now follow the nesting
   too.
   [#52](https://github.com/naqoyqatsi83/salt-syntax/issues/52)
 

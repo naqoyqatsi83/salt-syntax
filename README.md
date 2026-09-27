@@ -288,9 +288,10 @@ per level, lined up whether the tag opens with `{%` or `{%-`:
 ```
 
 `saltSyntax.jinjaIndentCheckStyle` sets which one the check accepts:
-`outside` (default), `inside`, `either` (either style, but one per file —
-the first tag that fits only one style decides) or `mixed` (either, tag
-by tag). `saltSyntax.jinjaIndentStyle` (`outside` by default, or
+`either` (default: either style, but one per file — the first tag that
+fits only one style decides, so a vendored TOFS macro and your own
+outside-style files both pass), `outside`, `inside`, or `mixed` (either,
+tag by tag). `saltSyntax.jinjaIndentStyle` (`outside` by default, or
 `inside`) sets how the extension *writes* it — Enter, completion and
 block snippets below, and the quick fixes under `mixed`; otherwise quick
 fixes convert to the style the check settled on.
@@ -461,7 +462,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.saltVersion` | `3008` | Which Salt release line's state modules/functions to complete against — `3008` (current stable) or `3006` (LTS; includes many modules 3008 dropped). Also settable via the **Salt Syntax: Set Salt Version** command. Takes effect immediately, no reload needed. |
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
-| `saltSyntax.jinjaIndentCheckStyle` | `outside` | Which indentation style the check accepts: `outside` (spaces before `{%`), `inside` (tag at column 0, spaces after `{%-`), `either` (one style per file) or `mixed`. |
+| `saltSyntax.jinjaIndentCheckStyle` | `either` | Which indentation style the check accepts: `either` (one style per file), `outside` (spaces before `{%`), `inside` (tag at column 0, spaces after `{%-`) or `mixed`. |
 | `saltSyntax.jinjaIndentStyle` | `outside` | How the extension writes Jinja indentation (Enter, completion, block snippets): `outside` or `inside`. |
 | `saltSyntax.jinjaEnterIndent` | `followNesting` | Where Enter puts the cursor after a line starting with a `{% %}` tag: `followNesting` (two spaces deeper than the innermost open Jinja block) or `column0`. Other lines keep VS Code's normal auto-indent. Needs `editor.formatOnType`, on by default for `.sls`. |
 | `saltSyntax.padJinjaExpressions` | `true` | Typing `{{` auto-closes to `{{ \| }}` — a space before the cursor too — instead of `{{\| }}`. Only `{{`; `{%` is left alone (often typed as `{%-`). |
