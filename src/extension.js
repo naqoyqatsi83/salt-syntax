@@ -4006,7 +4006,11 @@ async function activate(context) {
         return items;
       }
     },
-    '-'
+    // '-' opens the list; typing the space after it closes VS Code's list
+    // (not a word character), so ' ' reopens it. Any other space returns at
+    // the prefix check above.
+    '-',
+    ' '
   );
 
   // Jinja keywords / filters / globals inside {{ ... }} and {% ... %}.

@@ -7,7 +7,7 @@ const { load, doc, Position } = require('./helpers/vscode');
 (async () => {
   const h = await load();
   const state = h.provider('completion', (c) => c.triggers.length === 1 && c.triggers[0] === '.');
-  const requisite = h.provider('completion', (c) => c.triggers.length === 1 && c.triggers[0] === '-');
+  const requisite = h.provider('completion', (c) => c.triggers.includes('-'));
   const end = (text) => {
     const lines = text.split('\n');
     return new Position(lines.length - 1, lines[lines.length - 1].length);

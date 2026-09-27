@@ -7,7 +7,7 @@ const { load, doc, Position } = require('./helpers/vscode');
 
 (async () => {
   const h = await load();
-  const args = h.provider('completion', (c) => c.triggers.length === 1 && c.triggers[0] === '-');
+  const args = h.provider('completion', (c) => c.triggers.includes('-'));
   // Completion at the `-` line marked with `|` (the rest of the text stays).
   const at = (text) => {
     const lines = text.split('\n');
@@ -34,6 +34,13 @@ const { load, doc, Position } = require('./helpers/vscode');
   assert.ok(r.labels.indexOf('version') < r.labels.indexOf('require'), "the function's own first");
   assert.strictEqual(r.get('require').insertText.value, 'require: ${0}');
   assert.ok(!r.labels.some((l) => l.startsWith('__') || l === 'fun' || l === 'state'), 'no internal keywords');
+
+  // Typing the space after the dash closes VS Code's list; the space is a
+  // trigger too, so `- ` opens it again -- and any other space gets nothing.
+  assert.ok(h.reg.completion.find((c) => c.triggers.includes('-')).triggers.includes(' '), "' ' triggers");
+  assert.ok(at(pkg).labels.length > 0, "'- ' offers");
+  assert.deepStrictEqual(at('x:\n  pkg.installed:\n    - name: some |').labels, [], 'a space in a value: nothing');
+  assert.deepStrictEqual(at('x:\n  pkg.installed: |').labels, [], 'a space after a key: nothing');
 
   // Right after the dash: the space is inserted too (#57).
   assert.strictEqual(at(pkg.replace('- |', '-|')).get('refresh').insertText.value, ' refresh: ${1:None}');
