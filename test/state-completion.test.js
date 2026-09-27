@@ -96,6 +96,11 @@ const { load, doc, Position } = require('./helpers/vscode');
   }
   assert.strictEqual(keys.find((i) => i.label === 'require').insertText.value, 'require: ${0}');
   assert.strictEqual(requisite.provideCompletionItems(doc('    - name: x'), new Position(0, 13)), undefined, 'not after a value');
+  // Right after the dash (#57): the space a list item needs is inserted too.
+  const noSpace = requisite.provideCompletionItems(doc('    -'), new Position(0, 5)) || [];
+  assert.strictEqual(noSpace.find((i) => i.label === 'require').insertText.value, ' require: ${0}', "'-' then pick: '- require: '");
+  const typed = requisite.provideCompletionItems(doc('    -re'), new Position(0, 7)) || [];
+  assert.strictEqual(typed.find((i) => i.label === 'require').insertText.value, ' require: ${0}', "'-re' then pick: '- require: '");
   console.log('ok');
 })().catch((e) => {
   console.error(e);

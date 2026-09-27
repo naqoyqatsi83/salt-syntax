@@ -24,6 +24,9 @@ version heading when that state gets tagged and merged to `main`.
   next line continues the argument list, and after `pkg.installed:` it
   goes under it.
   [#56](https://github.com/naqoyqatsi83/salt-syntax/issues/56)
+- Argument completion right after `-` inserts the space a list item
+  needs (`- user: `, not `-user: `).
+  [#57](https://github.com/naqoyqatsi83/salt-syntax/issues/57)
 
 ### Changed
 - Docs brought up to date: the preview's design notes describe what

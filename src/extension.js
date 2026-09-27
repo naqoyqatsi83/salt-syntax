@@ -3907,12 +3907,16 @@ async function activate(context) {
     {
       provideCompletionItems(document, position) {
         const linePrefix = document.lineAt(position).text.slice(0, position.character);
-        if (!/^\s*-\s*[A-Za-z_]*$/.test(linePrefix)) {
+        const m = linePrefix.match(/^\s*-(\s*)[A-Za-z_]*$/);
+        if (!m) {
           return undefined;
         }
+        // Right after the dash (it's a trigger character) there's no space
+        // yet: insert it too, or the result is `-key:`, not a list item (#57).
+        const space = m[1] ? '' : ' ';
         return REQUISITE_KEYS.map((key) => {
           const item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Property);
-          item.insertText = new vscode.SnippetString(`${key}: \${0}`);
+          item.insertText = new vscode.SnippetString(`${space}${key}: \${0}`);
           return item;
         });
       }
