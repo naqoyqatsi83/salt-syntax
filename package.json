@@ -254,6 +254,11 @@
           "default": true,
           "markdownDescription": "Scroll the formula and its rendered preview together: each follows the other to the matching line (through the rendered lines' source lines, so loops and includes stay lined up). Toggled by the lock button on the preview's title bar."
         },
+        "saltSyntax.preview.showVariables": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the template's variables after the rendered output: the values of its top-level `{% set %}`s (and `import_yaml` & co.) once rendered -- what `{% from ... import %}` would get -- as a second YAML document. For a `map.jinja` that's the map itself, for the grains you answer in the Salt Preview panel. Macros and imported names aren't shown."
+        },
         "saltSyntax.preview.clickToSource": {
           "type": "boolean",
           "default": true,
