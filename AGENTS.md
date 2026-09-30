@@ -36,18 +36,17 @@ rest of this file stays current.
 - **Before starting:** `git fetch` and compare every branch you'll touch
   with `origin` -- work goes on from more than one machine, and a stale
   clone once had a session fix and build from a branch 70 commits behind.
-- **Where things stand:** `develop` has, unreleased (`[Unreleased]` in the
-  changelog), the preview emulating Salt more exactly: `pillar.filter_by`
-  (#66), merge helpers in place + `filter_by` ported (#67), lookups and
-  context variables as Salt's (#68), UTF-8 request on Windows (#69), line
-  map for CRLF files (#70), keys inside lists (#72) -- and the test suite
-  passing on Windows (#71), with `test/salt-module-parity.test.py` running
-  Salt's own functions against the preview's. Open: #65, the template
-  variables section (the map a `map.jinja` ends up with, after the
-  rendered output), on `experimental/template-variables` -- merged up to
-  date with `develop`, pre-release `v0.14.0-rc.2`; graduates to `develop`
-  as 0.14.0 once tested.
-- **Before that:** `develop` and `main` are at `v0.13.0`: the
+- **Where things stand:** `develop` and `main` are at `v0.14.0`: the
+  preview's template variables section -- the values a `map.jinja` ends up
+  with, after the rendered output (#65, graduated from
+  `experimental/template-variables`) -- and the preview emulating Salt
+  more exactly: `pillar.filter_by` (#66), merge helpers in place +
+  `filter_by` ported (#67), lookups and context variables as Salt's (#68),
+  UTF-8 request on Windows (#69), line map for CRLF files (#70), keys
+  inside lists (#72); the test suite passes on Windows (#71), with
+  `test/salt-module-parity.test.py` running Salt's own functions against
+  the preview's. No open issues.
+- **Before that:** v0.13.0: the
   preview traces rendered lines into the templates they came from (Go to
   Source Line, click to reveal; #59), hover info for state functions and
   arguments (#61), and the state-argument check (#62; `**kwargs` data in

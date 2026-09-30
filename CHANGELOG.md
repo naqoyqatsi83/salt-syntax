@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.14.0] - 2026-09-30
+
 ### Added
 - The preview shows the file's variables after the rendered output (a
   second YAML document): what `{% from %}` would import -- for a
