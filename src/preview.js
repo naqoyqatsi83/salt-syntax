@@ -27,6 +27,19 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   let current = null; // source uri string the panel shows
   let panel = null; // resolved WebviewView
 
+  // Answers live in profiles (#73): named answer sets -- typically one per
+  // kind of minion -- of which one is active, and every preview renders
+  // against it. Stored per workspace (globally with no folder open), so
+  // they persist across restarts until cleared or deleted.
+  const PROFILES_KEY = 'saltPreview.profiles';
+  const profileStore = () => ((vscode.workspace.workspaceFolders || []).length ? context.workspaceState : context.globalState);
+  let profiles = (() => {
+    const saved = profileStore().get(PROFILES_KEY);
+    return saved && saved.profiles && saved.profiles[saved.active] ? saved : { active: 'default', profiles: { default: {} } };
+  })();
+  const activeAnswers = () => profiles.profiles[profiles.active];
+  const saveProfiles = () => profileStore().update(PROFILES_KEY, profiles);
+  // Before profiles, answers were kept per file under this key.
   const answersKey = (uriString) => `saltPreview.answers:${uriString}`;
   const previewUriFor = (sourceUri) =>
     vscode.Uri.from({ scheme: SCHEME, path: `${sourceUri.path}.rendered.yaml`, query: encodeURIComponent(sourceUri.toString()) });
@@ -77,7 +90,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   }
 
   const renderRequest = (state, source, saltVersion) => ({
-    source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: state.answers,
+    source, path: state.uri.fsPath, roots: fileRoots(state.uri), answers: activeAnswers(),
     saltVersion, stateData: stateDataFor(saltVersion)
   });
 
@@ -148,7 +161,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const noDefault = open.filter((q) => q.default === null);
     const head = [
       `# Salt rendered preview — ${r.context.file}  (sls: ${r.context.sls}, tpldir: ${r.context.tpldir || '.'}, checked as Salt ${state.saltVersion || '3008'})`,
-      `# ${qs.length} external input${qs.length === 1 ? '' : 's'}: ${qs.length - open.length} answered, ${open.length - noDefault.length} using the default in the code, ${noDefault.length} unknown (shown as «kind:key»). Fill them in the Salt Preview panel.`
+      `# ${qs.length} external input${qs.length === 1 ? '' : 's'}: ${qs.length - open.length} answered (profile "${profiles.active}"), ${open.length - noDefault.length} using the default in the code, ${noDefault.length} unknown (shown as «kind:key»). Fill them in the Salt Preview panel.`
     ];
     for (const w of r.warnings || []) head.push(`# ⚠ ${w}`);
     if (r.error) {
@@ -310,9 +323,105 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   function stateFor(uri) {
     const key = uri.toString();
     if (!states.has(key)) {
-      states.set(key, { uri, answers: context.globalState.get(answersKey(key), {}), result: null, running: false, pending: false });
+      states.set(key, { uri, result: null, running: false, pending: false });
+      // A file's answers from before profiles move into the active profile
+      // (what the profile already has wins), once.
+      const legacy = context.globalState.get(answersKey(key));
+      if (legacy) {
+        const answers = activeAnswers();
+        for (const [id, value] of Object.entries(legacy)) if (!(id in answers)) answers[id] = value;
+        context.globalState.update(answersKey(key), undefined);
+        saveProfiles();
+      }
     }
     return states.get(key);
+  }
+
+  const renderAll = () => {
+    for (const key of states.keys()) render(key);
+  };
+
+  // Profile actions (#73), from the panel's profile bar, its title-bar
+  // buttons and the command palette. Prompts and confirmations are VS
+  // Code's own -- a webview can't show modal dialogs.
+  async function switchProfile(name) {
+    if (name === undefined) {
+      const NEW = '$(add) New profile…';
+      const picked = await vscode.window.showQuickPick(
+        [...Object.keys(profiles.profiles).map((p) => ({ label: p, description: p === profiles.active ? 'active' : `${Object.keys(profiles.profiles[p]).length} answers` })), { label: NEW }],
+        { placeHolder: 'Preview profile to render with' }
+      );
+      if (!picked) return;
+      if (picked.label === NEW) return newProfile();
+      name = picked.label;
+    }
+    if (!profiles.profiles[name] || name === profiles.active) return;
+    profiles.active = name;
+    await saveProfiles();
+    renderAll();
+    postState();
+  }
+
+  const askName = (prompt, value) =>
+    vscode.window.showInputBox({
+      prompt,
+      value,
+      validateInput: (v) => (!v.trim() ? 'A name is needed.' : v.trim() !== value && profiles.profiles[v.trim()] ? `There's already a profile "${v.trim()}".` : null)
+    });
+
+  async function newProfile() {
+    const name = ((await askName('Name for the new preview profile -- e.g. the kind of minion it stands for (rhel-eu)')) || '').trim();
+    if (!name) return;
+    const copy = `Copy of "${profiles.active}"`;
+    const start = await vscode.window.showQuickPick(['Start empty', copy], { placeHolder: `Profile "${name}": start from` });
+    if (!start) return;
+    profiles.profiles[name] = start === copy ? { ...activeAnswers() } : {};
+    profiles.active = name;
+    await saveProfiles();
+    renderAll();
+    postState();
+  }
+
+  async function renameProfile() {
+    const old = profiles.active;
+    const name = ((await askName(`Rename preview profile "${old}" to`, old)) || '').trim();
+    if (!name || name === old) return;
+    profiles.profiles = Object.fromEntries(Object.entries(profiles.profiles).map(([p, a]) => [p === old ? name : p, a]));
+    profiles.active = name;
+    await saveProfiles();
+    renderAll();
+    postState();
+  }
+
+  async function deleteProfile() {
+    const name = profiles.active;
+    const others = Object.keys(profiles.profiles).filter((p) => p !== name);
+    if (!others.length) {
+      vscode.window.showInformationMessage(`"${name}" is the only preview profile, so it stays -- use Clear Answers to empty it.`);
+      return;
+    }
+    const count = Object.keys(activeAnswers()).length;
+    const ok = await vscode.window.showWarningMessage(`Delete preview profile "${name}" and its ${count} answer${count === 1 ? '' : 's'}?`, { modal: true }, 'Delete');
+    if (ok !== 'Delete') return;
+    delete profiles.profiles[name];
+    profiles.active = others[0];
+    await saveProfiles();
+    renderAll();
+    postState();
+  }
+
+  async function clearAnswers() {
+    const count = Object.keys(activeAnswers()).length;
+    if (!count) {
+      vscode.window.showInformationMessage(`Preview profile "${profiles.active}" has no answers to clear.`);
+      return;
+    }
+    const ok = await vscode.window.showWarningMessage(`Clear all ${count} answer${count === 1 ? '' : 's'} in preview profile "${profiles.active}"?`, { modal: true }, 'Clear');
+    if (ok !== 'Clear') return;
+    profiles.profiles[profiles.active] = {};
+    await saveProfiles();
+    renderAll();
+    postState();
   }
 
   function postState() {
@@ -323,9 +432,10 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       return;
     }
     const r = state.result || {};
-    const questions = (r.questions || []).map((q) => ({ ...q, lines: (state.lines || {})[q.id] || [], value: state.answers[q.id] || '' }));
+    const answers = activeAnswers();
+    const questions = (r.questions || []).map((q) => ({ ...q, lines: (state.lines || {})[q.id] || [], value: answers[q.id] || '' }));
     const asked = new Set(questions.map((q) => q.id));
-    const unused = Object.keys(state.answers).filter((id) => !asked.has(id) && state.answers[id] !== '').map((id) => ({ id, value: state.answers[id] }));
+    const unused = Object.keys(answers).filter((id) => !asked.has(id) && answers[id] !== '').map((id) => ({ id, value: answers[id] }));
     panel.webview.postMessage({
       type: 'state',
       file: r.context ? r.context.file : path.basename(state.uri.fsPath),
@@ -339,17 +449,19 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       rendering: !state.result,
       kinds: KIND_LABELS,
       questions,
-      unused
+      unused,
+      profiles: Object.keys(profiles.profiles),
+      profile: profiles.active
     });
   }
 
   function setAnswer(id, value) {
-    const state = current && states.get(current);
-    if (!state) return;
-    if (value === '' || value === undefined) delete state.answers[id];
-    else state.answers[id] = value;
-    context.globalState.update(answersKey(current), state.answers);
-    render(current);
+    const answers = activeAnswers();
+    if (value === '' || value === undefined) delete answers[id];
+    else answers[id] = value;
+    saveProfiles();
+    // The profile is shared: every open preview may read this input.
+    renderAll();
   }
 
   context.subscriptions.push(
@@ -361,6 +473,10 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
         view.webview.onDidReceiveMessage((m) => {
           if (m.type === 'answer') setAnswer(m.id, m.value);
           if (m.type === 'ready') postState();
+          if (m.type === 'profile') {
+            const action = { switch: () => switchProfile(m.name), new: newProfile, rename: renameProfile, delete: deleteProfile, clear: clearAnswers }[m.action];
+            if (action) action();
+          }
           if (m.type === 'reveal' && current) {
             const state = states.get(current);
             vscode.window.showTextDocument(state.uri, { selection: new vscode.Range(m.line - 1, 0, m.line - 1, 0), viewColumn: vscode.ViewColumn.One });
@@ -368,7 +484,12 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
         });
         view.onDidDispose(() => (panel = null));
       }
-    }, { webviewOptions: { retainContextWhenHidden: true } })
+    }, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.commands.registerCommand('saltSyntax.preview.switchProfile', () => switchProfile()),
+    vscode.commands.registerCommand('saltSyntax.preview.newProfile', newProfile),
+    vscode.commands.registerCommand('saltSyntax.preview.renameProfile', renameProfile),
+    vscode.commands.registerCommand('saltSyntax.preview.deleteProfile', deleteProfile),
+    vscode.commands.registerCommand('saltSyntax.preview.clearAnswers', clearAnswers)
   );
 
   async function openPreview() {
@@ -670,6 +791,11 @@ function panelHtml(webview) {
   button { background: none; border: none; color: var(--vscode-foreground); opacity: .6; cursor: pointer; }
   button:hover { opacity: 1; }
   .hint { opacity: .6; font-size: 11px; margin-top: 12px; }
+  .profile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
+  .profile select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border, transparent); padding: 2px 4px; font-family: inherit; }
+  .profile button { opacity: .8; padding: 2px 6px; border: 1px solid var(--vscode-button-secondaryBackground, transparent); border-radius: 2px; }
+  summary { cursor: pointer; }
+  summary h3 { display: inline; }
   .empty { opacity: .7; margin-top: 12px; }
 </style></head>
 <body>
@@ -678,6 +804,7 @@ function panelHtml(webview) {
 const vscode = acquireVsCodeApi();
 const root = document.getElementById('root');
 const timers = {};
+let otherOpen = false;
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); }
@@ -704,6 +831,17 @@ function render(s) {
   const caret = active ? document.activeElement.selectionStart : null;
   const typed = active ? document.activeElement.value : null; // may not be sent yet
   root.replaceChildren();
+  // The profile every preview renders with (#73): switch, add, rename,
+  // delete, or clear it -- the extension asks for names and confirmations.
+  const select = el('select', { title: 'Answer set every preview renders with' });
+  for (const p of s.profiles) { const o = el('option', { value: p }, p); if (p === s.profile) o.selected = true; select.append(o); }
+  select.addEventListener('change', () => vscode.postMessage({ type: 'profile', action: 'switch', name: select.value }));
+  const act = (action, label, title) => el('button', { title, onclick: () => vscode.postMessage({ type: 'profile', action }) }, label);
+  root.append(el('div', { class: 'profile' }, el('span', {}, 'Profile'), select,
+    act('new', 'New…', 'New profile, empty or a copy of this one'),
+    act('rename', 'Rename…', 'Rename this profile'),
+    act('delete', 'Delete', 'Delete this profile and its answers'),
+    act('clear', 'Clear answers', 'Wipe every answer in this profile')));
   root.append(el('div', { class: 'file' }, s.file));
   if (s.fatal) { root.append(el('div', { class: 'msg err' }, s.fatal)); return; }
   if (s.error) root.append(el('div', { class: 'msg' }, 'Render error' + (s.error.line ? ' (' + (s.error.file || '') + ' line ' + s.error.line + ')' : '') + ': ' + s.error.message));
@@ -719,10 +857,15 @@ function render(s) {
   }
   if (!s.rendering && !s.questions.length && !s.error) root.append(el('div', { class: 'empty' }, 'This file’s Jinja reads no external inputs.'));
   if (s.unused.length) {
-    root.append(el('h3', {}, 'Answers not used by this render (' + s.unused.length + ')'));
-    for (const u of s.unused) root.append(el('div', { class: 'row' }, el('div', {}), el('div', {}, el('span', { class: 'key' }, u.id.replace('|', ': '))), el('div', { class: 'where' }, u.value), el('button', { title: 'Forget this answer', onclick: () => send(u.id, '') }, '✕')));
+    // Answers other files read, or none does any more -- collapsed, kept
+    // open across updates once opened.
+    const other = el('details', { id: 'other' }, el('summary', {}, el('h3', {}, 'Other answers in this profile (' + s.unused.length + ')')));
+    if (otherOpen) other.open = true;
+    other.addEventListener('toggle', () => { otherOpen = other.open; });
+    for (const u of s.unused) other.append(el('div', { class: 'row' }, el('div', {}), el('div', {}, el('span', { class: 'key' }, u.id.replace('|', ': '))), el('div', { class: 'where' }, u.value), el('button', { title: 'Forget this answer', onclick: () => send(u.id, '') }, '✕')));
+    root.append(other);
   }
-  root.append(el('div', { class: 'hint' }, 'Values are YAML: 8080, true, "text", [a, b], {key: value}. Answers are remembered per file.'));
+  root.append(el('div', { class: 'hint' }, 'Values are YAML: 8080, true, "text", [a, b], {key: value}. Answers belong to the profile, shared by every file, and are kept until cleared.'));
   if (active) { const again = root.querySelector('input[data-id="' + CSS.escape(active) + '"]'); if (again) { again.value = typed; again.focus(); if (caret !== null) again.setSelectionRange(caret, caret); } }
 }
 window.addEventListener('message', (e) => {

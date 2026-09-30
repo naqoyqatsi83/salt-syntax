@@ -313,6 +313,28 @@
         "icon": "$(unlock)"
       },
       {
+        "command": "saltSyntax.preview.switchProfile",
+        "title": "Salt Syntax: Switch Preview Profile",
+        "icon": "$(account)"
+      },
+      {
+        "command": "saltSyntax.preview.newProfile",
+        "title": "Salt Syntax: New Preview Profile"
+      },
+      {
+        "command": "saltSyntax.preview.renameProfile",
+        "title": "Salt Syntax: Rename Preview Profile"
+      },
+      {
+        "command": "saltSyntax.preview.deleteProfile",
+        "title": "Salt Syntax: Delete Preview Profile"
+      },
+      {
+        "command": "saltSyntax.preview.clearAnswers",
+        "title": "Salt Syntax: Clear Preview Answers",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "saltSyntax.toggleComment",
         "title": "Salt Syntax: Toggle Jinja/Line Comment"
       },
@@ -360,6 +382,18 @@
         {
           "command": "saltSyntax.preview.goToSource",
           "when": "resourceScheme == salt-preview"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "saltSyntax.preview.switchProfile",
+          "when": "view == saltSyntax.previewInputs",
+          "group": "navigation@1"
+        },
+        {
+          "command": "saltSyntax.preview.clearAnswers",
+          "when": "view == saltSyntax.previewInputs",
+          "group": "navigation@2"
         }
       ],
       "editor/title": [

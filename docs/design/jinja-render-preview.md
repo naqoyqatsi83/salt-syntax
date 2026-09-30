@@ -140,9 +140,9 @@ Once rendered to plain YAML, reuse data the extension already ships:
 
 Compared with the brainstorm: rendering is **real Jinja2 through the
 user's Python**, not Nunjucks (fidelity won — see the coverage map
-below); answers are kept per file rather than in named profiles; nothing
-Salt-side is ever executed, with no opt-in to change that. Profiles,
-branch dimming, hover values and profile diffs weren't built.
+below); answers live in named profiles (#73), shared by every file;
+nothing Salt-side is ever executed, with no opt-in to change that. Branch
+dimming, hover values and profile diffs weren't built.
 
 - **Rendered preview** (`src/preview.js`) — *Salt Syntax: Open Rendered
   Preview*, the preview button in the editor title bar, or `Ctrl+K V`:
@@ -158,9 +158,14 @@ branch dimming, hover values and profile diffs weren't built.
   `salt[...]` calls, undefined variables), each with a status dot
   (answered / code default used / unknown), the line reading it (from the
   static extractor in `src/templateInputs.js`), and a text field prefilled
-  with the default. Values are YAML. Answers are kept per file in
-  `globalState`; answers the current render didn't use are listed
-  separately.
+  with the default. Values are YAML. Answers belong to the active
+  **profile** (#73): named answer sets in `workspaceState` (`globalState`
+  with no folder open), one active, shared by every preview -- a profile
+  bar at the top switches / adds (empty or a copy) / renames / deletes /
+  clears them, with VS Code's own prompts and confirmations. A file's
+  answers from before profiles (per file, in `globalState`) move into
+  the active profile the first time it's previewed. Answers the current
+  render didn't use are listed collapsed, as other answers in the profile.
 - **Renderer** (`src/preview/render.py`) — **real Jinja2** via the user's
   `python3` (+ `jinja2`, `pyyaml`; setting `saltSyntax.preview.pythonPath`).
   Emulates Salt's Jinja: `sls`/`tpldir`/`slspath`/`saltenv`... from the
@@ -218,8 +223,7 @@ Limits:
   folder. Rendering around a missing import is a possible refinement.
 - Imported files are read from disk, so unsaved edits to `map.jinja` show
   up on save, not live.
-- Not built: profiles (named answer sets per mock minion), branch
-  dimming, hover values.
+- Not built: branch dimming, hover values.
 
 ## Coverage of Salt's failure modes
 

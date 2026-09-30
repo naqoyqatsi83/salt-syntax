@@ -452,8 +452,14 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   prefilled with the default written in the code. Type a value (as YAML:
   `8080`, `RedHat`, `[a, b]`, `{k: v}`) and the preview re-renders;
   questions appear as the render reaches them (answer `os_family:
-  RedHat` and the RedHat-only inputs show up). Answers are remembered per
-  file. Nothing Salt-side is ever executed; an unanswered value without a
+  RedHat` and the RedHat-only inputs show up). Answers belong to a
+  **profile** -- a named answer set, e.g. one per kind of minion
+  (`rhel-eu`, `debian-us`) -- shared by every file you preview, so a
+  formula's grains and pillar are answered once. Switch, add, rename or
+  delete profiles, or **Clear answers**, from the bar at the top of the
+  panel (or *Salt Syntax: Switch Preview Profile* / *Clear Preview
+  Answers*). Profiles are kept per workspace and survive restarts until
+  you clear or delete them. Nothing Salt-side is ever executed; an unanswered value without a
   default shows as a visible `«grains:os»`-style placeholder.
 - **Problems Salt would hit, where they are.** Checked against Salt's own
   code for the selected `saltSyntax.saltVersion` (3006 or 3008) and shown

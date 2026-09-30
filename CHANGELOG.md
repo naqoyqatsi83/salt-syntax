@@ -12,6 +12,15 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- Preview **profiles**: the Salt Preview panel's answers belong to a
+  named profile -- e.g. one per kind of minion -- shared by every file
+  you preview, instead of being kept per file. Switch, add (empty or a
+  copy), rename and delete profiles, or clear all answers, from a bar at
+  the top of the panel or the command palette. Profiles are kept per
+  workspace across restarts; existing answers move into the active one.
+  [#73](https://github.com/naqoyqatsi83/salt-syntax/issues/73)
+
 ## [0.14.0] - 2026-09-30
 
 ### Added

@@ -334,15 +334,18 @@ function createVscode(config) {
   return { vscode, reg };
 }
 
-const memento = () => {
-  const store = {};
-  return { get: (k, d) => (k in store ? store[k] : d), update: async (k, v) => (store[k] = JSON.parse(JSON.stringify(v))), store };
+const memento = (initial = {}) => {
+  const store = JSON.parse(JSON.stringify(initial));
+  return { get: (k, d) => (k in store ? store[k] : d), // Like VS Code's Memento: storing undefined removes the key.
+  update: async (k, v) => (v === undefined ? delete store[k] : (store[k] = JSON.parse(JSON.stringify(v)))), store };
 };
 
 // Installs the mock and activates src/extension.js. `config` holds settings
 // by full name ('saltSyntax.nonAsciiCheck': false), and can be changed later
 // (then call fireConfig('saltSyntax.x') to notify the extension).
-async function load({ config = {} } = {}) {
+// `globalState` / `workspaceState`: what the extension finds stored, e.g. a
+// previous load's `context.globalState.store` -- VS Code restarted.
+async function load({ config = {}, globalState = {}, workspaceState = {} } = {}) {
   // The Python test/run.js picked (one with jinja2 + pyyaml), for the preview.
   if (process.env.PYTHON && !('saltSyntax.preview.pythonPath' in config)) config['saltSyntax.preview.pythonPath'] = process.env.PYTHON;
   const { vscode, reg } = createVscode(config);
@@ -354,7 +357,7 @@ async function load({ config = {} } = {}) {
     if (key.startsWith(SRC)) delete require.cache[key];
   }
   const ext = require(path.join(SRC, 'extension.js'));
-  const context = { subscriptions: [], globalState: memento(), workspaceState: memento() };
+  const context = { subscriptions: [], globalState: memento(globalState), workspaceState: memento(workspaceState) };
   await ext.activate(context);
   const fire = (name, event) => Promise.all(reg.listeners[name].map((f) => f(event)));
   return {
