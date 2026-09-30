@@ -42,6 +42,21 @@ version heading when that state gets tagged and merged to `main`.
 - The preview no longer garbles non-ASCII characters (`é`, emoji, ...)
   on Windows, where Python read the extension's UTF-8 request as cp1252.
   [#69](https://github.com/naqoyqatsi83/salt-syntax/issues/69)
+- The preview's line map works for files with CRLF line endings (common
+  on Windows); before, scroll sync, problems on the formula line and
+  click-to-source silently stopped working for them.
+  [#70](https://github.com/naqoyqatsi83/salt-syntax/issues/70)
+- The preview looks up keys inside lists the way Salt does
+  (`pillar.get('users:0:name')`, `grains.get('roles:0')`); they returned
+  the default before. The Salt functions the preview computes or answers
+  are now tested against Salt's own code, for 3006 and 3008.
+  [#72](https://github.com/naqoyqatsi83/salt-syntax/issues/72)
+
+### Changed
+- The test suite passes on Windows: the runner finds a Python with
+  jinja2 + pyyaml (`$PYTHON`, else `python3` / `python` / `py`), and path,
+  CRLF and `npm.cmd` differences no longer fail or skip tests.
+  [#71](https://github.com/naqoyqatsi83/salt-syntax/issues/71)
 
 ## [0.13.0] - 2026-09-27
 

@@ -66,6 +66,48 @@ class Placeholder(str):
         return Placeholder(f"{self[:-1]}.{name}»")
 
 
+def traverse_dict_and_list(data, keys, default):
+    """salt.utils.data.traverse_dict_and_list over already-split `keys`: into
+    dicts by key, into lists by index -- or, for a non-numeric key, into the
+    first dict in the list that has it (pillar.get('users:0:name'))."""
+    ptr = data
+    for each in keys:
+        if isinstance(ptr, list):
+            try:
+                idx = int(each)
+            except ValueError:
+                ptr = next((d[each] for d in ptr if isinstance(d, dict) and each in d), MISSING)
+                if ptr is MISSING:
+                    return default
+            else:
+                embedded = next((d[idx] for d in ptr if isinstance(d, dict) and idx in d), MISSING)
+                if embedded is not MISSING:
+                    ptr = embedded
+                else:
+                    try:
+                        ptr = ptr[idx]
+                    except IndexError:
+                        return default
+        else:
+            try:
+                ptr = ptr[each]
+            except KeyError:
+                # A key YAML reads as another type (8080 -> int) is tried as that.
+                try:
+                    loaded = yaml.safe_load(each) if isinstance(each, str) else each
+                except yaml.YAMLError:
+                    return default
+                if loaded == each:
+                    return default
+                try:
+                    ptr = ptr[loaded]
+                except (KeyError, TypeError):
+                    return default
+            except TypeError:
+                return default
+    return ptr
+
+
 class Session:
     def __init__(self, answers):
         self.raw_answers = answers
@@ -125,13 +167,7 @@ class Session:
             parent = self.answer(f"{kind}|{delimiter.join(parts[:i])}")
             if parent is MISSING:
                 continue
-            node = parent
-            for p in parts[i:]:
-                if isinstance(node, dict) and p in node:
-                    node = node[p]
-                else:
-                    return MISSING
-            return node
+            return traverse_dict_and_list(parent, parts[i:], MISSING)
         return MISSING
 
     def lookup(self, kind, key, default=MISSING, delimiter=":", also=()):
@@ -1899,6 +1935,9 @@ def main():
     session = Session(req.get("answers") or {})
     roots = [os.path.abspath(r) for r in req.get("roots") or []]
     rel_main, ctx = context_for(req["path"], roots)
+    # Newlines as Jinja reads them (and as imported files are read): CRLF /
+    # CR -> LF. A CRLF editor buffer would otherwise defeat the line map.
+    source = req["source"].replace("\r\n", "\n").replace("\r", "\n")
 
     grains, pillar, opts = Lookup(session, "grains"), Lookup(session, "pillar"), Lookup(session, "config")
 
@@ -1988,7 +2027,7 @@ def main():
             return False
 
     env = SaltEnvironment(
-        loader=SaltLoader(roots, {rel_main: req["source"]}, {rel_main: req["path"]}),
+        loader=SaltLoader(roots, {rel_main: source}, {rel_main: req["path"]}),
         undefined=RecordingUndefined,
         extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"],
         keep_trailing_newline=True,

@@ -33,7 +33,21 @@ Carried across sessions/machines since nothing but this repo is shared
 between them — keep it current rather than letting it drift, the way the
 rest of this file stays current.
 
-- **Where things stand:** `develop` and `main` are at `v0.13.0`: the
+- **Before starting:** `git fetch` and compare every branch you'll touch
+  with `origin` -- work goes on from more than one machine, and a stale
+  clone once had a session fix and build from a branch 70 commits behind.
+- **Where things stand:** `develop` has, unreleased (`[Unreleased]` in the
+  changelog), the preview emulating Salt more exactly: `pillar.filter_by`
+  (#66), merge helpers in place + `filter_by` ported (#67), lookups and
+  context variables as Salt's (#68), UTF-8 request on Windows (#69), line
+  map for CRLF files (#70), keys inside lists (#72) -- and the test suite
+  passing on Windows (#71), with `test/salt-module-parity.test.py` running
+  Salt's own functions against the preview's. Open: #65, the template
+  variables section (the map a `map.jinja` ends up with, after the
+  rendered output), on `experimental/template-variables` -- merged up to
+  date with `develop`, pre-release `v0.14.0-rc.2`; graduates to `develop`
+  as 0.14.0 once tested.
+- **Before that:** `develop` and `main` are at `v0.13.0`: the
   preview traces rendered lines into the templates they came from (Go to
   Source Line, click to reveal; #59), hover info for state functions and
   arguments (#61), and the state-argument check (#62; `**kwargs` data in
@@ -43,7 +57,7 @@ rest of this file stays current.
   dictionary of your own (#64: `_states/*.py` auto-detected,
   `saltSyntax.knownStateFunctions`). v0.13.0 was tagged three times
   before and withdrawn each time to take in more; this is the release.
-  No open issues. v0.12.0:
+  v0.12.0:
   argument completion after `-` from the state function's real
   signature plus Salt's global state arguments (#57, #58), Enter no
   longer outdenting (#56), completion defaults quoted for YAML (#55),
@@ -87,6 +101,11 @@ rest of this file stays current.
   - Debug suspicious coloring by tokenizing with `vscode-textmate`
     against the real theme file, per "Verifying grammar changes" below —
     not by eyeballing a screenshot.
+  - Whatever the preview emulates of Salt, port it from Salt's source at
+    the pinned tags and add it to a parity test
+    (`test/salt-{filter,module}-parity.test.py`) -- written from memory,
+    #66-#68 and #72 each got Salt's behaviour subtly wrong (copies instead
+    of in-place merges, `config.get` skipping pillar, dict-only key walks).
 - **Next up:** nothing committed to. Candidates, none started:
   - execution-module data from Salt's `salt/modules/*.py` (both versions,
     extracted like the state data), for checking / hovering / completing
@@ -94,7 +113,11 @@ rest of this file stays current.
     whose highlighting and syntax check the user put on hold;
   - naming the answered inputs in the preview header ("1 answered
     (`test`)"), after a stale panel answer caused confusion;
-  - refreshing the Salt datasets against newer 3006/3008 point releases.
+  - refreshing the Salt datasets against newer 3006/3008 point releases;
+  - the preview's known gaps from Salt (#68): `config.get`'s `merge=` and
+    Salt's `DEFAULTS` table for unanswered keys, `slsutil.merge`'s
+    yamlex `aggregate` strategy, `tplpath` being the file-roots-relative
+    path rather than the minion's cache path.
 
 ## Project Nature
 
@@ -217,7 +240,9 @@ To regenerate one dataset against a newer tag on its line:
 ## Tests
 
 `node test/run.js` runs every `test/*.test.js` (node) and `test/*.test.py`
-(python3), each in its own process; `node test/run.js <part-of-name>` runs
+(Python: `$PYTHON`, else the first of `python3` / `python` / `py` with
+jinja2 + pyyaml -- the preview's JS tests use the same one), each in its
+own process; `node test/run.js <part-of-name>` runs
 a subset, `-v` shows every test's output. CI runs it before packaging. Run
 it before committing any `src/` change -- nothing else will catch a
 regression until the next release.
@@ -232,8 +257,10 @@ regression until the next release.
 - A mock can't show what only VS Code decides (exact cursor placement,
   rendering, timing of its own events) -- those still need a check in the
   real editor, from a locally installed `.vsix`.
-- A Python test that can't run here (no python3/package/network) exits 77,
+- A Python test that can't run here (no Python/package/network) exits 77,
   which the runner reports as skipped rather than failed.
+- The whole suite passes on Windows too (CRLF checkouts, `\` paths, `npm.cmd`)
+  -- a failure there is a real one, not a known quirk.
 
 ## Verifying grammar changes
 

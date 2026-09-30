@@ -57,13 +57,16 @@ init = os.path.join(origins_root, "o", "init.sls")
 r = render(open(init).read(), init, [origins_root])
 c.eq(r["rendered"], "\n\nx:\n  test.nop\n\nincluded:\n  test.nop\n\n\ny: 8081\n", "rendered as usual; import_yaml value intact (a number, used in arithmetic)")
 c.eq(r["lineMap"], [1, 2, 2, 2, 2, 3, 3, 3, 4, 5, 5], "main-file map: the calling lines")
-files = [os.path.relpath(f, origins_root) if f else f for f in r["lineFiles"]]
+files = [os.path.relpath(f, origins_root).replace(os.sep, "/") if f else f for f in r["lineFiles"]]
 named = [[files[f], line] for f, line in r["lineOrigins"]]
 c.eq(named, [["o/init.sls", 1], ["o/lib.jinja", 2], ["o/lib.jinja", 3], ["o/lib.jinja", 4], ["o/init.sls", 2],
              ["o/part.sls", 1], ["o/part.sls", 2], ["o/init.sls", 3], ["o/init.sls", 4], ["o/init.sls", 5], ["o/init.sls", 5]],
      "origins: macro lines in lib.jinja, included lines in part.sls")
 c.eq(files[0], "o/init.sls", "the main file is file 0")
 c.true(all(os.path.isabs(f) for f in r["lineFiles"]), "absolute paths")
+crlf = render(open(init).read().replace("\n", "\r\n"), init, [origins_root])
+c.eq((crlf["rendered"], crlf["lineMap"], crlf["lineOrigins"]), (r["rendered"], r["lineMap"], r["lineOrigins"]),
+     "a CRLF source (an editor buffer on Windows): the same output and maps")
 
 # No map for a failed render.
 c.eq(one("{% if %}")["lineMap"], None, "render error: no map")
