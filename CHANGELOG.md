@@ -12,6 +12,13 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Fixed
+- The preview now computes `pillar.filter_by` the way it already did
+  `grains.filter_by`: the panel asks for the pillar key it branches on
+  (e.g. `region`) and picks the matching entry, instead of asking for the
+  whole call's result under "Salt function calls".
+  [#66](https://github.com/naqoyqatsi83/salt-syntax/issues/66)
+
 ## [0.13.0] - 2026-09-27
 
 ### Added

@@ -168,6 +168,14 @@ function extractTemplateInputs(text) {
         // one grain; os_family is Salt's default when grain= isn't given.
         const grain = kwargs.grain !== undefined ? keyOf(kwargs.grain) : { key: 'os_family', dynamic: false };
         add('grains', grain.key, grain.dynamic, kwargs.default, base + m.index, snippet);
+      } else if (fn === 'pillar.filter_by') {
+        // pillar.filter_by(lookup_dict, pillar, ...): same, but the key is a
+        // required pillar path.
+        const pillarKey = positional[1] !== undefined ? positional[1] : kwargs.pillar;
+        if (pillarKey !== undefined) {
+          const { key, dynamic } = keyOf(pillarKey);
+          add('pillar', key, dynamic, undefined, base + m.index, snippet);
+        }
       } else if (fn === 'pillar.items' || fn === 'grains.items') {
         add(fn.split('.')[0], '(all)', false, undefined, base + m.index, snippet);
       } else {

@@ -66,4 +66,10 @@ c.eq([(x["message"], x["line"]) for x in r["strictErrors"]],
       ("Jinja variable 'undefined_list' is undefined", 4)], "missing key printed / tested / iterated")
 c.eq(one('{% if nothing is defined %}a: 1{% endif %}\nb: {{ nothing | default("d") }}\n')["strictErrors"], [], "is defined / default are fine")
 c.eq(one('{% from "f/map.jinja" import m %}')["error"]["message"], "Jinja error: division by zero", "import still evaluated")
+# pillar.filter_by branches on a pillar key, asked for as pillar -- not as an opaque call.
+fb = '{% set r = salt["pillar.filter_by"]({"eu": {"m": "m1"}, "us": {"m": "m2"}, "default": {"m": "m0"}}, pillar="region") %}\nm: {{ r.m }}\n'
+r = one(fb)
+c.eq([q["id"] for q in r["questions"]], ["pillar|region"], "pillar.filter_by asks for its pillar key")
+c.true("m: m0" in r["rendered"], "unanswered: the default entry")
+c.true("m: m2" in one(fb, {"pillar|region": "us"})["rendered"], "answered: the matching entry")
 c.done()

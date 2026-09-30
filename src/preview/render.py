@@ -21,7 +21,7 @@ key, a config/opts value, any other salt[...] call's result, an undefined
 variable -- becomes a "question": answered from `answers` if the user gave
 one (YAML text, so 8080 / true / [a, b] / {k: v} all work), else the
 default written in the code if there is one, else a visible placeholder
-like «grains:os». Pure-logic helpers (grains.filter_by, the merge
+like «grains:os». Pure-logic helpers (grains/pillar.filter_by, the merge
 functions) are computed instead of asked.
 """
 import bisect
@@ -235,6 +235,8 @@ class SaltFunctions:
             "grains.item": lambda *keys, **kw: {k: s.lookup("grains", k) for k in keys},
             "grains.items": lambda *a, **kw: dict(s.lookup("grains", "(all)", {})),
             "grains.filter_by": self._filter_by,
+            "pillar.filter_by": lambda lookup_dict, pillar, merge=None, default="default", base=None: self._filter_by(
+                lookup_dict, merge=merge, default=default, base=base, source="pillar", key=pillar),
             "config.get": lambda key, default="", **kw: s.lookup("config", key, default),
             "config.option": lambda key, default="", **kw: s.lookup("config", key, default),
             "slsutil.merge": lambda dest, upd, strategy="smart", merge_lists=False, **kw: deep_merge(dest, upd, merge_lists),
@@ -251,8 +253,10 @@ class SaltFunctions:
 
         return call
 
-    def _filter_by(self, lookup_dict, grain="os_family", merge=None, default="default", base=None):
-        value = self._s.lookup("grains", grain)
+    def _filter_by(self, lookup_dict, grain="os_family", merge=None, default="default", base=None, source="grains", key=None):
+        # grains.filter_by and pillar.filter_by: the same lookup
+        # (salt.utils.data.filter_by), branching on a grain or a pillar key.
+        value = self._s.lookup(source, grain if key is None else key)
         ret = lookup_dict.get(value, lookup_dict.get(default)) if isinstance(lookup_dict, dict) else None
         if isinstance(base, dict):
             ret = deep_merge(base, ret or {})
