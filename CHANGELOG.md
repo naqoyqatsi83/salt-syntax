@@ -40,6 +40,12 @@ version heading when that state gets tagged and merged to `main`.
   click-to-source silently stopped working for them.
   [#70](https://github.com/naqoyqatsi83/salt-syntax/issues/70)
 
+### Changed
+- The test suite passes on Windows: the runner finds a Python with
+  jinja2 + pyyaml (`$PYTHON`, else `python3` / `python` / `py`), and path,
+  CRLF and `npm.cmd` differences no longer fail or skip tests.
+  [#71](https://github.com/naqoyqatsi83/salt-syntax/issues/71)
+
 ## [0.13.0] - 2026-09-27
 
 ### Added

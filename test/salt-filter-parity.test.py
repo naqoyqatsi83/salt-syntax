@@ -21,11 +21,20 @@ import uuid
 import warnings
 from collections import OrderedDict
 
-import yaml
-from markupsafe import Markup
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "helpers"))
-from preview import Checks, renderer, salt_source  # noqa: E402
+from preview import Checks, renderer, salt_source, skip  # noqa: E402
+
+try:
+    import yaml
+    from markupsafe import Markup
+except ImportError as exc:
+    skip(f"python package '{exc.name}' not installed (pip install jinja2 pyyaml)")
+
+# Salt's code runs as on a POSIX minion, as the preview assumes (render.py's
+# _path_join) -- not with this machine's os.path, ntpath on Windows.
+posix_os = types.ModuleType("os")
+posix_os.__dict__.update(os.__dict__)
+posix_os.path, posix_os.sep = __import__("posixpath"), "/"
 
 MODULES = ["data", "dictupdate", "hashutils", "jinja", "path", "stringutils", "yamlencoding"]
 
@@ -42,7 +51,7 @@ def load_salt_filters(version):
     for mod in MODULES:
         src = salt_source(version, f"salt/utils/{mod}.py")
         tree = ast.parse(src)
-        ns = {"salt": salt, "re": re, "shlex": shlex, "uuid": uuid, "warnings": warnings, "io": io, "sys": sys, "os": os,
+        ns = {"salt": salt, "re": re, "shlex": shlex, "uuid": uuid, "warnings": warnings, "io": io, "sys": sys, "os": posix_os,
               "yaml": yaml, "Markup": Markup, "Hashable": collections.abc.Hashable, "OrderedDict": OrderedDict,
               "fnmatch": fnmatch, "collections": collections, "SaltException": SaltException,
               "SaltInvocationError": SaltException, "CaseInsensitiveDict": _CaseInsensitiveDict,

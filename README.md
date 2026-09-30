@@ -625,13 +625,14 @@ see [AGENTS.md](AGENTS.md#updating-the-salt-modulefunction-list) for the
 exact rules and how to regenerate either one against a newer Salt release.
 
 Tests: `node test/run.js` runs every `test/*.test.js` (node) and
-`test/*.test.py` (python3, needs `jinja2` + `pyyaml`), each in its own
+`test/*.test.py` (Python with `jinja2` + `pyyaml`: `$PYTHON`, else the first
+of `python3` / `python` / `py` that has them), each in its own
 process; `node test/run.js <part-of-name>` runs a subset, `-v` shows each
 test's output. The JS tests run the extension against a mock of the
 `vscode` API (`test/helpers/vscode.js`); the grammar tests tokenize with VS
 Code's own engine, and the preview's parity tests run Salt's own code
 (fetched into `test/.cache`) against the renderer's. A test that can't run
-here (no python3, no network) is reported as skipped. Run them before
+here (no Python, no network) is reported as skipped. Run them before
 committing — CI only runs on a release tag.
 
 CI (`.github/workflows/build.yml`) runs only on a `v*` tag push (or manually

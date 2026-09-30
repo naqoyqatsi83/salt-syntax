@@ -17,8 +17,10 @@ function requirePackages() {
   const mod = (name) => path.join(CACHE, 'node_modules', name);
   if (!fs.existsSync(mod('vscode-textmate')) || !fs.existsSync(mod('vscode-oniguruma'))) {
     fs.mkdirSync(CACHE, { recursive: true });
-    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const res = spawnSync(npm, ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', CACHE, 'vscode-textmate@9', 'vscode-oniguruma@2'], { encoding: 'utf8' });
+    // On Windows npm is a .cmd, which Node only runs through a shell (since
+    // its CVE-2024-27980 fix) -- so the one path argument is quoted there.
+    const win = process.platform === 'win32';
+    const res = spawnSync(win ? 'npm.cmd' : 'npm', ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', win ? `"${CACHE}"` : CACHE, 'vscode-textmate@9', 'vscode-oniguruma@2'], { encoding: 'utf8', shell: win });
     if (res.status !== 0) {
       console.log(`skipped: couldn't install vscode-textmate / vscode-oniguruma into test/.cache (${(res.stderr || res.error || '').toString().trim().split('\n').pop()})`);
       process.exit(77);

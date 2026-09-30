@@ -217,7 +217,9 @@ To regenerate one dataset against a newer tag on its line:
 ## Tests
 
 `node test/run.js` runs every `test/*.test.js` (node) and `test/*.test.py`
-(python3), each in its own process; `node test/run.js <part-of-name>` runs
+(Python: `$PYTHON`, else the first of `python3` / `python` / `py` with
+jinja2 + pyyaml -- the preview's JS tests use the same one), each in its
+own process; `node test/run.js <part-of-name>` runs
 a subset, `-v` shows every test's output. CI runs it before packaging. Run
 it before committing any `src/` change -- nothing else will catch a
 regression until the next release.
@@ -232,8 +234,10 @@ regression until the next release.
 - A mock can't show what only VS Code decides (exact cursor placement,
   rendering, timing of its own events) -- those still need a check in the
   real editor, from a locally installed `.vsix`.
-- A Python test that can't run here (no python3/package/network) exits 77,
+- A Python test that can't run here (no Python/package/network) exits 77,
   which the runner reports as skipped rather than failed.
+- The whole suite passes on Windows too (CRLF checkouts, `\` paths, `npm.cmd`)
+  -- a failure there is a real one, not a known quirk.
 
 ## Verifying grammar changes
 

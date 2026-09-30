@@ -227,7 +227,8 @@ function createVscode(config) {
     DocumentHighlightKind: { Text: 0, Read: 1, Write: 2 },
     ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
     ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2 },
-    Uri: { file: (p) => uri(p), from: (o) => uri(o.path, o.scheme, o.query || '') },
+    // Uri.file normalizes separators, as VS Code's does (C:/b -> C: on Windows).
+    Uri: { file: (p) => uri(path.normalize(p)), from: (o) => uri(o.path, o.scheme, o.query || '') },
     languages: lenient({
       createDiagnosticCollection(name) {
         const c = {
@@ -342,6 +343,8 @@ const memento = () => {
 // by full name ('saltSyntax.nonAsciiCheck': false), and can be changed later
 // (then call fireConfig('saltSyntax.x') to notify the extension).
 async function load({ config = {} } = {}) {
+  // The Python test/run.js picked (one with jinja2 + pyyaml), for the preview.
+  if (process.env.PYTHON && !('saltSyntax.preview.pythonPath' in config)) config['saltSyntax.preview.pythonPath'] = process.env.PYTHON;
   const { vscode, reg } = createVscode(config);
   const original = Module._load;
   Module._load = function (request, ...rest) {
