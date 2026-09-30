@@ -482,6 +482,17 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   in the preview highlights that line and scrolls it into view, keeping
   your cursor in the preview (in the formula if the other file isn't open;
   `saltSyntax.preview.clickToSource` turns it off).
+- **Template variables.** After the rendered output, as a second YAML
+  document (`---`), come the file's variables once rendered — its
+  top-level `{% set %}`s and `import_yaml` & co., what
+  `{% from "chrony/map.jinja" import chrony %}` would get. For a
+  `map.jinja`, which prints nothing, that's the map itself: answer
+  `os_family: Debian` in the panel and see Debian's merged values.
+  The last one set comes first — for a map, the map itself. Data files
+  `import_yaml` loaded and the template left unchanged are a one-line
+  reference to the file, and a value equal to one above says "same as".
+  Macros and the names it imports aren't shown; the rendered part above
+  stays exactly what Jinja printed (`saltSyntax.preview.showVariables`).
 - **Setup:** set `saltSyntax.preview.fileRoots` to your Salt tree (like
   the master's `file_roots`) if it isn't the open workspace folder; on
   Windows point `saltSyntax.preview.pythonPath` at your Python (`python`
@@ -554,6 +565,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.preview.pythonPath` | `python3` | Python interpreter for the rendered preview — needs `jinja2` and `pyyaml`. |
 | `saltSyntax.preview.fileRoots` | `[]` | Salt file roots imports, `include:` targets and `sls`/`tpldir` resolve against. Empty: the workspace folder, or with no folder open, the directory above the file's own. |
 | `saltSyntax.preview.scrollSync` | `true` | Scroll the formula and its preview together. Toggled by the lock button on the preview's title bar. |
+| `saltSyntax.preview.showVariables` | `true` | Show the file's variables after the rendered output (for a `map.jinja`: the map) — see [Rendered preview](#rendered-preview). |
 | `saltSyntax.preview.clickToSource` | `true` | A click in the preview highlights and reveals the source line it came from, cursor staying in the preview. |
 
 `showWhitespace`, `enforceLfLineEndings` and `enforceFinalNewline` are a

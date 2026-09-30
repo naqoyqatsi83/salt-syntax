@@ -6,6 +6,7 @@ Reads one JSON request on stdin, writes one JSON result on stdout:
   request  {"source": str, "path": str, "roots": [str], "answers": {id: str}}
   result   {"rendered": str, "questions": [...], "warnings": [...],
             "error": {...} | null, "yamlErrors": [{...}], "context": {...},
+            "variables": YAML text of the template's variables (#65) | null,
             "lineMap": [main-file line per rendered line | null] | null,
             "lineOrigins": [[file index, line] | null per rendered line] | null,
             "lineFiles": [absolute path per file index; 0 = the main file] | null}
@@ -1289,6 +1290,67 @@ def with_positions(origins, sources):
     return out
 
 
+def snapshot(value):
+    """A value's content, for telling later whether it changed."""
+    return json.dumps(value, sort_keys=True, default=repr)
+
+
+def template_variables(context, imported=None):
+    """The template's variables after rendering, as YAML (#65): its exported
+    top-level names -- exactly what another template's `{% from "x" import
+    y %}` could import: top-level {% set %}s (import_yaml & co. included),
+    not the names it imports itself, nor _private ones -- minus macros,
+    imported modules and other callables. None when there are none.
+
+    Last set first: in a map.jinja that's the map itself. A value that is
+    import_yaml / import_json data still exactly as loaded (`imported`:
+    id -> (file, snapshot)) is a one-line reference to its file instead of
+    a copy, and a map or list equal to one already shown, a reference to
+    that one ("same as chrony"). Undefined values show as their «...» placeholder, without being
+    recorded as a use (printing one would count as a strict error)."""
+    import types
+
+    def undefined_marker(value):
+        name = getattr(value, "_undefined_name", None)
+        if getattr(value, "_is_variable", False):
+            return f"«variable:{name}»"
+        return f"«undefined:{name}»" if name else "«undefined»"
+
+    class Dumper(yaml.SafeDumper):
+        # Every value written out, not as &anchor / *alias when two share
+        # one object (a map and the entry filter_by picked from it).
+        def ignore_aliases(self, data):
+            return True
+
+    Dumper.add_multi_representer(str, lambda d, v: d.represent_str(str(v)))  # Markup, placeholders
+    Dumper.add_multi_representer(jinja2.Undefined, lambda d, v: d.represent_str(undefined_marker(v)))
+    Dumper.add_multi_representer(dict, lambda d, v: d.represent_dict(dict(v)))
+    Dumper.add_multi_representer(tuple, lambda d, v: d.represent_list(list(v)))
+    Dumper.add_multi_representer((set, frozenset), lambda d, v: d.represent_list(sorted(v, key=repr)))
+    Dumper.add_multi_representer(object, lambda d, v: d.represent_str(repr(v)))
+    not_data = (jinja2.runtime.Macro, jinja2.environment.TemplateModule, types.FunctionType, types.BuiltinFunctionType,
+                types.MethodType, type)
+    # An undefined value is data too (shown as its placeholder), though
+    # Jinja's Undefined is callable.
+    data = {name: value for name, value in context.vars.items()
+            if name in context.exported_vars and (isinstance(value, jinja2.Undefined) or not (isinstance(value, not_data) or callable(value)))}
+    if not data:
+        return None
+    out = []
+    shown = {}  # snapshot -> name, of the maps and lists written out so far
+    for name, value in reversed(list(data.items())):
+        source = (imported or {}).get(id(value))
+        if source and snapshot(value) == source[1]:
+            out.append(f"{name}:  # imported from {source[0]}, as is\n")
+        elif isinstance(value, (dict, list)) and value and snapshot(value) in shown:
+            out.append(f"{name}:  # same as {shown[snapshot(value)]}\n")
+        else:
+            if isinstance(value, (dict, list)) and value:
+                shown[snapshot(value)] = name
+            out.append(yaml.dump({name: value}, Dumper=Dumper, default_flow_style=False, sort_keys=False, allow_unicode=True))
+    return "".join(out)
+
+
 class SaltLoader(jinja2.BaseLoader):
     def __init__(self, roots, overrides, override_paths=None):
         self.roots = roots
@@ -1984,6 +2046,8 @@ def main():
     env.tests["match"] = test_match
     env.tests["equalto"] = lambda value, other: value == other
 
+    imported_values = {}  # id -> (file, snapshot, value): what import_yaml & co. loaded (#65)
+
     def import_serialized(kind):
         # import_yaml & co. render the imported file with Jinja first (as
         # Salt does), in the importing template's context.
@@ -1991,7 +2055,10 @@ def main():
             name = env.join_path(str(path), context.name)
             # Unmarked before parsing when the line map's render marks it (#59).
             text = CHAR_MARK.sub("", LINE_MARK.sub("", env.get_template(name).render(context.get_all())))
-            return {"yaml": yaml.safe_load, "json": json.loads, "text": str}[kind](text)
+            value = {"yaml": yaml.safe_load, "json": json.loads, "text": str}[kind](text)
+            if isinstance(value, (dict, list)):
+                imported_values[id(value)] = (name, snapshot(value), value)  # the value itself keeps its id alive
+            return value
         return jinja2.pass_context(load)
 
     env.globals.update(ctx)
@@ -2015,13 +2082,19 @@ def main():
                 env.globals[qid.split("|", 1)[1]] = val
                 injected.append(qid)
 
-    result = {"rendered": "", "error": None, "yamlErrors": [], "context": dict(ctx, file=rel_main, roots=roots)}
+    result = {"rendered": "", "error": None, "yamlErrors": [], "variables": None, "context": dict(ctx, file=rel_main, roots=roots)}
     # Salt ships filters this emulation doesn't: stub each unknown one as a
     # pass-through (with a warning) and retry, rather than stopping cold.
     # Every filter Salt has is registered above, so an unknown one fails the
     # render here exactly as in Salt ("No filter named ...").
     try:
-        result["rendered"] = env.get_template(rel_main).render()
+        # Template.render(), with its context kept for the variables (#65).
+        template = env.get_template(rel_main)
+        main_context = template.new_context()
+        try:
+            result["rendered"] = env.concat(template.root_render_func(main_context))
+        except Exception:  # noqa: BLE001 - as Template.render: Jinja rewrites the traceback, then raises
+            env.handle_exception()
     except Exception as exc:  # noqa: BLE001 - every failure is reported, not raised
         raise_to_result(result, exc, rel_main)
 
@@ -2042,6 +2115,10 @@ def main():
             finally:
                 session.questions, session.warnings, session.strict_errors = saved
 
+        try:
+            result["variables"] = template_variables(main_context, imported_values)
+        except Exception:  # noqa: BLE001 - no variables section is the fallback
+            result["variables"] = None
         result["yamlErrors"] = check_rendered_yaml(result["rendered"], salt_version, ctx["sls"],
                                                    req.get("stateData"), roots, rel_main, render_included)
 

@@ -12,6 +12,13 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+### Added
+- The preview shows the file's variables after the rendered output (a
+  second YAML document): what `{% from %}` would import -- for a
+  `map.jinja`, the resulting map for the grains you answer. Setting
+  `saltSyntax.preview.showVariables`.
+  [#65](https://github.com/naqoyqatsi83/salt-syntax/issues/65)
+
 ### Fixed
 - The preview now computes `pillar.filter_by` the way it already did
   `grains.filter_by`: the panel asks for the pillar key it branches on

@@ -283,7 +283,15 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     if (!r) return '# Rendering…\n';
     if (r.fatal) return `# Salt rendered preview\n#\n# ${r.fatal.split('\n').join('\n# ')}\n`;
     const head = headerLines(state);
-    return r.error ? `${head.join('\n')}\n` : `${head.join('\n')}\n${r.rendered}`;
+    return r.error ? `${head.join('\n')}\n` : `${head.join('\n')}\n${r.rendered}${variablesSection(r)}`;
+  }
+
+  // The template's variables (#65), after the rendered output as a second
+  // YAML document, so the rendered part stays exactly what Jinja printed.
+  function variablesSection(r) {
+    if (!r.variables || !vscode.workspace.getConfiguration('saltSyntax.preview').get('showVariables', true)) return '';
+    const gap = r.rendered === '' || r.rendered.endsWith('\n') ? '' : '\n';
+    return `${gap}---\n# Template variables -- not rendered output: the values ${r.context.file} ends up with (what \`{% from %}\` would import)\n${r.variables}`;
   }
 
 
@@ -424,7 +432,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const r = state.result;
     const head = headerLines(state).length;
     const i = previewLine - head;
-    if (!r.lineOrigins || i < 0) return null;
+    if (!r.lineOrigins || i < 0 || i >= renderedLineCount(r)) return null; // (the variables section, #65)
     const origin = r.lineOrigins[Math.min(i, r.lineOrigins.length - 1)];
     const calling = r.lineMap && r.lineMap[Math.min(i, r.lineMap.length - 1)];
     if (!origin) return null;
@@ -453,6 +461,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   // text, the tag's for an expression's output -- or null.
   function charOriginAt(state, traced, previewLine, character) {
     const i = previewLine - headerLines(state).length;
+    if (i >= renderedLineCount(state.result)) return null; // the variables section (#65)
     const runs = traced && i >= 0 ? traced.charOrigins[i] : null;
     const run = runs && runs.find((x) => character >= x[0] && character < x[1]);
     if (!run) return null;
@@ -476,7 +485,8 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const r = state && state.result;
     if (!r || r.fatal || r.error) return;
     const line = editor.selection.active.line;
-    if (line < headerLines(state).length) return;
+    const head = headerLines(state).length;
+    if (line < head || line - head >= renderedLineCount(r)) return; // header, or the variables section (#65)
     // Character origins (#60): straight to the character, where known.
     const exact = charOriginAt(state, await charOriginsFor(state), line, editor.selection.active.character);
     if (exact && exact.run[5] !== 'X') {
@@ -577,7 +587,9 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     // Where 3006 and 3008 differ (e.g. which compiler errors exist), the
     // checks follow saltSyntax.saltVersion -- re-check when it changes.
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('saltSyntax.saltVersion')) for (const key of states.keys()) render(key);
+      if (e.affectsConfiguration('saltSyntax.saltVersion') || e.affectsConfiguration('saltSyntax.preview.showVariables')) {
+        for (const key of states.keys()) render(key);
+      }
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor) return;
@@ -625,6 +637,13 @@ function proportionalMap(rendered, otherLineCount, ownLineCount, fromPreview) {
   const renderedCount = (rendered || '').split('\n').length;
   const sourceCount = Math.max(1, fromPreview ? otherLineCount : ownLineCount);
   return Array.from({ length: renderedCount }, (_, i) => 1 + Math.floor((i * sourceCount) / renderedCount));
+}
+
+// How many preview lines the rendered output takes: a final newline's empty
+// last line is where the variables section (#65) starts, if there is one.
+function renderedLineCount(r) {
+  const lines = (r.rendered || '').split('\n').length;
+  return r.variables && (r.rendered === '' || r.rendered.endsWith('\n')) ? lines - 1 : lines;
 }
 
 function panelHtml(webview) {
