@@ -22,6 +22,13 @@ version heading when that state gets tagged and merged to `main`.
   one set, kept in step); existing answers move into the active one.
   [#73](https://github.com/naqoyqatsi83/salt-syntax/issues/73)
 
+### Fixed
+- The preview reads YAML the way Salt does -- panel answers, `import_yaml`
+  / `load_yaml` data: an integer with leading zeros isn't octal
+  (`mode: 0755` is 755, which file states make `'0755'`, not 493), dates
+  stay strings, merge keys and duplicate keys behave as in Salt.
+  [#74](https://github.com/naqoyqatsi83/salt-syntax/issues/74)
+
 ## [0.14.0] - 2026-09-30
 
 ### Added

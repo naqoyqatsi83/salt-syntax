@@ -32,8 +32,9 @@ c.true("while scanning a simple key" in got[0][2] and "conflicting ID 'x.___a'" 
 text = "\n".join(base + tail + ["", "x.___b:", "  test.nop: []", "", "x.svc:", "  test.nop: []"]) + "\n"
 c.eq([m.split("'")[1] for _l, _k, m in problems(text)], ["x.___a", "x.___b", "x.svc"], "every duplicate, not just the first")
 c.eq(lines("a:\n  test.nop:\n    - env:\n        A: 1\n        A: 2\n"), [(5, "reject")], "nested duplicate")
+# Salt's flatten_mapping drops a merged key the mapping sets itself (#74): the override wins, no conflict.
 c.eq([(line, m.split(" (")[0]) for line, _k, m in problems("b: &b {a: 1}\nt:\n  test.nop:\n    - <<: *b\n      a: 2\n") if "conflicting" in m],
-     [(5, "found conflicting ID 'a'")], "merge key then override: rejected like Salt")
+     [], "merge key then override: accepted like Salt")
 
 # Values that rendered empty.
 c.eq(lines("a:\n  file.managed:\n    - name: \n    - contents: ~\n    - require:\n      - pkg: vim\n"), [(3, "suspicious")], "empty argument only")

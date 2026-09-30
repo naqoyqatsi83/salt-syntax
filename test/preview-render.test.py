@@ -111,4 +111,9 @@ out = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), ".
                      input=json.dumps(req, ensure_ascii=False).encode("utf-8"), capture_output=True,
                      env=dict(os.environ, PYTHONIOENCODING="cp1252", PYTHONUTF8="0"))
 c.eq(ascii(json.loads(out.stdout or b"{}").get("rendered")), ascii(req["source"]), f"non-ASCII source intact: {out.stderr[-300:]!r}")
+
+# YAML as Salt reads it (#74): a leading zero isn't octal -- in an answer (pillar) and in load_yaml / import_yaml data.
+oc = one('s:\n  file.managed:\n    - mode: {{ salt["pillar.get"]("m") }}\n    - dir_mode: {{ ("d: 0755" | load_yaml).d }}\n',
+         {"pillar|m": "0644"})["rendered"]
+c.true("- mode: 644" in oc and "- dir_mode: 755" in oc, f"0644 / 0755 read as 644 / 755, not octal 420 / 493: {oc!r}")
 c.done()

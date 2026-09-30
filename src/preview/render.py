@@ -94,7 +94,7 @@ def traverse_dict_and_list(data, keys, default):
             except KeyError:
                 # A key YAML reads as another type (8080 -> int) is tried as that.
                 try:
-                    loaded = yaml.safe_load(each) if isinstance(each, str) else each
+                    loaded = salt_yaml_load(each) if isinstance(each, str) else each
                 except yaml.YAMLError:
                     return default
                 if loaded == each:
@@ -120,7 +120,7 @@ class Session:
         if text is None or str(text).strip() == "":
             return MISSING
         try:
-            return yaml.safe_load(text)
+            return salt_yaml_load(text)
         except yaml.YAMLError:
             return str(text)
 
@@ -473,7 +473,89 @@ def preprocess(source):
     return "".join(out)
 
 
-class SaltSafeLoader(yaml.SafeLoader):
+class SaltYamlLoader(yaml.SafeLoader):
+    """Salt's YAML loader (salt/utils/yamlloader.py, SaltYamlSafeLoader --
+    the same in 3006 and 3008 but for 3008's !!binary), for every YAML
+    Salt reads: pillar (so panel answers), import_yaml / load_yaml, the
+    rendered SLS. Where it differs from standard YAML:
+
+    - an integer with leading zeros is read without them, not as octal:
+      `mode: 0755` is 755 (file states then make it '0755'), not 493;
+    - a timestamp stays a string (`2024-01-01`, not a date);
+    - merge keys are flattened Salt's way;
+    - a key twice in one mapping is an error: "found conflicting ID"."""
+
+    def __init__(self, stream):
+        super().__init__(stream)
+        self.add_constructor("tag:yaml.org,2002:timestamp", type(self).construct_scalar)
+
+    def construct_scalar(self, node):
+        if node.tag == "tag:yaml.org,2002:int" and node.value != "0" and node.value.startswith("0") \
+                and not node.value.startswith(("0b", "0x")):
+            node.value = node.value.lstrip("0") or "0"
+        return super().construct_scalar(node)
+
+    def construct_mapping(self, node, deep=False):
+        if not isinstance(node, yaml.MappingNode):
+            raise yaml.constructor.ConstructorError(None, None, f"expected a mapping node, but found {node.id}", node.start_mark)
+        self.flatten_mapping(node)
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                hash(key)
+            except TypeError:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark, f"found unacceptable key {key_node.value}", key_node.start_mark)
+            value = self.construct_object(value_node, deep=deep)
+            if key in mapping:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark, f"found conflicting ID '{key}'", key_node.start_mark)
+            mapping[key] = value
+        return mapping
+
+    def flatten_mapping(self, node):
+        merge = []
+        index = 0
+        while index < len(node.value):
+            key_node, value_node = node.value[index]
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                del node.value[index]
+                if isinstance(value_node, yaml.MappingNode):
+                    self.flatten_mapping(value_node)
+                    merge.extend(value_node.value)
+                elif isinstance(value_node, yaml.SequenceNode):
+                    submerge = []
+                    for subnode in value_node.value:
+                        if not isinstance(subnode, yaml.MappingNode):
+                            raise yaml.constructor.ConstructorError(
+                                "while constructing a mapping", node.start_mark,
+                                f"expected a mapping for merging, but found {subnode.id}", subnode.start_mark)
+                        self.flatten_mapping(subnode)
+                        submerge.append(subnode.value)
+                    submerge.reverse()
+                    for value in submerge:
+                        merge.extend(value)
+                else:
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping", node.start_mark,
+                        f"expected a mapping or list of mappings for merging, but found {value_node.id}", value_node.start_mark)
+            elif key_node.tag == "tag:yaml.org,2002:value":
+                key_node.tag = "tag:yaml.org,2002:str"
+                index += 1
+            else:
+                index += 1
+        if merge:
+            existing = [name_node.value for name_node, _value_node in node.value]
+            node.value = [x for x in merge if x[0].value not in existing] + node.value
+
+
+def salt_yaml_load(text):
+    """yaml.safe_load, as Salt loads YAML (salt.utils.yaml.safe_load)."""
+    return yaml.load(text, Loader=SaltYamlLoader)
+
+
+class SaltSafeLoader(SaltYamlLoader):
     """Parses the rendered output the way Salt's own loader does
     (salt/utils/yamlloader.py, SaltYamlSafeLoader.construct_mapping): after
     flattening merge keys, a key appearing twice in the same mapping -- at
@@ -917,7 +999,7 @@ def compiler_problems(text, version, sls, state_data=None, custom_modules=frozen
         return []
     v3006 = version == "3006"
     requisites = REQUISITES["3006" if v3006 else "3008"]
-    value_of = yaml.SafeLoader("")  # to turn nodes into the Python values Salt sees
+    value_of = SaltSafeLoader("")  # to turn nodes into the Python values Salt sees
     py = lambda node: value_of.construct_object(node, deep=True)  # noqa: E731
     found = []
 
@@ -1502,7 +1584,7 @@ def _traverse(data, key, default=None, delimiter=":"):
                 ptr = ptr[each]
             except KeyError:
                 try:  # salt.utils.args.yamlify_arg: "1" can reach an int key
-                    loaded = yaml.safe_load(each) if isinstance(each, str) else each
+                    loaded = salt_yaml_load(each) if isinstance(each, str) else each
                 except yaml.YAMLError:
                     return default
                 if loaded == each:
@@ -1735,7 +1817,7 @@ def salt_filters(version, session):
 
     def load_yaml(value):
         try:
-            return yaml.safe_load(str(value))
+            return salt_yaml_load(str(value))
         except yaml.YAMLError as exc:
             raise jinja2.exceptions.TemplateRuntimeError(f"Encountered error loading yaml: {exc}")
 
@@ -2055,7 +2137,7 @@ def main():
             name = env.join_path(str(path), context.name)
             # Unmarked before parsing when the line map's render marks it (#59).
             text = CHAR_MARK.sub("", LINE_MARK.sub("", env.get_template(name).render(context.get_all())))
-            value = {"yaml": yaml.safe_load, "json": json.loads, "text": str}[kind](text)
+            value = {"yaml": salt_yaml_load, "json": json.loads, "text": str}[kind](text)
             if isinstance(value, (dict, list)):
                 imported_values[id(value)] = (name, snapshot(value), value)  # the value itself keeps its id alive
             return value
