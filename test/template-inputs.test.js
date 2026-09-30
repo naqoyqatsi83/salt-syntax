@@ -36,4 +36,7 @@ assert.deepStrictEqual(g.salt.map((k) => k.dynamic), [false, false, true]);
 assert.deepStrictEqual(keys('context'), ['tpldir', 'sls', 'saltenv']);
 const all = JSON.stringify(g);
 for (const ignored of ['in a comment', 'toggled_off', 'raw_ignored', 'the word']) assert.ok(!all.includes(ignored), `${ignored} ignored`);
+const fb = groupTemplateInputs(extractTemplateInputs(`{% set r = salt['pillar.filter_by'](regionmap, pillar='region') or {} %}
+{% set s = salt['pillar.filter_by'](m, 'site:name') %}`));
+assert.deepStrictEqual(fb.map((c) => [c.id, c.keys.map((k) => k.key)]), [['pillar', ['region', 'site:name']]], 'pillar.filter_by -> its pillar key');
 console.log('ok');
