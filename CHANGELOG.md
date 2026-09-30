@@ -35,6 +35,10 @@ version heading when that state gets tagged and merged to `main`.
 - The preview no longer garbles non-ASCII characters (`é`, emoji, ...)
   on Windows, where Python read the extension's UTF-8 request as cp1252.
   [#69](https://github.com/naqoyqatsi83/salt-syntax/issues/69)
+- The preview's line map works for files with CRLF line endings (common
+  on Windows); before, scroll sync, problems on the formula line and
+  click-to-source silently stopped working for them.
+  [#70](https://github.com/naqoyqatsi83/salt-syntax/issues/70)
 
 ## [0.13.0] - 2026-09-27
 

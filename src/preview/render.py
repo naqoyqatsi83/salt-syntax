@@ -1837,6 +1837,9 @@ def main():
     session = Session(req.get("answers") or {})
     roots = [os.path.abspath(r) for r in req.get("roots") or []]
     rel_main, ctx = context_for(req["path"], roots)
+    # Newlines as Jinja reads them (and as imported files are read): CRLF /
+    # CR -> LF. A CRLF editor buffer would otherwise defeat the line map.
+    source = req["source"].replace("\r\n", "\n").replace("\r", "\n")
 
     grains, pillar, opts = Lookup(session, "grains"), Lookup(session, "pillar"), Lookup(session, "config")
 
@@ -1926,7 +1929,7 @@ def main():
             return False
 
     env = SaltEnvironment(
-        loader=SaltLoader(roots, {rel_main: req["source"]}, {rel_main: req["path"]}),
+        loader=SaltLoader(roots, {rel_main: source}, {rel_main: req["path"]}),
         undefined=RecordingUndefined,
         extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"],
         keep_trailing_newline=True,
