@@ -631,7 +631,8 @@ process; `node test/run.js <part-of-name>` runs a subset, `-v` shows each
 test's output. The JS tests run the extension against a mock of the
 `vscode` API (`test/helpers/vscode.js`); the grammar tests tokenize with VS
 Code's own engine, and the preview's parity tests run Salt's own code
-(fetched into `test/.cache`) against the renderer's. A test that can't run
+(fetched into `test/.cache`) against the renderer's -- its filters, merge
+helpers, `filter_by` and lookup functions. A test that can't run
 here (no Python, no network) is reported as skipped. Run them before
 committing — CI only runs on a release tag.
 

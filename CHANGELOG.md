@@ -39,6 +39,11 @@ version heading when that state gets tagged and merged to `main`.
   on Windows); before, scroll sync, problems on the formula line and
   click-to-source silently stopped working for them.
   [#70](https://github.com/naqoyqatsi83/salt-syntax/issues/70)
+- The preview looks up keys inside lists the way Salt does
+  (`pillar.get('users:0:name')`, `grains.get('roles:0')`); they returned
+  the default before. The Salt functions the preview computes or answers
+  are now tested against Salt's own code, for 3006 and 3008.
+  [#72](https://github.com/naqoyqatsi83/salt-syntax/issues/72)
 
 ### Changed
 - The test suite passes on Windows: the runner finds a Python with
