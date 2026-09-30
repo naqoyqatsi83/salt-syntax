@@ -1829,7 +1829,9 @@ def error_location(exc, tb, rel_main):
 
 
 def main():
-    req = json.load(sys.stdin)
+    # UTF-8, as the extension sends it (JSON.stringify leaves non-ASCII
+    # as is) -- not the platform's stdin encoding, cp1252 on Windows.
+    req = json.loads(sys.stdin.buffer.read().decode("utf-8"))
     # Which Salt line's rules to apply where they differ (saltSyntax.saltVersion).
     salt_version = "3006" if str(req.get("saltVersion", "3008")) == "3006" else "3008"
     session = Session(req.get("answers") or {})

@@ -103,4 +103,12 @@ c.eq([w for w in r["warnings"] if "plain dict" in w][:1],
 c.eq([e["message"] for e in one("x: {{ env }}\n")["strictErrors"]], ["Jinja variable 'env' is undefined"], "no `env` in Salt's context")
 top = render("x: {{ tpldir }}|{{ slspath }}|{{ sls }}\n", os.path.join(FIXTURES, "errors", "top.sls"), [os.path.join(FIXTURES, "errors")])
 c.true("x: .||top" in top["rendered"], f"tpldir is '.' at the root, as generate_sls_context: {top['rendered']!r}")
+# Non-ASCII source, sent the way the extension sends it (UTF-8, not \u-escaped),
+# read right whatever the platform's stdin encoding (cp1252 on Windows).
+import json, subprocess  # noqa: E401,E402
+req = {"source": "a: café \U0001F60A\n", "path": os.path.join(FIXTURES, "errors", "f", "init.sls"), "roots": [os.path.join(FIXTURES, "errors")]}
+out = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..", "src", "preview", "render.py")],
+                     input=json.dumps(req, ensure_ascii=False).encode("utf-8"), capture_output=True,
+                     env=dict(os.environ, PYTHONIOENCODING="cp1252", PYTHONUTF8="0"))
+c.eq(ascii(json.loads(out.stdout or b"{}").get("rendered")), ascii(req["source"]), f"non-ASCII source intact: {out.stderr[-300:]!r}")
 c.done()

@@ -32,6 +32,9 @@ version heading when that state gets tagged and merged to `main`.
   `salt['pillar.get']`. `env` is no longer provided (Salt doesn't), and
   `tpldir` is `.` at the root of the file roots.
   [#68](https://github.com/naqoyqatsi83/salt-syntax/issues/68)
+- The preview no longer garbles non-ASCII characters (`é`, emoji, ...)
+  on Windows, where Python read the extension's UTF-8 request as cp1252.
+  [#69](https://github.com/naqoyqatsi83/salt-syntax/issues/69)
 
 ## [0.13.0] - 2026-09-27
 
