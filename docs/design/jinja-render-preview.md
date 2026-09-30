@@ -171,7 +171,10 @@ branch dimming, hover values and profile diffs weren't built.
   loop-control extensions, and every one of Salt's filters (see the
   coverage map). `grains.filter_by` / `pillar.filter_by` and the merge helpers
   (`slsutil.merge`, `defaults.merge`, ..., ported from Salt: in place where
-  Salt's are) are *computed*; every other
+  Salt's are) are *computed*; the lookups follow Salt's own
+  (`config.get` reads opts, grains, then pillar; `pillar.get(merge=True)`;
+  the `pillar` / `grains` / `opts` globals are plain dicts, so
+  `pillar.get('a:b')` returns the default, with a warning); every other
   external read is a question. Unanswered inputs use the code's default if
   it has one, else render as `«kind:key»`. Nothing Salt-side is executed.
 - **Render-until-unknown works as designed**: questions only appear once
@@ -215,9 +218,6 @@ Limits:
   folder. Rendering around a missing import is a possible refinement.
 - Imported files are read from disk, so unsaved edits to `map.jinja` show
   up on save, not live.
-- Salt's `pillar` / `grains` objects in templates are plain dicts;
-  `pillar.get('a:b')` here also resolves nested keys, which is more lenient
-  than real Salt (only `salt['pillar.get']` does that).
 - Not built: profiles (named answer sets per mock minion), branch
   dimming, hover values.
 

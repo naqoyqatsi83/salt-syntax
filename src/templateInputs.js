@@ -19,13 +19,14 @@ const LOOKUP_FUNCTIONS = {
   'pillar.get': 'pillar',
   'pillar.fetch': 'pillar',
   'grains.get': 'grains',
+  'grains.fetch': 'grains',
   'config.get': 'config',
   'config.option': 'config'
 };
 
 // Context variables Salt's renderer provides itself (derived from the file's
 // location / the run), as opposed to data the minion or master supplies.
-const SALT_CONTEXT_VARS = ['sls', 'slspath', 'sls_path', 'slsdotpath', 'slscolonpath', 'tpldir', 'tplpath', 'tplfile', 'tpldot', 'saltenv', 'env'];
+const SALT_CONTEXT_VARS = ['sls', 'slspath', 'sls_path', 'slsdotpath', 'slscolonpath', 'tpldir', 'tplpath', 'tplfile', 'tpldot', 'saltenv'];
 
 const CATEGORIES = [
   { id: 'pillar', label: 'Pillar' },
@@ -176,6 +177,11 @@ function extractTemplateInputs(text) {
           const { key, dynamic } = keyOf(pillarKey);
           add('pillar', key, dynamic, undefined, base + m.index, snippet);
         }
+      } else if (fn === 'pillar.item' || fn === 'grains.item') {
+        for (const arg of positional) {
+          const { key, dynamic } = keyOf(arg);
+          add(fn.split('.')[0], key, dynamic, kwargs.default, base + m.index, snippet);
+        }
       } else if (fn === 'pillar.items' || fn === 'grains.items') {
         add(fn.split('.')[0], '(all)', false, undefined, base + m.index, snippet);
       } else {
@@ -194,6 +200,9 @@ function extractTemplateInputs(text) {
       const { args, end } = readCallArgs(code, m.index + m[0].length - 1);
       const { positional, kwargs } = splitKwargs(args);
       const { key, dynamic } = keyOf(positional[0]);
+      // A plain dict's .get() in Salt: 'a:b' is a literal top-level key, never
+      // found -- the preview warns about it instead of asking.
+      if (!dynamic && key.includes(':')) continue;
       add(m[1] === 'opts' ? 'config' : m[1], key, dynamic, positional[1] !== undefined ? positional[1] : kwargs.default, base + m.index, code.slice(m.index, end));
     }
 

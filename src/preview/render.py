@@ -103,7 +103,7 @@ class Session:
         sub-keys (a:b, a:c -> {b: .., c: ..}), or found inside an answered
         parent key -- so users can answer at whatever level is handy."""
         exact = self.answer(f"{kind}|{key}")
-        if exact is not MISSING:
+        if exact is not MISSING or delimiter is None:
             return exact
         prefix = f"{kind}|{key}{delimiter}"
         children = {k[len(prefix):]: k for k in self.raw_answers if k.startswith(prefix)}
@@ -133,9 +133,14 @@ class Session:
             return node
         return MISSING
 
-    def lookup(self, kind, key, default=MISSING, delimiter=":"):
+    def lookup(self, kind, key, default=MISSING, delimiter=":", also=()):
+        """`also`: further kinds consulted, in order, when `kind` has no
+        answer -- config.get reads opts, then grains, then pillar."""
         qid = f"{kind}|{key}"
         found = self.resolve_nested(kind, key, delimiter)
+        for other in also:
+            if found is MISSING:
+                found = self.resolve_nested(other, key, delimiter)
         if qid not in self.questions:
             self.questions[qid] = {
                 "id": qid,
@@ -239,8 +244,20 @@ class Lookup:
         self._s = session
         self._kind = kind
 
-    def get(self, key, default=None, *args, **kwargs):
-        return self._s.lookup(self._kind, str(key), default, kwargs.get("delimiter", ":"))
+    def get(self, key, default=None):
+        # Salt's pillar / grains / opts are plain dicts in Jinja: .get() takes
+        # no delimiter and doesn't follow ':' -- pillar.get('a:b') looks for a
+        # top-level key "a:b" and, there being none, returns the default.
+        key = str(key)
+        if ":" in key:
+            file, line = template_location()
+            where = f" ({os.path.basename(file)} line {line})" if file else ""
+            name = "opts" if self._kind == "config" else self._kind
+            self._s.warnings.append(
+                f"{name}.get({key!r}){where}: `{name}` is a plain dict in Salt, so ':' isn't followed and this "
+                f"returns the default -- use salt['{'config' if name == 'opts' else name}.get']({key!r}) for a nested key")
+            return default
+        return self._s.lookup(self._kind, key, default)
 
     def __getitem__(self, key):
         return self._s.lookup(self._kind, str(key))
@@ -287,18 +304,19 @@ class SaltFunctions:
     def _function(self, name):
         s, l = self._s, self._l
         builtin = {
-            "pillar.get": lambda key, default="", merge=False, delimiter=":", **kw: s.lookup("pillar", key, default, delimiter),
-            "pillar.fetch": lambda key, default="", **kw: s.lookup("pillar", key, default),
-            "pillar.item": lambda *keys, **kw: {k: s.lookup("pillar", k) for k in keys},
+            "pillar.get": self._pillar_get,
+            "pillar.fetch": self._pillar_get,
+            "pillar.item": lambda *keys, default="", delimiter=":", **kw: {k: s.lookup("pillar", k, default, delimiter) for k in keys},
             "pillar.items": lambda *a, **kw: dict(s.lookup("pillar", "(all)", {})),
-            "grains.get": lambda key, default="", delimiter=":", **kw: s.lookup("grains", key, default, delimiter),
-            "grains.item": lambda *keys, **kw: {k: s.lookup("grains", k) for k in keys},
+            "grains.get": lambda key, default="", delimiter=":", ordered=True: s.lookup("grains", key, default, delimiter),
+            "grains.fetch": lambda key, default="", delimiter=":", ordered=True: s.lookup("grains", key, default, delimiter),
+            "grains.item": lambda *keys, default="", delimiter=":", **kw: {k: s.lookup("grains", k, default, delimiter) for k in keys},
             "grains.items": lambda *a, **kw: dict(s.lookup("grains", "(all)", {})),
             "grains.filter_by": self._filter_by,
             "pillar.filter_by": lambda lookup_dict, pillar, merge=None, default="default", base=None: self._filter_by(
                 lookup_dict, merge=merge, default=default, base=base, source="pillar", key=pillar),
-            "config.get": lambda key, default="", **kw: s.lookup("config", key, default),
-            "config.option": lambda key, default="", **kw: s.lookup("config", key, default),
+            "config.get": self._config_get,
+            "config.option": self._config_option,
             "slsutil.merge": dict_merge,
             "slsutil.merge_all": lambda lst, strategy="smart", renderer="yaml", merge_lists=False: functools.reduce(
                 lambda ret, obj: dict_merge(ret, obj, strategy, renderer, merge_lists), lst, {}),
@@ -315,6 +333,36 @@ class SaltFunctions:
             return s.ask("salt", f"{name}({', '.join(shown)})")
 
         return call
+
+    # config.get / config.option read opts, then grains, then pillar (then
+    # the master config in pillar, then Salt's defaults) -- how a formula's
+    # salt['config.get'](tplroot) finds its pillar. Asked as config, answered
+    # by whichever of those has the key.
+    def _config_get(self, key, default="", delimiter=":", merge=None, omit_opts=False, omit_pillar=False, omit_master=False, omit_grains=False):
+        kinds = [k for k, omit in (("config", omit_opts), ("grains", omit_grains), ("pillar", omit_pillar)) if not omit]
+        return self._s.lookup(kinds[0], key, default, delimiter, also=kinds[1:]) if kinds else default
+
+    def _config_option(self, value, default=None, omit_opts=False, omit_grains=False, omit_pillar=False, omit_master=False, omit_all=False, wildcard=False):
+        if default is None:
+            default = "" if not wildcard else {}
+        if omit_all:
+            return default
+        kinds = [k for k, omit in (("config", omit_opts), ("grains", omit_grains), ("pillar", omit_pillar)) if not omit]
+        return self._s.lookup(kinds[0], str(value), default, None, also=kinds[1:]) if kinds else default
+
+    def _pillar_get(self, key, default="", merge=False, merge_nested_lists=None, delimiter=":", pillarenv=None, saltenv=None, unmask=None):
+        """pillar.get, with merge=: a dict / list default gets the pillar
+        value merged over it (salt/modules/pillar.py)."""
+        ret = self._s.lookup("pillar", key, default, delimiter)
+        if merge and ret is not default:
+            merge_lists = bool(merge_nested_lists)  # pillar_merge_lists defaults to False
+            if isinstance(default, dict) and isinstance(ret, Mapping):
+                return dict_update(copy.deepcopy(default), ret, merge_lists=merge_lists)
+            if isinstance(default, list) and isinstance(ret, list):
+                merged = copy.deepcopy(default)
+                merged.extend([x for x in ret if x not in merged])
+                return merged
+        return ret
 
     def _filter_by(self, lookup_dict, grain="os_family", merge=None, default="default", base=None, source="grains", key=None):
         # grains.filter_by and pillar.filter_by: salt.utils.data.filter_by,
@@ -1734,12 +1782,11 @@ def context_for(path, roots):
         "sls_path": tpldir.replace("/", "_"),
         "slsdotpath": tpldir.replace("/", "."),
         "slscolonpath": tpldir.replace("/", ":"),
-        "tpldir": tpldir,
+        "tpldir": tpldir or ".",  # Salt's generate_sls_context: "." at the root
         "tplpath": rel,
         "tplfile": rel,
         "tpldot": tpldir.replace("/", "."),
         "saltenv": "base",
-        "env": "base",
     }
 
 

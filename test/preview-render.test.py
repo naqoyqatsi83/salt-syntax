@@ -85,4 +85,22 @@ c.true("v: p-rh m1 a,b 1 2 True" in one(mp, {"grains|os_family": "RedHat", "pill
        "defaults.merge / slsutil.update / filter_by merge= in place, fnmatch keys, slsutil.merge a copy")
 c.eq((one('{% do salt["defaults.merge"]({}, "region_2") %}')["error"] or {}).get("message"),
      "Jinja error: Cannot update using non-dict types in dictupdate.update()", "merging a non-dict fails, as in Salt")
+# The lookup functions, as Salt's (salt/modules/{config,pillar,grains}.py) and the
+# Jinja globals, which are plain dicts in Salt.
+lk = ('a: {{ salt["config.get"]("app:port", 1) }} {{ salt["config.get"]("id") }} {{ salt["config.option"]("app:port") | tojson }}\n'
+      'b: {{ salt["pillar.get"]("app", {"port": 0, "host": "h"}, merge=True) | tojson }} {{ salt["pillar.get"]("app", {"x": 1}) | tojson }}\n'
+      'c: {{ salt["grains.fetch"]("os") }} {{ salt["pillar.item"]("nope", default="d") | tojson }}\n'
+      'd: {{ pillar.get("app:port", "dflt") }} {{ pillar.get("app") | tojson }}\n')
+r = one(lk, {"pillar|app": "{port: 8}", "config|id": "minion1", "grains|os": "Fedora"})
+out = r["rendered"]
+c.true("a: 8 minion1 \"\"" in out, f"config.get falls back to pillar, config.option doesn't follow ':': {out!r}")
+c.true('b: {"port": 8, "host": "h"} {"port": 8}' in out, f"pillar.get merge=True merges over a dict default: {out!r}")
+c.true('c: Fedora {"nope": "d"}' in out, f"grains.fetch, pillar.item default=: {out!r}")
+c.true('d: dflt {"port": 8}' in out, f"pillar.get('a:b') on the pillar dict: a literal key, the default: {out!r}")
+c.eq([w for w in r["warnings"] if "plain dict" in w][:1],
+     ["pillar.get('app:port') (init.sls line 4): `pillar` is a plain dict in Salt, so ':' isn't followed and this returns the default "
+      "-- use salt['pillar.get']('app:port') for a nested key"], "and warns about it")
+c.eq([e["message"] for e in one("x: {{ env }}\n")["strictErrors"]], ["Jinja variable 'env' is undefined"], "no `env` in Salt's context")
+top = render("x: {{ tpldir }}|{{ slspath }}|{{ sls }}\n", os.path.join(FIXTURES, "errors", "top.sls"), [os.path.join(FIXTURES, "errors")])
+c.true("x: .||top" in top["rendered"], f"tpldir is '.' at the root, as generate_sls_context: {top['rendered']!r}")
 c.done()

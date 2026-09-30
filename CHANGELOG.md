@@ -24,6 +24,14 @@ version heading when that state gets tagged and merged to `main`.
   `filter_by` matches keys as patterns and updates the matched entry
   with `merge=`, and merging a non-dict fails as it does in Salt.
   [#67](https://github.com/naqoyqatsi83/salt-syntax/issues/67)
+- The preview's lookups now behave like Salt's: `config.get` finds a key
+  in grains or pillar too (as a formula's `salt['config.get'](tplroot)`
+  relies on), `pillar.get(..., merge=True)` merges over its default, and
+  `pillar.get('a:b')` on the `pillar` dict returns the default -- as in
+  Salt, where it's a plain dict -- with a warning to use
+  `salt['pillar.get']`. `env` is no longer provided (Salt doesn't), and
+  `tpldir` is `.` at the root of the file roots.
+  [#68](https://github.com/naqoyqatsi83/salt-syntax/issues/68)
 
 ## [0.13.0] - 2026-09-27
 
