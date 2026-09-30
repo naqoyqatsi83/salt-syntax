@@ -25,6 +25,12 @@ version heading when that state gets tagged and merged to `main`.
   (e.g. `region`) and picks the matching entry, instead of asking for the
   whole call's result under "Salt function calls".
   [#66](https://github.com/naqoyqatsi83/salt-syntax/issues/66)
+- The preview's merge helpers now behave like Salt's: `defaults.merge`
+  and `slsutil.update` change their target in place (so
+  `{% do salt['defaults.merge'](defaults, osfamily) %}` works),
+  `filter_by` matches keys as patterns and updates the matched entry
+  with `merge=`, and merging a non-dict fails as it does in Salt.
+  [#67](https://github.com/naqoyqatsi83/salt-syntax/issues/67)
 
 ## [0.13.0] - 2026-09-27
 

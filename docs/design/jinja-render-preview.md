@@ -170,7 +170,8 @@ branch dimming, hover values and profile diffs weren't built.
   does) and `load_*` blocks, `salt://` and `./relative` imports, `do` and
   loop-control extensions, and every one of Salt's filters (see the
   coverage map). `grains.filter_by` / `pillar.filter_by` and the merge helpers
-  (`slsutil.merge`, `defaults.merge`, ...) are *computed*; every other
+  (`slsutil.merge`, `defaults.merge`, ..., ported from Salt: in place where
+  Salt's are) are *computed*; every other
   external read is a question. Unanswered inputs use the code's default if
   it has one, else render as `«kind:key»`. Nothing Salt-side is executed.
 - **Render-until-unknown works as designed**: questions only appear once

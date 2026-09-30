@@ -72,4 +72,17 @@ r = one(fb)
 c.eq([q["id"] for q in r["questions"]], ["pillar|region"], "pillar.filter_by asks for its pillar key")
 c.true("m: m0" in r["rendered"], "unanswered: the default entry")
 c.true("m: m2" in one(fb, {"pillar|region": "us"})["rendered"], "answered: the matching entry")
+# The merge helpers change their target in place, as Salt's do (dictupdate.update):
+# `{% do salt['defaults.merge'](d, extra) %}` is how map.jinja files use them.
+mp = ('{% set d = {"pkg": {"name": "p"}, "files": ["a"]} %}'
+      '{% set os = salt["grains.filter_by"]({"RedHat": {"pkg": {"name": "p-rh"}}}) or {} %}{% do salt["defaults.merge"](d, os) %}'
+      '{% set r = salt["pillar.filter_by"]({"r*": {"masters": {"linux": "m1"}}}, pillar="region") or {} %}{% do salt["defaults.merge"](d, r) %}'
+      '{% do salt["slsutil.update"](d, {"files": ["b"]}, merge_lists=True) %}'
+      '{% set c = salt["grains.filter_by"]({"x": d}, default="x", merge={"extra": 1}) %}'
+      '{% set copy = salt["slsutil.merge"](d, {"extra": 2}) %}\n'
+      'v: {{ d.pkg.name }} {{ d.masters.linux }} {{ d.files | join(",") }} {{ d.extra }} {{ copy.extra }} {{ c is sameas d }}\n')
+c.true("v: p-rh m1 a,b 1 2 True" in one(mp, {"grains|os_family": "RedHat", "pillar|region": "region_1"})["rendered"],
+       "defaults.merge / slsutil.update / filter_by merge= in place, fnmatch keys, slsutil.merge a copy")
+c.eq((one('{% do salt["defaults.merge"]({}, "region_2") %}')["error"] or {}).get("message"),
+     "Jinja error: Cannot update using non-dict types in dictupdate.update()", "merging a non-dict fails, as in Salt")
 c.done()

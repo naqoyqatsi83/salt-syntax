@@ -26,12 +26,16 @@ like «grains:os». Pure-logic helpers (grains/pillar.filter_by, the merge
 functions) are computed instead of asked.
 """
 import bisect
+import copy
+import fnmatch
+import functools
 import io
 import json
 import os
 import re
 import shlex
 import sys
+from collections.abc import Mapping
 
 try:
     from markupsafe import Markup  # what Jinja's own Markup is (jinja2.utils no longer re-exports it in 3.1)
@@ -158,18 +162,74 @@ def dump_inline(value):
     return text[:-4].strip() if text.endswith("...") else text
 
 
-def deep_merge(dest, upd, merge_lists=False):
-    if not isinstance(dest, dict) or not isinstance(upd, dict):
-        return upd
-    out = dict(dest)
-    for k, v in upd.items():
-        if isinstance(v, dict) and isinstance(out.get(k), dict):
-            out[k] = deep_merge(out[k], v, merge_lists)
-        elif merge_lists and isinstance(v, list) and isinstance(out.get(k), list):
-            out[k] = out[k] + [x for x in v if x not in out[k]]
-        else:
-            out[k] = v
-    return out
+# Salt's merge helpers, ported from salt/utils/dictupdate.py and
+# salt/modules/defaults.py (identical in 3006 and 3008 for these arguments).
+# Like Salt's, update() changes `dest` in place -- `{% do
+# salt['defaults.merge'](defaults, extra) %}` only works because of that.
+def dict_update(dest, upd, recursive_update=True, merge_lists=False):
+    if not isinstance(dest, Mapping) or not isinstance(upd, Mapping):
+        raise TypeError("Cannot update using non-dict types in dictupdate.update()")
+    updkeys = list(upd.keys())
+    if not set(dest.keys()) & set(updkeys):
+        recursive_update = False
+    if recursive_update:
+        for key in updkeys:
+            val = upd[key]
+            dest_subkey = dest.get(key, None)
+            if isinstance(dest_subkey, Mapping) and isinstance(val, Mapping):
+                dest[key] = dict_update(dest_subkey, val, merge_lists=merge_lists)
+            elif isinstance(dest_subkey, list) and isinstance(val, list) and merge_lists:
+                merged = copy.deepcopy(dest_subkey)
+                merged.extend([x for x in val if x not in merged])
+                dest[key] = merged
+            else:
+                dest[key] = upd[key]
+        return dest
+    for k in upd:
+        dest[k] = upd[k]
+    return dest
+
+
+def merge_recurse(obj_a, obj_b, merge_lists=False):
+    return dict_update(copy.deepcopy(obj_a), obj_b, merge_lists=merge_lists)
+
+
+def dict_merge(obj_a, obj_b, strategy="smart", renderer="yaml", merge_lists=False):
+    """dictupdate.merge, behind slsutil.merge. The yamlex "aggregate"
+    strategy isn't emulated; it falls back to recurse."""
+    if strategy == "list":
+        return {k: [v, obj_b[k]] if k in obj_b else v for k, v in obj_a.items()}
+    if strategy == "overwrite":
+        for k in obj_b:
+            if k in obj_a:
+                obj_a[k] = obj_b[k]
+        return merge_recurse(obj_a, obj_b, merge_lists)
+    if strategy in ("smart", "recurse", "aggregate"):
+        return merge_recurse(obj_a, obj_b, merge_lists)
+    return merge_recurse(obj_a, obj_b)
+
+
+def defaults_merge(dest, src, merge_lists=False, in_place=True, convert_none=True):
+    src = {} if (src is None and convert_none) else src
+    if dest is None and convert_none:
+        if in_place:
+            raise TypeError("Can't perform in-place merge into NoneType")
+        dest = {}
+    merged = dest if in_place else copy.deepcopy(dest)
+    return dict_update(merged, src, merge_lists=merge_lists)
+
+
+def defaults_update(dest, defaults, merge_lists=True, in_place=True, convert_none=True):
+    if in_place:
+        if dest is None:
+            raise TypeError("Can't perform in-place update into NoneType")
+        nodes = dest
+    else:
+        nodes = copy.deepcopy({} if (dest is None and convert_none) else dest)
+    defaults = {} if (defaults is None and convert_none) else defaults
+    for node_name, node_vars in nodes.items():
+        nodes[node_name] = defaults_merge(copy.deepcopy(defaults), node_vars, merge_lists=merge_lists, convert_none=convert_none)
+    return nodes
 
 
 class Lookup:
@@ -240,10 +300,13 @@ class SaltFunctions:
                 lookup_dict, merge=merge, default=default, base=base, source="pillar", key=pillar),
             "config.get": lambda key, default="", **kw: s.lookup("config", key, default),
             "config.option": lambda key, default="", **kw: s.lookup("config", key, default),
-            "slsutil.merge": lambda dest, upd, strategy="smart", merge_lists=False, **kw: deep_merge(dest, upd, merge_lists),
-            "slsutil.update": lambda dest, upd, recursive_update=True, merge_lists=False: deep_merge(dest, upd, merge_lists),
-            "defaults.merge": lambda dest, src, merge_lists=True, in_place=True, **kw: deep_merge(dest, src, merge_lists),
-            "defaults.deep_merge": lambda tgt, src, merge_lists=False: deep_merge(tgt, src, merge_lists),
+            "slsutil.merge": dict_merge,
+            "slsutil.merge_all": lambda lst, strategy="smart", renderer="yaml", merge_lists=False: functools.reduce(
+                lambda ret, obj: dict_merge(ret, obj, strategy, renderer, merge_lists), lst, {}),
+            "slsutil.update": dict_update,
+            "defaults.merge": defaults_merge,
+            "defaults.update": defaults_update,
+            "defaults.deepcopy": copy.deepcopy,
         }
         if name in builtin:
             return builtin[name]
@@ -255,16 +318,38 @@ class SaltFunctions:
         return call
 
     def _filter_by(self, lookup_dict, grain="os_family", merge=None, default="default", base=None, source="grains", key=None):
-        # grains.filter_by and pillar.filter_by: the same lookup
-        # (salt.utils.data.filter_by), branching on a grain or a pillar key.
-        value = self._s.lookup(source, grain if key is None else key)
-        ret = lookup_dict.get(value, lookup_dict.get(default)) if isinstance(lookup_dict, dict) else None
-        if isinstance(base, dict):
-            ret = deep_merge(base, ret or {})
-        elif base is not None and isinstance(lookup_dict, dict) and base in lookup_dict:
-            ret = deep_merge(lookup_dict[base], ret or {})
+        # grains.filter_by and pillar.filter_by: salt.utils.data.filter_by,
+        # branching on a grain or a pillar key. Keys are fnmatch patterns,
+        # a list value (e.g. roles) matches on its first matching item, and
+        # merge= updates the matched entry itself, as in Salt.
+        val = self._s.lookup(source, grain if key is None else key)
+        if isinstance(val, Placeholder):
+            val = []  # unanswered, as a missing grain/pillar key in Salt
+        ret = None
+        for each in val if isinstance(val, list) else [val]:
+            for k in lookup_dict:
+                if fnmatch.fnmatchcase(str(each), str(k)):
+                    ret = lookup_dict[k]
+                    break
+            if ret is not None:
+                break
+        if ret is None:
+            ret = lookup_dict.get(default, None)
+        if base and base in lookup_dict:
+            base_values = lookup_dict[base]
+            if ret is None:
+                ret = base_values
+            elif isinstance(base_values, Mapping):
+                if not isinstance(ret, Mapping):
+                    raise SaltException("filter_by default and look-up values must both be dictionaries.")
+                ret = dict_update(copy.deepcopy(base_values), ret)
         if merge:
-            ret = deep_merge(ret or {}, merge)
+            if not isinstance(merge, Mapping):
+                raise SaltException("filter_by merge argument must be a dictionary.")
+            if ret is None:
+                ret = merge
+            else:
+                dict_update(ret, copy.deepcopy(merge))
         return ret
 
 
