@@ -4,7 +4,7 @@ const path = require('path');
 const { extractTemplateInputs, groupTemplateInputs } = require(path.join(__dirname, '..', 'src', 'templateInputs.js'));
 
 const state = `{% from tpldir ~ "/map.jinja" import formula with context %}
-{% set port = pillar.get('app:port', 8080) %}
+{% set port = pillar.get('port', 8080) %}
 {% set users = salt['pillar.get']('users', []) %}
 {% for user in users %}
 {% set home = salt['pillar.get']('users:' ~ user ~ ':home', '/home/' ~ user) %}
@@ -26,7 +26,7 @@ note: "{{ 'the word pillar.get in a string' }}"
 env: {{ saltenv }}`;
 const g = Object.fromEntries(groupTemplateInputs(extractTemplateInputs(state)).map((c) => [c.id, c.keys]));
 const keys = (cat) => (g[cat] || []).map((k) => k.key);
-assert.deepStrictEqual(keys('pillar'), ['app:port', 'users', "'users:' ~ user ~ ':home'", 'shells:default', 'net:cidr']);
+assert.deepStrictEqual(keys('pillar'), ['port', 'users', "'users:' ~ user ~ ':home'", 'shells:default', 'net:cidr']);
 assert.strictEqual(g.pillar[0].default, '8080');
 assert.strictEqual(g.pillar[2].dynamic, true, 'computed key flagged dynamic');
 assert.deepStrictEqual(keys('grains'), ['os_family', 'osmajorrelease'], 'in document order');
@@ -39,4 +39,7 @@ for (const ignored of ['in a comment', 'toggled_off', 'raw_ignored', 'the word']
 const fb = groupTemplateInputs(extractTemplateInputs(`{% set r = salt['pillar.filter_by'](regionmap, pillar='region') or {} %}
 {% set s = salt['pillar.filter_by'](m, 'site:name') %}`));
 assert.deepStrictEqual(fb.map((c) => [c.id, c.keys.map((k) => k.key)]), [['pillar', ['region', 'site:name']]], 'pillar.filter_by -> its pillar key');
+const lk = groupTemplateInputs(extractTemplateInputs(`{{ pillar.get('a:b') }} {{ grains.get('os') }} {{ salt['pillar.item']('x', 'y') }} {{ salt['grains.fetch']('cpu') }}`));
+assert.deepStrictEqual(lk.map((c) => [c.id, c.keys.map((k) => k.key)]), [['pillar', ['x', 'y']], ['grains', ['os', 'cpu']]],
+  "the pillar dict's .get('a:b') isn't a nested read in Salt; item / fetch are lookups");
 console.log('ok');
