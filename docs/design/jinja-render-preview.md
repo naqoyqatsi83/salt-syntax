@@ -160,7 +160,9 @@ dimming, hover values and profile diffs weren't built.
   static extractor in `src/templateInputs.js`), and a text field prefilled
   with the default. Values are YAML. Answers belong to the active
   **profile** (#73): named answer sets in `workspaceState` (`globalState`
-  with no folder open), one active, shared by every preview -- a profile
+  with no folder open -- shared by every folderless window, so read afresh
+  before each change and render, and on window focus), one active, shared
+  by every preview -- a profile
   bar at the top switches / adds (empty or a copy) / renames / deletes /
   clears them, with VS Code's own prompts and confirmations. A file's
   answers from before profiles (per file, in `globalState`) move into

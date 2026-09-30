@@ -123,6 +123,31 @@ const shows = (get, text) => until(() => !/Rendering/.test(get()) && get().inclu
   s.replies.showWarningMessage.push('Delete');
   await s.h.reg.commands['saltSyntax.preview.deleteProfile']();
   assert.deepStrictEqual(s.lastState().profiles, ['default'], 'the only profile is never deleted');
+
+  // Two windows with no folder open: both keep profiles in the global
+  // store, and VS Code carries one window's writes to the other's. Neither
+  // may overwrite the other's changes with a stale copy.
+  const w1 = await start({});
+  const w2 = await start({});
+  w2.h.context.globalState = w1.h.context.globalState; // one shared store
+  const a1 = await w1.preview(A, 'a: {{ x }}\n');
+  w1.panel({ type: 'answer', id: 'variable|x', value: 'one' });
+  await shows(a1, 'a: one');
+  const a2 = await w2.preview(A, 'a: {{ x }}\n');
+  await shows(a2, 'a: one'); // w2 activated before that answer existed
+  w2.replies.showInputBox.push('p2');
+  w2.replies.showQuickPick.push('Start empty');
+  await w2.h.reg.commands['saltSyntax.preview.newProfile']();
+  await w1.h.focus();
+  await until(() => w1.lastState().profile === 'p2', "w1 shows w2's new profile once focused");
+  w1.panel({ type: 'answer', id: 'variable|y', value: 'two' });
+  const stored2 = w1.h.context.globalState.get('saltPreview.profiles');
+  assert.deepStrictEqual(stored2.profiles, { default: { 'variable|x': 'one' }, p2: { 'variable|y': 'two' } }, 'no change lost');
+  w1.replies.showWarningMessage.push('Clear');
+  await w1.h.reg.commands['saltSyntax.preview.clearAnswers']();
+  w2.panel({ type: 'answer', id: 'variable|z', value: 'three' });
+  assert.deepStrictEqual(w1.h.context.globalState.get('saltPreview.profiles').profiles, { default: { 'variable|x': 'one' }, p2: { 'variable|z': 'three' } },
+    "w2's answer lands on w1's cleared profile, not a stale copy");
   console.log('ok');
 })().catch((e) => {
   console.error(e);

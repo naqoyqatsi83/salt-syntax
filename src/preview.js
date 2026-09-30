@@ -33,10 +33,21 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   // they persist across restarts until cleared or deleted.
   const PROFILES_KEY = 'saltPreview.profiles';
   const profileStore = () => ((vscode.workspace.workspaceFolders || []).length ? context.workspaceState : context.globalState);
-  let profiles = (() => {
+  const readProfiles = () => {
     const saved = profileStore().get(PROFILES_KEY);
-    return saved && saved.profiles && saved.profiles[saved.active] ? saved : { active: 'default', profiles: { default: {} } };
-  })();
+    return saved && saved.profiles && saved.profiles[saved.active] ? JSON.parse(JSON.stringify(saved)) : { active: 'default', profiles: { default: {} } };
+  };
+  let profiles = readProfiles();
+  // Windows with no folder open all share the global store, and VS Code
+  // carries a write from one window to the others' -- so profiles are read
+  // afresh before every change (a change lands on the latest state, never
+  // on a stale copy) and every render. True if they changed meanwhile.
+  const refreshProfiles = () => {
+    const fresh = readProfiles();
+    const changed = JSON.stringify(fresh) !== JSON.stringify(profiles);
+    profiles = fresh;
+    return changed;
+  };
   const activeAnswers = () => profiles.profiles[profiles.active];
   const saveProfiles = () => profileStore().update(PROFILES_KEY, profiles);
   // Before profiles, answers were kept per file under this key.
@@ -102,6 +113,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       return;
     }
     state.running = true;
+    refreshProfiles();
     const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uriString);
     const source = doc ? doc.getText() : state.lastSource || '';
     state.lastSource = source;
@@ -328,6 +340,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       // (what the profile already has wins), once.
       const legacy = context.globalState.get(answersKey(key));
       if (legacy) {
+        refreshProfiles();
         const answers = activeAnswers();
         for (const [id, value] of Object.entries(legacy)) if (!(id in answers)) answers[id] = value;
         context.globalState.update(answersKey(key), undefined);
@@ -345,6 +358,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   // buttons and the command palette. Prompts and confirmations are VS
   // Code's own -- a webview can't show modal dialogs.
   async function switchProfile(name) {
+    refreshProfiles();
     if (name === undefined) {
       const NEW = '$(add) New profile…';
       const picked = await vscode.window.showQuickPick(
@@ -355,6 +369,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
       if (picked.label === NEW) return newProfile();
       name = picked.label;
     }
+    refreshProfiles();
     if (!profiles.profiles[name] || name === profiles.active) return;
     profiles.active = name;
     await saveProfiles();
@@ -370,11 +385,13 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     });
 
   async function newProfile() {
+    refreshProfiles();
     const name = ((await askName('Name for the new preview profile -- e.g. the kind of minion it stands for (rhel-eu)')) || '').trim();
     if (!name) return;
     const copy = `Copy of "${profiles.active}"`;
     const start = await vscode.window.showQuickPick(['Start empty', copy], { placeHolder: `Profile "${name}": start from` });
     if (!start) return;
+    refreshProfiles();
     profiles.profiles[name] = start === copy ? { ...activeAnswers() } : {};
     profiles.active = name;
     await saveProfiles();
@@ -383,9 +400,12 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   }
 
   async function renameProfile() {
+    refreshProfiles();
     const old = profiles.active;
     const name = ((await askName(`Rename preview profile "${old}" to`, old)) || '').trim();
     if (!name || name === old) return;
+    refreshProfiles();
+    if (!profiles.profiles[old] || profiles.profiles[name]) return; // gone, or taken, meanwhile
     profiles.profiles = Object.fromEntries(Object.entries(profiles.profiles).map(([p, a]) => [p === old ? name : p, a]));
     profiles.active = name;
     await saveProfiles();
@@ -394,6 +414,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   }
 
   async function deleteProfile() {
+    refreshProfiles();
     const name = profiles.active;
     const others = Object.keys(profiles.profiles).filter((p) => p !== name);
     if (!others.length) {
@@ -403,14 +424,17 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     const count = Object.keys(activeAnswers()).length;
     const ok = await vscode.window.showWarningMessage(`Delete preview profile "${name}" and its ${count} answer${count === 1 ? '' : 's'}?`, { modal: true }, 'Delete');
     if (ok !== 'Delete') return;
+    refreshProfiles();
     delete profiles.profiles[name];
-    profiles.active = others[0];
+    if (!Object.keys(profiles.profiles).length) profiles.profiles.default = {};
+    if (!profiles.profiles[profiles.active]) profiles.active = Object.keys(profiles.profiles)[0];
     await saveProfiles();
     renderAll();
     postState();
   }
 
   async function clearAnswers() {
+    refreshProfiles();
     const count = Object.keys(activeAnswers()).length;
     if (!count) {
       vscode.window.showInformationMessage(`Preview profile "${profiles.active}" has no answers to clear.`);
@@ -418,6 +442,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
     }
     const ok = await vscode.window.showWarningMessage(`Clear all ${count} answer${count === 1 ? '' : 's'} in preview profile "${profiles.active}"?`, { modal: true }, 'Clear');
     if (ok !== 'Clear') return;
+    refreshProfiles();
     profiles.profiles[profiles.active] = {};
     await saveProfiles();
     renderAll();
@@ -456,6 +481,7 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
   }
 
   function setAnswer(id, value) {
+    refreshProfiles();
     const answers = activeAnswers();
     if (value === '' || value === undefined) delete answers[id];
     else answers[id] = value;
@@ -485,6 +511,13 @@ function register(context, vscode, isSaltLanguage, stateDataFor = () => null) {
         view.onDidDispose(() => (panel = null));
       }
     }, { webviewOptions: { retainContextWhenHidden: true } }),
+    // Back in this window: show what another one changed meanwhile.
+    vscode.window.onDidChangeWindowState((e) => {
+      if (e.focused && refreshProfiles()) {
+        renderAll();
+        postState();
+      }
+    }),
     vscode.commands.registerCommand('saltSyntax.preview.switchProfile', () => switchProfile()),
     vscode.commands.registerCommand('saltSyntax.preview.newProfile', newProfile),
     vscode.commands.registerCommand('saltSyntax.preview.renameProfile', renameProfile),

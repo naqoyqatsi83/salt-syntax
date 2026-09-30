@@ -18,7 +18,8 @@ version heading when that state gets tagged and merged to `main`.
   you preview, instead of being kept per file. Switch, add (empty or a
   copy), rename and delete profiles, or clear all answers, from a bar at
   the top of the panel or the command palette. Profiles are kept per
-  workspace across restarts; existing answers move into the active one.
+  workspace folder across restarts (windows with no folder open share
+  one set, kept in step); existing answers move into the active one.
   [#73](https://github.com/naqoyqatsi83/salt-syntax/issues/73)
 
 ## [0.14.0] - 2026-09-30

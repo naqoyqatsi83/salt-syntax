@@ -123,7 +123,7 @@ function createVscode(config) {
     onType: [],
     commands: {},
     executed: [],
-    listeners: { open: [], change: [], close: [], save: [], config: [], active: [], visibleRanges: [], selection: [] },
+    listeners: { open: [], change: [], close: [], save: [], config: [], active: [], visibleRanges: [], selection: [], windowState: [] },
     collections: {},
     contentProviders: {},
     webviews: {},
@@ -258,6 +258,7 @@ function createVscode(config) {
       visibleTextEditors: [],
       onDidChangeTextEditorVisibleRanges: on('visibleRanges'),
       onDidChangeTextEditorSelection: on('selection'),
+      onDidChangeWindowState: on('windowState'),
       createTextEditorDecorationType: (options) => ({ options, dispose() {} }),
       showInformationMessage: (m) => reg.info.push(m),
       showTextDocument: async () => ({}),
@@ -375,6 +376,8 @@ async function load({ config = {}, globalState = {}, workspaceState = {} } = {})
     select: (textEditor, line, kind = 'Mouse') =>
       fire('selection', { textEditor, kind: vscode.TextEditorSelectionChangeKind[kind], selections: [new vscode.Selection(line, 0, line, 0)] }),
     save: (d) => fire('save', d),
+    // Tell the extension its window gained (or lost) focus.
+    focus: (focused = true) => fire('windowState', { focused }),
     fireConfig: (setting) => fire('config', { affectsConfiguration: (s) => s === setting || setting.startsWith(`${s}.`) }),
     // The provider registered for a given kind; `pick` filters (e.g. by trigger characters).
     provider: (k, pick = () => true) => {
