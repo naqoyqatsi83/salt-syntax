@@ -463,7 +463,13 @@ output beside the `.sls` / Salt Jinja file, updating as you type.
   with Salt's Jinja emulated: `sls`/`tpldir`/`slspath`/`saltenv` from the
   file's path, `map.jinja` / `import_yaml` / `load_*` / `salt://` and
   `./relative` imports processed for real, Salt's sandbox and
-  `StrictUndefined`, `raise()`, and every one of Salt's Jinja filters.
+  `StrictUndefined`, `raise()`, the `list` test and `odict` /
+  `show_full_context` globals, and every one of Salt's Jinja filters. A
+  `#jinja2: {"trim_blocks": true, ...}` line at the top of the file (or
+  below a `#!jinja|yaml` shebang) sets Jinja options for that file, as in
+  Salt 3006.28 / 3008.3. YAML — panel answers, `import_yaml` / `load_yaml`
+  data, the rendered output — is read with Salt's own loader, so
+  `mode: 0755` stays 755 rather than octal 493, and dates stay strings.
   The output is shown character for character as Salt produces it —
   never reformatted.
 - **You supply what isn't in the files.** Every external value the render

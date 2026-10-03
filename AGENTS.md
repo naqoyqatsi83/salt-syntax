@@ -36,7 +36,15 @@ rest of this file stays current.
 - **Before starting:** `git fetch` and compare every branch you'll touch
   with `origin` -- work goes on from more than one machine, and a stale
   clone once had a session fix and build from a branch 70 commits behind.
-- **Where things stand:** `develop` and `main` are at `v0.14.0`: the
+- **Where things stand:** `develop` and `main` are at `v0.15.0`, pinned
+  to Salt v3006.28 / v3008.3 (#76): preview profiles, named answer sets
+  shared by every file (#73); the preview reading YAML with Salt's loader
+  (#74), Salt's `list` test / `odict` / `show_full_context` (#75),
+  3006.28's exact-first `filter_by` (#77) and Salt's per-file `#jinja2:`
+  header (#78), each with a parity test against Salt's source; and the
+  Salt release that added each state function / argument in hover,
+  completion and a Hint (#79, `VERSION_ADDED_*`). No open issues.
+- **Before that:** v0.14.0: the
   preview's template variables section -- the values a `map.jinja` ends up
   with, after the rendered output (#65, graduated from
   `experimental/template-variables`) -- and the preview emulating Salt
@@ -45,8 +53,8 @@ rest of this file stays current.
   UTF-8 request on Windows (#69), line map for CRLF files (#70), keys
   inside lists (#72); the test suite passes on Windows (#71), with
   `test/salt-module-parity.test.py` running Salt's own functions against
-  the preview's. No open issues.
-- **Before that:** v0.13.0: the
+  the preview's.
+- **Before those:** v0.13.0: the
   preview traces rendered lines into the templates they came from (Go to
   Source Line, click to reveal; #59), hover info for state functions and
   arguments (#61), and the state-argument check (#62; `**kwargs` data in

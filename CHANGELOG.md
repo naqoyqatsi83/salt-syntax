@@ -12,6 +12,8 @@ section in [AGENTS.md](AGENTS.md) for how work flows from issue to
 Changes land here as they're merged to `develop`, then move under a
 version heading when that state gets tagged and merged to `main`.
 
+## [0.15.0] - 2026-10-03
+
 ### Added
 - Preview **profiles**: the Salt Preview panel's answers belong to a
   named profile -- e.g. one per kind of minion -- shared by every file
