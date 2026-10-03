@@ -2722,20 +2722,512 @@ const STATE_MODULE_FILES_3006 = {
   'mac_xattr'
 };
 
+// Which Salt release added each state function ('') and argument (#79):
+// the `.. versionadded::` Salt's docs show for it -- read from each
+// function's docstring (what docs.saltproject.io is built from) at the
+// dataset's tag, a `name` heading's (or `:param name:`'s) own note for an
+// argument, the docstring's note before any argument for the function.
+// Anything missing from the line's first release (v3006.0 / v3008.0) gets
+// instead the first release of the line that has it, by each tag's source:
+// the docs don't always say (user.present's persist_home), and a backport
+// carries the other line's number (file.replace's encoding: "3006.26", in
+// 3008 since 3008.1). Except where the docs date it before 3006.0 -- a
+// **kwargs function that took it all along (cmd.run's password).
+// A release of the line after its .0 (isRecentInLine) is what older minions
+// of that line don't have: completion, hover and a hint say so.
+const VERSION_ADDED_3008 = {
+  'apache_module.disabled': { '': '2016.3.0' },
+  'apache_module.enabled': { '': '2016.3.0' },
+  'archive.extracted': { '': '2014.1.0', clean: '2016.11.1', clean_parent: '3000', enforce_ownership_on: '2016.11.0', enforce_toplevel: '2016.11.0', extract_perms: '2016.11.0', force: '2016.11.0', gnupghome: '3007.0', group: '2015.8.0', keyring: '3007.0', list_options: '2016.11.0', options: '2016.11.0', overwrite: '2016.11.1', password: '2016.3.0', sig_backend: '3008.0', signature: '3007.0', signed_by_all: '3007.0', signed_by_any: '3007.0', skip_files_list_verify: '3000', skip_verify: '2016.3.4', source_hash_name: '2016.11.0', source_hash_sig: '3007.0', source_hash_update: '2016.3.0', trim_output: '2016.3.0', use_cmd_unzip: '2016.11.0', use_etag: '3005', user: '2015.8.0' },
+  'at.present': { unique_tag: '2017.7.0', user: '2014.1.4' },
+  'at.watch': { '': '2017.7.0', unique_tag: '2017.7.0', user: '2014.1.4' },
+  'blockdev.formatted': { force: '2016.11.0' },
+  'chocolatey.bootstrapped': { '': '3007.1' },
+  'chocolatey.installed': { allow_multiple: '2017.7.0' },
+  'chocolatey.unbootstrapped': { '': '3007.1' },
+  'chocolatey.upgraded': { '': '2018.3.0' },
+  'cmd.run': { hide_output: '2018.3.0', ignore_timeout: '2015.8.0', password: '3000', prepend_path: '2018.3.0', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cmd.script': { context: '2016.3.0', defaults: '2016.3.0', hide_output: '2018.3.0', password: '3000', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cmd.wait': { hide_output: '2018.3.0', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cmd.wait_script': { hide_output: '2018.3.0', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cron.file': { source_hash_name: '2016.3.5' },
+  'cron.present': { commented: '2016.3.0', special: '2016.3.0' },
+  'disk.status': { absolute: '2016.11.0' },
+  'dism.kb_removed': { '': '3006.0' },
+  'dism.provisioned_package_installed': { '': '3007.0' },
+  'dsc_resource.managed': { '': '3008.1' },
+  'event.send': { '': '2014.7.0' },
+  'event.wait': { '': '2014.7.0' },
+  'file.append': { ignore_whitespace: '2015.8.4', show_changes: '3008.0' },
+  'file.blockreplace': { '': '2014.1.0', append_newline: '2017.7.5,2018.3.1', insert_after_match: '3001', insert_before_match: '3001' },
+  'file.cached': { '': '2017.7.3', gnupghome: '3007.0', keyring: '3007.0', sig_backend: '3008.0', signed_by_all: '3007.0', signed_by_any: '3007.0', source_hash_sig: '3007.0', use_etag: '3005' },
+  'file.comment': { '': '0.9.5', ignore_missing: '3005' },
+  'file.copy': { dir_mode: '3006.0', group: '2015.5.0', mode: '2015.5.0', preserve: '2015.5.0', subdir: '2015.5.0', user: '2015.5.0' },
+  'file.decode': { '': '2016.3.0' },
+  'file.directory': { allow_symlink: '2014.7.0', backupname: '2014.7.0', follow_symlinks: '2014.1.4', force: '2014.7.0', max_depth: '2016.11.0', recurse: '2015.5.0', win_deny_perms: '2017.7.0', win_inheritance: '2017.7.0', win_owner: '2017.7.0', win_perms: '2017.7.0', win_perms_reset: '2018.3.0' },
+  'file.keyvalue': { '': '3001', create_if_missing: '3007.0', prune: '3008.0' },
+  'file.line': { '': '2015.8.0', create: '2016.11.0', file_mode: '2016.11.0', group: '2016.11.0', user: '2016.11.0' },
+  'file.managed': { allow_empty: '2015.8.4', attrs: '2018.3.0', check_cmd: '2014.7.0', contents_delimiter: '2015.8.4', contents_grains: '2014.7.0', contents_newline: '2014.7.0', contents_pillar: '0.17.0', encoding: '2017.7.0', encoding_errors: '2017.7.0', follow_symlinks: '2014.7.0', gnupghome: '3007.0', ignore_comment_characters: '3007.0', ignore_ordering: '3007.0', ignore_whitespace: '3007.0', keep_source: '2017.7.3', keyring: '3007.0', new_file_diff: '3008.0', selinux: '3000', sig_backend: '3008.0', signature: '3007.0', signed_by_all: '3007.0', signed_by_any: '3007.0', skip_verify: '2016.3.0', source_hash_name: '2016.3.5', source_hash_sig: '3007.0', use_etag: '3005', verify_ssl: '3002', win_deny_perms: '2017.7.0', win_inheritance: '2017.7.0', win_owner: '2017.7.0', win_perms: '2017.7.0', win_perms_reset: '2018.3.0' },
+  'file.not_cached': { '': '2017.7.3' },
+  'file.patch': { context: '2019.2.0', defaults: '2019.2.0', reject_file: '2019.2.0', skip_verify: '2019.2.0', source_hash: '2019.2.0', source_hash_name: '2019.2.0', strip: '2019.2.0', template: '2019.2.0' },
+  'file.prepend': { show_changes: '3008.0' },
+  'file.pruned': { '': '3006.0' },
+  'file.recurse': { keep_source: '2017.7.3', merge: '3008.0', win_deny_perms: '2017.7.7', win_inheritance: '2017.7.7', win_owner: '2017.7.7', win_perms: '2017.7.7' },
+  'file.replace': { '': '0.17.0', append_if_not_found: '2014.7.0', backslash_literal: '2016.11.7', encoding: '3008.1', ignore_if_missing: '2016.3.4', not_found_content: '2014.7.0', prepend_if_not_found: '2014.7.0' },
+  'file.retention_schedule': { '': '2016.11.0' },
+  'file.serialize': { check_cmd: '3007.0', dataset_pillar: '2015.8.0', deserializer_opts: '2019.2.0', encoding: '2017.7.0', encoding_errors: '2017.7.0', makedirs: '2014.1.3', merge_if_exists: '2014.7.0', tmp_dir: '3007.0', tmp_ext: '3007.0' },
+  'file.symlink': { atomic: '3006.0', disallow_copy_and_unlink: '3006.0', follow_symlinks: '3007.0', inherit_user_and_group: '3006.0', win_deny_perms: '2017.7.7', win_inheritance: '2017.7.7', win_owner: '2017.7.7', win_perms: '2017.7.7' },
+  'file.tidied': { age_size_logical_operator: '3006.0', age_size_only: '3006.0', exclude: '3005', followlinks: '3005', full_path_match: '3005', rmlinks: '3006.0', time_comparison: '3005' },
+  'firewalld.service': { '': '2016.11.0' },
+  'git.cloned': { '': '2018.3.3,2019.2.0' },
+  'git.config_set': { '': '2014.7.0', multivar: '2015.8.0', output_encoding: '2018.3.1', password: '2016.3.4' },
+  'git.config_unset': { '': '2015.8.0', output_encoding: '2018.3.1', password: '2016.3.4' },
+  'git.detached': { '': '2016.3.0', output_encoding: '2018.3.1', password: '2016.3.4' },
+  'git.latest': { branch: '2015.8.0', force_fetch: '2015.8.0', https_pass: '2015.5.0', https_user: '2015.5.0', output_encoding: '2018.3.1', password: '2016.3.4', sync_tags: '2018.3.4', update_head: '2015.8.3', user: '0.17.0' },
+  'git.present': { output_encoding: '2018.3.1', password: '2016.3.4', separate_git_dir: '2015.8.0', shared: '2015.5.0', template: '2015.8.0', user: '0.17.0' },
+  'gpg.absent': { keyring: '3007.0', keyring_absent_if_empty: '3007.0' },
+  'gpg.present': { keyring: '3007.0', skip_keyserver: '3008.0', source: '3008.0', subkey_maxage: '3008.0', text: '3008.0' },
+  'grains.absent': { '': '2014.7.0', delimiter: '2015.8.2', force: '2015.8.2' },
+  'grains.append': { '': '2014.7.0', delimiter: '2015.8.2' },
+  'grains.list_absent': { '': '2014.1.0', delimiter: '2015.8.2' },
+  'grains.list_present': { '': '2014.1.0', delimiter: '2015.8.2' },
+  'grains.present': { delimiter: '2015.8.2', force: '2015.8.2' },
+  'group.absent': { local: '3007.0' },
+  'group.present': { local: '3007.0', non_unique: '3006.0' },
+  'host.only': { '': '2016.3.0' },
+  'host.present': { clean: '2018.3.4', comment: '3001' },
+  'http.query': { status_type: '3000' },
+  'ini.options_absent': { encoding: '3006.10' },
+  'ini.options_present': { encoding: '3006.10', no_spaces: '3006.10' },
+  'ini.sections_absent': { encoding: '3006.6' },
+  'ini.sections_present': { encoding: '3006.10' },
+  'ipset.absent': { '': '2014.7.0' },
+  'ipset.flush': { '': '2014.7.0' },
+  'ipset.present': { '': '2014.7.0' },
+  'ipset.set_absent': { '': '2014.7.0' },
+  'ipset.set_present': { '': '2014.7.0' },
+  'iptables.append': { '': '0.17.0' },
+  'iptables.chain_absent': { '': '2014.1.0' },
+  'iptables.chain_present': { '': '2014.1.0' },
+  'iptables.delete': { '': '2014.1.0' },
+  'iptables.flush': { '': '2014.1.0' },
+  'iptables.insert': { '': '2014.1.0' },
+  'iptables.set_policy': { '': '2014.1.0' },
+  'kmod.absent': { mods: '2016.3.0' },
+  'kmod.present': { mods: '2016.3.0' },
+  'lgpo.set': { refresh_cache: '3006.8 / 3007.1' },
+  'lgpo_reg.refresh_policy': { '': '3008.2' },
+  'lgpo_reg.value_absent': { refresh_policy: '3008.2', write_registry: '3008.2' },
+  'lgpo_reg.value_disabled': { refresh_policy: '3008.2', write_registry: '3008.2' },
+  'lgpo_reg.value_present': { refresh_policy: '3008.2', write_registry: '3008.2' },
+  'locale.present': { '': '2014.7.0' },
+  'macdefaults.absent': { name_separator: '3008.0' },
+  'macdefaults.write': { name_separator: '3008.0' },
+  'mount.mounted': { bind_mount_copy_active_opts: '3006.0', device_name_regex: '2016.11.0', hidden_opts: '2015.8.2' },
+  'mount.unmounted': { '': '0.17.0', device: '2015.5.0' },
+  'netconfig.commit_cancelled': { '': '2019.2.0' },
+  'netconfig.commit_confirmed': { '': '2019.2.0' },
+  'netconfig.managed': { context: '2019.2.0' },
+  'netconfig.replace_pattern': { '': '2019.2.0' },
+  'netconfig.saved': { '': '2019.2.0' },
+  'nftables.append': { '': '0.17.0' },
+  'nftables.chain_absent': { '': '2014.7.0' },
+  'nftables.chain_present': { '': '2014.7.0' },
+  'nftables.delete': { '': '2014.7.0' },
+  'nftables.flush': { '': '2014.7.0', ignore_absence: '3002' },
+  'nftables.insert': { '': '2014.7.0' },
+  'nftables.set_policy': { '': '3002' },
+  'nftables.table_absent': { '': '3002' },
+  'nftables.table_present': { '': '3002' },
+  'pip.installed': { global_options: '2014.1.3' },
+  'pip.uptodate': { '': '2015.5.0' },
+  'pkg.downloaded': { '': '2017.7.0' },
+  'pkg.group_installed': { '': '2015.8.0' },
+  'pkg.held': { '': '3005' },
+  'pkg.installed': { allow_updates: '2014.7.0', ignore_epoch: '2015.8.9', normalize: '2014.7.0', pkg_verify: '2014.7.0', skip_suggestions: '2014.1.1', update_holds: '2016.11.0 / 3003' },
+  'pkg.patch_downloaded': { '': '2017.7.0' },
+  'pkg.patch_installed': { '': '2017.7.0' },
+  'pkg.purged': { ignore_epoch: '2015.8.9', normalize: '2015.8.0', pkgs: '0.16.0' },
+  'pkg.removed': { ignore_epoch: '2015.8.9', normalize: '2015.8.0', pkgs: '0.16.0' },
+  'pkg.unheld': { '': '3005' },
+  'pkg.uptodate': { '': '2014.7.0' },
+  'pkgbuild.built': { force: '2015.8.2' },
+  'pkgbuild.repo': { runas: '2016.3.0', timeout: '2016.3.4', use_passphrase: '2016.3.0' },
+  'pkgrepo.managed': { copr: '3002' },
+  'postgres_cluster.absent': { name: '2016.3.0' },
+  'postgres_cluster.present': { wal_segsize: '2016.3.0' },
+  'postgres_database.absent': { user: '0.17.0' },
+  'postgres_database.present': { db_port: '0.17.0' },
+  'postgres_group.absent': { user: '0.17.0' },
+  'postgres_group.present': { user: '0.17.0' },
+  'postgres_initdb.present': { checksums: '2019.2.0', waldir: '2019.2.0' },
+  'postgres_user.absent': { user: '0.17.0' },
+  'postgres_user.present': { default_password: '2016.3.0', user: '0.17.0' },
+  'pyenv.absent': { user: '0.17.0' },
+  'pyenv.installed': { user: '0.17.0' },
+  'reg.key_absent': { '': '2015.5.4' },
+  'reg.present': { win_deny_perms: '2019.2.0', win_inheritance: '2019.2.0', win_owner: '2019.2.0', win_perms: '2019.2.0', win_perms_reset: '2019.2.0' },
+  'salt.function': { failhard: '2019.2.2', subset: '2017.7.0' },
+  'salt.parallel_runners': { '': '2018.3.0' },
+  'salt.runner': { '': '2014.7.0' },
+  'salt.state': { batch: '2016.3.0', failhard: '2019.2.2', pillarenv: '2017.7.0', subset: '2017.7.0', tgt: '2016.11.0' },
+  'salt.wait_for_event': { '': '2014.7.0' },
+  'salt.wheel': { '': '2014.7.0' },
+  'saltutil.sync_wrapper': { '': '3007.0' },
+  'selinux.fcontext_policy_absent': { '': '2017.7.0' },
+  'selinux.fcontext_policy_applied': { '': '2017.7.0' },
+  'selinux.fcontext_policy_present': { '': '2017.7.0' },
+  'selinux.port_policy_absent': { '': '2019.2.0' },
+  'selinux.port_policy_present': { '': '2019.2.0' },
+  'service.dead': { init_delay: '2017.7.0' },
+  'service.masked': { '': '2017.7.0' },
+  'service.unmasked': { '': '2017.7.0' },
+  'ssh_auth.absent': { fingerprint_hash_type: '2016.11.7', source: '2015.8.0' },
+  'ssh_auth.manage': { '': '3000' },
+  'ssh_known_hosts.present': { fingerprint_hash_type: '2016.11.4', timeout: '2016.3.0' },
+  'system.hostname': { '': '2016.3.0' },
+  'system.workgroup': { '': '3001' },
+  'task.absent': { '': '3007.0' },
+  'task.present': { '': '3007.0' },
+  'test.configurable_test_state': { '': '2014.7.0', allow_test_mode_failure: '3007.0', warnings: '3000' },
+  'test.fail_with_changes': { '': '2014.7.0' },
+  'test.fail_without_changes': { '': '2014.7.0' },
+  'test.nop': { '': '2015.8.1' },
+  'test.show_notification': { '': '2015.8.0' },
+  'test.succeed_with_changes': { '': '2014.7.0' },
+  'test.succeed_without_changes': { '': '2014.7.0' },
+  'user.absent': { local: '3007.0' },
+  'user.present': { allow_gid_change: '2018.3.1', allow_uid_change: '2018.3.1', local: '3007.0', password_lock: '3006.0', usergroup: '3001' },
+  'virtualenv.managed': { process_dependency_links: '2017.7.0' },
+  'win_dns_client.primary_suffix': { '': '2014.7.0' },
+  'win_iis.set_app': { '': '2017.7.0' },
+  'win_servermanager.installed': { features: '2018.3.0' },
+  'win_servermanager.removed': { features: '2018.3.0' },
+  'x509.private_key_managed': { verbose: '2016.11.0' }
+};
+const VERSION_ADDED_3006 = {
+  'acme.cert': { dns_plugin_propagate_seconds: '3006.26' },
+  'alternatives.auto': { '': '0.17.0' },
+  'alternatives.set': { '': '0.17.0' },
+  'apache_module.disabled': { '': '2016.3.0' },
+  'apache_module.enabled': { '': '2016.3.0' },
+  'archive.extracted': { '': '2014.1.0', clean: '2016.11.1', clean_parent: '3000', enforce_ownership_on: '2016.11.0', enforce_toplevel: '2016.11.0', extract_perms: '2016.11.0', force: '2016.11.0', group: '2015.8.0', list_options: '2016.11.0', options: '2016.11.0', overwrite: '2016.11.1', password: '2016.3.0', skip_files_list_verify: '3000', skip_verify: '2016.3.4', source_hash_name: '2016.11.0', source_hash_update: '2016.3.0', trim_output: '2016.3.0', use_cmd_unzip: '2016.11.0', use_etag: '3005', user: '2015.8.0' },
+  'artifactory.downloaded': { artifact: '2015.8.0' },
+  'at.present': { unique_tag: '2017.7.0', user: '2014.1.4' },
+  'at.watch': { '': '2017.7.0', unique_tag: '2017.7.0', user: '2014.1.4' },
+  'augeas.change': { '': '2014.7.0' },
+  'azurearm_compute.availability_set_absent': { '': '2019.2.0' },
+  'azurearm_compute.availability_set_present': { '': '2019.2.0' },
+  'azurearm_dns.record_set_absent': { '': '3000' },
+  'azurearm_dns.record_set_present': { '': '3000' },
+  'azurearm_dns.zone_absent': { '': '3000' },
+  'azurearm_dns.zone_present': { '': '3000' },
+  'azurearm_network.load_balancer_absent': { '': '2019.2.0' },
+  'azurearm_network.load_balancer_present': { '': '2019.2.0' },
+  'azurearm_network.network_interface_absent': { '': '2019.2.0' },
+  'azurearm_network.network_interface_present': { '': '2019.2.0' },
+  'azurearm_network.network_security_group_absent': { '': '2019.2.0' },
+  'azurearm_network.network_security_group_present': { '': '2019.2.0' },
+  'azurearm_network.public_ip_address_absent': { '': '2019.2.0' },
+  'azurearm_network.public_ip_address_present': { '': '2019.2.0' },
+  'azurearm_network.route_absent': { '': '2019.2.0' },
+  'azurearm_network.route_present': { '': '2019.2.0' },
+  'azurearm_network.route_table_absent': { '': '2019.2.0' },
+  'azurearm_network.route_table_present': { '': '2019.2.0' },
+  'azurearm_network.security_rule_absent': { '': '2019.2.0' },
+  'azurearm_network.security_rule_present': { '': '2019.2.0' },
+  'azurearm_network.subnet_absent': { '': '2019.2.0' },
+  'azurearm_network.subnet_present': { '': '2019.2.0' },
+  'azurearm_network.virtual_network_absent': { '': '2019.2.0' },
+  'azurearm_network.virtual_network_present': { '': '2019.2.0' },
+  'azurearm_resource.policy_assignment_absent': { '': '2019.2.0' },
+  'azurearm_resource.policy_assignment_present': { '': '2019.2.0' },
+  'azurearm_resource.policy_definition_absent': { '': '2019.2.0' },
+  'azurearm_resource.policy_definition_present': { '': '2019.2.0' },
+  'azurearm_resource.resource_group_absent': { '': '2019.2.0' },
+  'azurearm_resource.resource_group_present': { '': '2019.2.0' },
+  'blockdev.formatted': { force: '2016.11.0' },
+  'boto_apigateway.present': { error_response_template: '2017.7.0', response_template: '2017.7.0' },
+  'boto_apigateway.usage_plan_absent': { '': '2017.7.0' },
+  'boto_apigateway.usage_plan_association_absent': { '': '2017.7.0' },
+  'boto_apigateway.usage_plan_association_present': { '': '2017.7.0' },
+  'boto_apigateway.usage_plan_present': { '': '2017.7.0' },
+  'boto_ec2.eni_absent': { '': '2016.3.0' },
+  'boto_ec2.eni_present': { '': '2016.3.0', arecords: '2016.3.0' },
+  'boto_ec2.instance_present': { network_interface_id: '2016.11.0', network_interface_name: '2016.11.0' },
+  'boto_ec2.snapshot_created': { '': '2016.3.0' },
+  'boto_ec2.volume_absent': { '': '2016.11.0' },
+  'boto_ec2.volumes_tagged': { '': '2016.11.0' },
+  'boto_elasticache.subnet_group_present': { '': '2015.8.0' },
+  'boto_elbv2.create_target_group': { '': '2017.11.0' },
+  'boto_elbv2.targets_registered': { '': '2017.7.0' },
+  'boto_iam.account_policy': { '': '2015.8.0' },
+  'boto_iam.group_absent': { '': '2015.8.0' },
+  'boto_iam.group_present': { '': '2015.8.0' },
+  'boto_iam.keys_present': { '': '2015.8.0' },
+  'boto_iam.policy_absent': { '': '2015.8.0' },
+  'boto_iam.policy_present': { '': '2015.8.0' },
+  'boto_iam.saml_provider_absent': { '': '2016.11.0' },
+  'boto_iam.saml_provider_present': { '': '2016.11.0' },
+  'boto_iam.server_cert_absent': { '': '2015.8.0' },
+  'boto_iam.server_cert_present': { '': '2015.8.0' },
+  'boto_iam.user_absent': { '': '2015.8.0', delete_mfa_devices: '2016.3.0', delete_profile: '2016.3.0' },
+  'boto_iam.user_present': { '': '2015.8.0', path: '2015.8.2' },
+  'boto_iam_role.present': { delete_policies: '2015.8.0', policy_document_from_pillars: '2017.7.0' },
+  'boto_iot.thing_type_absent': { '': '2016.11.0' },
+  'boto_iot.thing_type_present': { '': '2016.11.0' },
+  'boto_lambda.function_present': { Environment: '2017.7.0' },
+  'boto_secgroup.absent': { profile: '2016.3.0', vpc_name: '2016.3.0' },
+  'boto_secgroup.present': { tags: '2016.3.0', vpc_name: '2016.3.0 / 2015.8.2' },
+  'boto_sns.absent': { unsubscribe: '2016.11.0' },
+  'boto_vpc.nat_gateway_absent': { '': '2016.11.0' },
+  'boto_vpc.nat_gateway_present': { '': '2016.11.0' },
+  'boto_vpc.request_vpc_peering_connection': { peer_region: '3005' },
+  'boto_vpc.subnet_present': { route_table_id: '2016.11.0', route_table_name: '2016.11.0' },
+  'boto_vpc.vpc_peering_connection_present': { peer_region: '3005' },
+  'bower.pruned': { '': '2017.7.0' },
+  'buildout.installed': { user: '2014.1.4' },
+  'chocolatey.installed': { allow_multiple: '2017.7.0', virus_check: '3006.22' },
+  'chocolatey.upgraded': { '': '2018.3.0' },
+  'cimc.hostname': { '': '2019.2.0' },
+  'cimc.logging_levels': { '': '2019.2.0' },
+  'cimc.power_configuration': { '': '2019.2.0' },
+  'cimc.user': { '': '2019.2.0' },
+  'cmd.run': { hide_output: '2018.3.0', ignore_timeout: '2015.8.0', password: '3000', prepend_path: '2018.3.0', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cmd.script': { context: '2016.3.0', defaults: '2016.3.0', hide_output: '2018.3.0', password: '3000', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cmd.wait': { hide_output: '2018.3.0', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'cmd.wait_script': { hide_output: '2018.3.0', success_retcodes: '2019.2.0', success_stderr: '3004', success_stdout: '3004' },
+  'composer.installed': { user: '2014.1.4' },
+  'composer.update': { user: '2014.1.4' },
+  'cron.file': { source_hash_name: '2016.3.5' },
+  'cron.present': { commented: '2016.3.0', special: '2016.3.0' },
+  'disk.status': { absolute: '2016.11.0' },
+  'dism.kb_removed': { '': '3006.0' },
+  'docker_container.run': { '': '2018.3.0' },
+  'docker_image.present': { base: '2017.7.0', build: '2016.11.0', dockerfile: '2016.11.0', pillar: '2018.3.0', pillarenv: '2018.3.0', saltenv: '2017.7.0', sls: '2017.7.0', tag: '2018.3.0' },
+  'docker_network.present': { ignore_collisions: '2018.3.0', reconnect: '2018.3.0', skip_translate: '2018.3.0', validate_ip_addrs: '2018.3.0' },
+  'docker_volume.absent': { '': '2015.8.4' },
+  'docker_volume.present': { '': '2015.8.4', force: '2015.8.6' },
+  'elasticsearch_index.present': { '': '2015.8.0' },
+  'elasticsearch_index_template.present': { '': '2015.8.0' },
+  'ethtool.pause': { '': '3006.0' },
+  'event.send': { '': '2014.7.0' },
+  'event.wait': { '': '2014.7.0' },
+  'file.append': { encoding: '3006.28', encoding_errors: '3006.28', ignore_whitespace: '2015.8.4' },
+  'file.blockreplace': { '': '2014.1.0', append_newline: '2017.7.5,2018.3.1', insert_after_match: '3001', insert_before_match: '3001' },
+  'file.cached': { '': '2017.7.3', use_etag: '3005' },
+  'file.comment': { '': '0.9.5', encoding: '3006.28', encoding_errors: '3006.28', ignore_missing: '3005' },
+  'file.copy': { dir_mode: '3006.0', group: '2015.5.0', mode: '2015.5.0', preserve: '2015.5.0', subdir: '2015.5.0', user: '2015.5.0' },
+  'file.decode': { '': '2016.3.0' },
+  'file.directory': { allow_symlink: '2014.7.0', backupname: '2014.7.0', follow_symlinks: '2014.1.4', force: '2014.7.0', max_depth: '2016.11.0', recurse: '2015.5.0', win_deny_perms: '2017.7.0', win_inheritance: '2017.7.0', win_owner: '2017.7.0', win_perms: '2017.7.0', win_perms_reset: '2018.3.0' },
+  'file.keyvalue': { '': '3001' },
+  'file.line': { '': '2015.8.0', create: '2016.11.0', file_mode: '2016.11.0', group: '2016.11.0', user: '2016.11.0' },
+  'file.managed': { allow_empty: '2015.8.4', attrs: '2018.3.0', check_cmd: '2014.7.0', contents_delimiter: '2015.8.4', contents_grains: '2014.7.0', contents_newline: '2014.7.0', contents_pillar: '0.17.0', encoding: '2017.7.0', encoding_errors: '2017.7.0', follow_symlinks: '2014.7.0', keep_source: '2017.7.3', selinux: '3000', skip_verify: '2016.3.0', source_hash_name: '2016.3.5', use_etag: '3005', verify_ssl: '3002', win_deny_perms: '2017.7.0', win_inheritance: '2017.7.0', win_owner: '2017.7.0', win_perms: '2017.7.0', win_perms_reset: '2018.3.0' },
+  'file.not_cached': { '': '2017.7.3' },
+  'file.patch': { context: '2019.2.0', defaults: '2019.2.0', reject_file: '2019.2.0', skip_verify: '2019.2.0', source_hash: '2019.2.0', source_hash_name: '2019.2.0', strip: '2019.2.0', template: '2019.2.0' },
+  'file.prepend': { encoding: '3006.28', encoding_errors: '3006.28' },
+  'file.pruned': { '': '3006.0' },
+  'file.recurse': { keep_source: '2017.7.3', win_deny_perms: '2017.7.7', win_inheritance: '2017.7.7', win_owner: '2017.7.7', win_perms: '2017.7.7' },
+  'file.replace': { '': '0.17.0', append_if_not_found: '2014.7.0', backslash_literal: '2016.11.7', encoding: '3006.26', ignore_if_missing: '2016.3.4', not_found_content: '2014.7.0', prepend_if_not_found: '2014.7.0' },
+  'file.retention_schedule': { '': '2016.11.0' },
+  'file.serialize': { dataset_pillar: '2015.8.0', deserializer_opts: '2019.2.0', encoding: '2017.7.0', encoding_errors: '2017.7.0', makedirs: '2014.1.3', merge_if_exists: '2014.7.0' },
+  'file.symlink': { atomic: '3006.0', disallow_copy_and_unlink: '3006.0', inherit_user_and_group: '3006.0', win_deny_perms: '2017.7.7', win_inheritance: '2017.7.7', win_owner: '2017.7.7', win_perms: '2017.7.7' },
+  'file.tidied': { age_size_logical_operator: '3006.0', age_size_only: '3006.0', exclude: '3005', followlinks: '3005', full_path_match: '3005', rmlinks: '3006.0', time_comparison: '3005' },
+  'firewalld.service': { '': '2016.11.0' },
+  'gem.installed': { user: '0.17.0' },
+  'gem.removed': { user: '0.17.0' },
+  'gem.sources_add': { user: '0.17.0' },
+  'gem.sources_remove': { user: '0.17.0' },
+  'git.cloned': { '': '2018.3.3,2019.2.0' },
+  'git.config_set': { '': '2014.7.0', multivar: '2015.8.0', output_encoding: '2018.3.1', password: '2016.3.4' },
+  'git.config_unset': { '': '2015.8.0', output_encoding: '2018.3.1', password: '2016.3.4' },
+  'git.detached': { '': '2016.3.0', output_encoding: '2018.3.1', password: '2016.3.4' },
+  'git.latest': { branch: '2015.8.0', force_fetch: '2015.8.0', https_pass: '2015.5.0', https_user: '2015.5.0', output_encoding: '2018.3.1', password: '2016.3.4', sync_tags: '2018.3.4', update_head: '2015.8.3', user: '0.17.0' },
+  'git.present': { output_encoding: '2018.3.1', password: '2016.3.4', separate_git_dir: '2015.8.0', shared: '2015.5.0', template: '2015.8.0', user: '0.17.0' },
+  'github.repo_present': { teams: '2017.7.0' },
+  'glusterfs.max_op_version': { '': '2019.2.0' },
+  'glusterfs.op_version': { '': '2019.2.0' },
+  'glusterfs.volume_present': { arbiter: '2019.2.0' },
+  'grains.absent': { '': '2014.7.0', delimiter: '2015.8.2', force: '2015.8.2' },
+  'grains.append': { '': '2014.7.0', delimiter: '2015.8.2' },
+  'grains.list_absent': { '': '2014.1.0', delimiter: '2015.8.2' },
+  'grains.list_present': { '': '2014.1.0', delimiter: '2015.8.2' },
+  'grains.present': { delimiter: '2015.8.2', force: '2015.8.2' },
+  'group.present': { non_unique: '3006.0' },
+  'hg.latest': { identity: '2015.5.0', update_head: '2017.7.0', user: '0.17.0' },
+  'host.only': { '': '2016.3.0' },
+  'host.present': { clean: '2018.3.4', comment: '3001' },
+  'http.query': { status_type: '3000' },
+  'ini.options_absent': { encoding: '3006.10' },
+  'ini.options_present': { encoding: '3006.10', no_spaces: '3006.10' },
+  'ini.sections_absent': { encoding: '3006.10' },
+  'ini.sections_present': { encoding: '3006.10' },
+  'ipset.absent': { '': '2014.7.0' },
+  'ipset.flush': { '': '2014.7.0' },
+  'ipset.present': { '': '2014.7.0' },
+  'ipset.set_absent': { '': '2014.7.0' },
+  'ipset.set_present': { '': '2014.7.0' },
+  'iptables.append': { '': '0.17.0' },
+  'iptables.chain_absent': { '': '2014.1.0' },
+  'iptables.chain_present': { '': '2014.1.0' },
+  'iptables.delete': { '': '2014.1.0' },
+  'iptables.flush': { '': '2014.1.0' },
+  'iptables.insert': { '': '2014.1.0' },
+  'iptables.set_policy': { '': '2014.1.0' },
+  'junos.get_table': { '': '3001' },
+  'kapacitor.task_present': { dbrps: '2019.2.0' },
+  'keystone.project_absent': { '': '2016.11.0' },
+  'keystone.project_present': { '': '2016.11.0' },
+  'kmod.absent': { mods: '2016.3.0' },
+  'kmod.present': { mods: '2016.3.0' },
+  'ldap.managed': { attrlist: '3006.20' },
+  'lgpo.set': { refresh_cache: '3006.8' },
+  'lgpo_reg.refresh_policy': { '': '3006.26' },
+  'lgpo_reg.value_absent': { refresh_policy: '3006.26', write_registry: '3006.26' },
+  'lgpo_reg.value_disabled': { refresh_policy: '3006.26', write_registry: '3006.26' },
+  'lgpo_reg.value_present': { refresh_policy: '3006.26', write_registry: '3006.26' },
+  'locale.present': { '': '2014.7.0' },
+  'lxc.absent': { path: '2015.8.0', stop: '2015.5.2' },
+  'lxc.edited_conf': { '': '2015.8.0' },
+  'lxc.frozen': { '': '2015.5.0', path: '2015.8.0' },
+  'lxc.present': { network_profile: '2015.5.2', options: '2015.5.0', path: '2015.8.0', running: '2015.8.0' },
+  'lxc.running': { path: '2015.8.0' },
+  'lxc.stopped': { kill: '2015.5.0', path: '2015.8.0' },
+  'mount.mounted': { bind_mount_copy_active_opts: '3006.0', device_name_regex: '2016.11.0', hidden_opts: '2015.8.2' },
+  'mount.unmounted': { '': '0.17.0', device: '2015.5.0' },
+  'mysql_query.run_file': { '': '2017.7.0' },
+  'mysql_user.present': { allow_passwordless: '0.16.2' },
+  'netconfig.commit_cancelled': { '': '2019.2.0' },
+  'netconfig.commit_confirmed': { '': '2019.2.0' },
+  'netconfig.managed': { context: '2019.2.0' },
+  'netconfig.replace_pattern': { '': '2019.2.0' },
+  'netconfig.saved': { '': '2019.2.0' },
+  'nftables.append': { '': '0.17.0' },
+  'nftables.chain_absent': { '': '2014.7.0' },
+  'nftables.chain_present': { '': '2014.7.0' },
+  'nftables.delete': { '': '2014.7.0' },
+  'nftables.flush': { '': '2014.7.0', ignore_absence: '3002' },
+  'nftables.insert': { '': '2014.7.0' },
+  'nftables.set_policy': { '': '3002' },
+  'nftables.table_absent': { '': '3002' },
+  'nftables.table_present': { '': '3002' },
+  'npm.bootstrap': { user: '0.17.0' },
+  'npm.cache_cleaned': { force: '2016.11.6' },
+  'npm.installed': { env: '2014.7.0', pkgs: '2014.7.0', registry: '2014.7.0', user: '0.17.0' },
+  'npm.removed': { user: '0.17.0' },
+  'pecl.installed': { '': '0.17.0' },
+  'pip.installed': { global_options: '2014.1.3' },
+  'pip.uptodate': { '': '2015.5.0' },
+  'pkg.downloaded': { '': '2017.7.0' },
+  'pkg.group_installed': { '': '2015.8.0' },
+  'pkg.held': { '': '3005' },
+  'pkg.installed': { allow_updates: '2014.7.0', ignore_epoch: '2015.8.9', normalize: '2014.7.0', pkg_verify: '2014.7.0', skip_suggestions: '2014.1.1', update_holds: '2016.11.0 / 3003' },
+  'pkg.patch_downloaded': { '': '2017.7.0' },
+  'pkg.patch_installed': { '': '2017.7.0' },
+  'pkg.purged': { ignore_epoch: '2015.8.9', normalize: '2015.8.0', pkgs: '0.16.0' },
+  'pkg.removed': { ignore_epoch: '2015.8.9', normalize: '2015.8.0', pkgs: '0.16.0' },
+  'pkg.unheld': { '': '3005' },
+  'pkg.uptodate': { '': '2014.7.0' },
+  'pkgbuild.built': { force: '2015.8.2' },
+  'pkgbuild.repo': { runas: '2016.3.0', timeout: '2016.3.4', use_passphrase: '2016.3.0' },
+  'pkgrepo.managed': { copr: '3002' },
+  'postgres_cluster.absent': { name: '2016.3.0' },
+  'postgres_cluster.present': { wal_segsize: '2016.3.0' },
+  'postgres_database.absent': { user: '0.17.0' },
+  'postgres_database.present': { db_port: '0.17.0' },
+  'postgres_group.absent': { user: '0.17.0' },
+  'postgres_group.present': { user: '0.17.0' },
+  'postgres_initdb.present': { checksums: '2019.2.0', waldir: '2019.2.0' },
+  'postgres_user.absent': { user: '0.17.0' },
+  'postgres_user.present': { default_password: '2016.3.0', user: '0.17.0' },
+  'pyenv.absent': { user: '0.17.0' },
+  'pyenv.installed': { user: '0.17.0' },
+  'rbenv.absent': { user: '0.17.0' },
+  'rbenv.installed': { user: '0.17.0' },
+  'redis.slaveof': { '': '2016.3.0' },
+  'reg.key_absent': { '': '2015.5.4' },
+  'reg.present': { win_deny_perms: '2019.2.0', win_inheritance: '2019.2.0', win_owner: '2019.2.0', win_perms: '2019.2.0', win_perms_reset: '2019.2.0' },
+  'rsync.synchronized': { additional_opts: '2018.3.0', dryrun: '2016.3.1' },
+  'rvm.gemset_present': { user: '0.17.0' },
+  'rvm.installed': { opts: '0.17.0' },
+  'salt.function': { failhard: '2019.2.2', subset: '2017.7.0' },
+  'salt.parallel_runners': { '': '2018.3.0' },
+  'salt.runner': { '': '2014.7.0' },
+  'salt.state': { batch: '2016.3.0', failhard: '2019.2.2', pillarenv: '2017.7.0', subset: '2017.7.0', tgt: '2016.11.0' },
+  'salt.wait_for_event': { '': '2014.7.0' },
+  'salt.wheel': { '': '2014.7.0' },
+  'selinux.fcontext_policy_absent': { '': '2017.7.0' },
+  'selinux.fcontext_policy_applied': { '': '2017.7.0' },
+  'selinux.fcontext_policy_present': { '': '2017.7.0' },
+  'selinux.port_policy_absent': { '': '2019.2.0' },
+  'selinux.port_policy_present': { '': '2019.2.0' },
+  'service.dead': { init_delay: '2017.7.0' },
+  'service.masked': { '': '2017.7.0' },
+  'service.unmasked': { '': '2017.7.0' },
+  'ssh_auth.absent': { fingerprint_hash_type: '2016.11.7', source: '2015.8.0' },
+  'ssh_auth.manage': { '': '3000' },
+  'ssh_known_hosts.present': { fingerprint_hash_type: '2016.11.4', timeout: '2016.3.0' },
+  'supervisord.dead': { user: '0.17.0' },
+  'supervisord.running': { user: '0.17.0' },
+  'svn.export': { password: '0.17.0', trust_failures: '2019.2.0' },
+  'svn.latest': { password: '0.17.0', trust_failures: '2019.2.0' },
+  'system.hostname': { '': '2016.3.0' },
+  'system.workgroup': { '': '3001' },
+  'test.configurable_test_state': { '': '2014.7.0', warnings: '3000' },
+  'test.fail_with_changes': { '': '2014.7.0' },
+  'test.fail_without_changes': { '': '2014.7.0' },
+  'test.nop': { '': '2015.8.1' },
+  'test.show_notification': { '': '2015.8.0' },
+  'test.succeed_with_changes': { '': '2014.7.0' },
+  'test.succeed_without_changes': { '': '2014.7.0' },
+  'user.present': { allow_gid_change: '2018.3.1', allow_uid_change: '2018.3.1', password_lock: '3006.0', persist_home: '3006.17', usergroup: '3001' },
+  'virt.defined': { '': '3001', boot: '3000', boot_dev: '3002', clock: '3003', consoles: '3003', host_devices: '3003', hypervisor_features: '3003', live: '3003', numatune: '3003', serials: '3003', stop_on_reboot: '3003' },
+  'virt.network_defined': { addresses: '3003', interfaces: '3003', mtu: '3003', nat: '3003', physical_function: '3003' },
+  'virt.network_running': { addresses: '3003', connection: '2019.2.0', interfaces: '3003', ipv4_config: '3000', ipv6_config: '3000', mtu: '3003', nat: '3003', password: '2019.2.0', physical_function: '3003', username: '2019.2.0' },
+  'virt.pool_defined': { '': '3001' },
+  'virt.pool_running': { '': '2019.2.0' },
+  'virt.powered_off': { '': '2016.3.0', connection: '2019.2.0', password: '2019.2.0', username: '2019.2.0' },
+  'virt.rebooted': { '': '2016.3.0', connection: '2019.2.0', password: '2019.2.0', username: '2019.2.0' },
+  'virt.reverted': { '': '2016.3.0' },
+  'virt.running': { '': '2016.3.0', arch: '3000', boot: '3000', boot_dev: '3002', clock: '3003', connection: '2019.2.0', consoles: '3003', disk_profile: '2019.2.0', disks: '2019.2.0', graphics: '2019.2.0', host_devices: '3003', hypervisor_features: '3003', install: '2019.2.0', interfaces: '2019.2.0', nic_profile: '2019.2.0', numatune: '3003', os_type: '3000', password: '2019.2.0', priv_key: '2019.2.0', pub_key: '2019.2.0', seed: '2019.2.0', serials: '3003', stop_on_reboot: '3003', username: '2019.2.0', vm_type: '2019.2.0' },
+  'virt.saved': { '': '2016.3.0' },
+  'virt.snapshot': { '': '2016.3.0', connection: '2019.2.0', password: '2019.2.0', username: '2019.2.0' },
+  'virt.stopped': { '': '2016.3.0', connection: '2019.2.0', password: '2019.2.0', username: '2019.2.0' },
+  'virt.unpowered': { '': '2016.3.0' },
+  'virtualenv.managed': { process_dependency_links: '2017.7.0' },
+  'win_dns_client.primary_suffix': { '': '2014.7.0' },
+  'win_iis.set_app': { '': '2017.7.0' },
+  'win_servermanager.installed': { features: '2018.3.0' },
+  'win_servermanager.removed': { features: '2018.3.0' },
+  'x509.private_key_managed': { verbose: '2016.11.0' },
+  'xml.value_present': { '': '3000' },
+  'zabbix_host.absent': { '': '2016.3.0' },
+  'zabbix_host.assign_templates': { '': '2017.7.0' },
+  'zabbix_host.present': { '': '2016.3.0' },
+  'zabbix_hostgroup.absent': { '': '2016.3.0' },
+  'zabbix_hostgroup.present': { '': '2016.3.0' },
+  'zabbix_user.absent': { '': '2016.3.0' },
+  'zabbix_user.present': { '': '2016.3.0' },
+  'zabbix_usergroup.absent': { '': '2016.3.0' },
+  'zabbix_usergroup.present': { '': '2016.3.0' }
+};
+
 const MODULE_DATASETS = {
   '3008': {
     moduleFunctions: MODULE_FUNCTIONS_3008,
     fullFunctionFields: FULL_FUNCTION_FIELDS_3008,
     mandatoryFields: MANDATORY_FIELDS_3008,
     kwargsFunctions: KWARGS_FUNCTIONS_3008,
-    moduleFiles: STATE_MODULE_FILES_3008
+    moduleFiles: STATE_MODULE_FILES_3008,
+    versionAdded: VERSION_ADDED_3008
   },
   '3006': {
     moduleFunctions: MODULE_FUNCTIONS_3006,
     fullFunctionFields: FULL_FUNCTION_FIELDS_3006,
     mandatoryFields: MANDATORY_FIELDS_3006,
     kwargsFunctions: KWARGS_FUNCTIONS_3006,
-    moduleFiles: STATE_MODULE_FILES_3006
+    moduleFiles: STATE_MODULE_FILES_3006,
+    versionAdded: VERSION_ADDED_3006
   }
 };
 
@@ -3058,6 +3550,30 @@ function pythonDefault(value) {
   return `'${value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/'/g, "\\'")}'`;
 }
 
+// The Salt release that added a state function (arg '') or one of its
+// arguments, per VERSION_ADDED_* (#79); undefined where the docs don't say.
+function versionAdded(dataset, full, arg = '') {
+  return (dataset.versionAdded[full] || {})[arg];
+}
+
+// A release of `version`'s line after its first one (3006.28, not 3006.0 or
+// 3005): older minions of the line don't have what it added.
+function isRecentInLine(added, version) {
+  const m = /^(\d+)\.(\d+)/.exec(added || '');
+  return !!m && m[1] === version && Number(m[2]) > 0;
+}
+
+// What an older release of the line does with it (#79), or null when every
+// release of the line has it.
+function versionNote(dataset, version, full, arg = '') {
+  const added = versionAdded(dataset, full, arg);
+  if (!isRecentInLine(added, version)) return null;
+  if (!arg) return `'${full}' is new in Salt ${added}: older ${version} releases don't have it and fail this state.`;
+  return dataset.kwargsFunctions.has(full)
+    ? `'${arg}' is new in Salt ${added}: older ${version} releases don't know it -- '${full}' takes other options (**kwargs), so it's passed on as one, or ignored.`
+    : `'${arg}' is new in Salt ${added}: older ${version} releases fail this state ("'${arg}' is an invalid keyword argument for '${full}'").`;
+}
+
 // A state function's hover (#61): its signature -- name first, then Salt's
 // parameter order with real defaults, required ones bare, **kwargs if taken --
 // what's required, and a link to its section of Salt's docs.
@@ -3069,13 +3585,21 @@ function functionHover(mod, fn, dataset, version) {
   if (kwargs) params.push('**kwargs');
   const file = dataset.moduleFiles[mod] || mod;
   const url = `https://docs.saltproject.io/en/${version}/ref/states/all/salt.states.${file}.html#salt.states.${file}.${fn}`;
+  const added = versionAdded(dataset, full);
+  // Arguments newer than the line's first release (#79).
+  const recent = (dataset.fullFunctionFields[full] || [])
+    .filter(([k]) => isRecentInLine(versionAdded(dataset, full, k), version))
+    .map(([k]) => `\`${k}\` (${versionAdded(dataset, full, k)})`);
+  const note = versionNote(dataset, version, full);
   return [
-    `**${full}** · Salt ${version} · [Salt docs](${url})`,
+    `**${full}** · Salt ${version}${added ? ` · added in ${added}` : ''} · [Salt docs](${url})`,
+    ...(note ? [`⚠ ${note}`] : []),
     '```python\n' + `${full}(${params.join(', ')})` + '\n```',
     `Required: ${[...required].map((k) => `\`${k}\``).join(', ')} — \`name\` defaults to the state's ID.`,
     kwargs
       ? 'It also takes other options (`**kwargs`), passed on to the module or ignored.'
-      : "Takes no other arguments: Salt fails the state on one it doesn't name (requisites and other global arguments aside)."
+      : "Takes no other arguments: Salt fails the state on one it doesn't name (requisites and other global arguments aside).",
+    ...(recent.length ? [`Not in every ${version} release: ${recent.join(', ')}.`] : [])
   ].join('\n\n');
 }
 
@@ -3119,6 +3643,38 @@ function findArgumentIssues(document, dataset, version) {
     });
   }
   return issues;
+}
+
+// Version hints (#79, saltSyntax.versionHints): each state function and
+// argument used in the file that not every release of the Salt line has
+// (versionNote) -- `mod.fn` (also `id: mod.fn`), Salt's `mod:` + `- fn`
+// item form, and `- key:` under a known function. Returns
+// [{ line, start, end, message }].
+function findVersionHints(document, dataset, version) {
+  const known = (mod, fn) => (dataset.moduleFunctions[mod] || []).includes(fn);
+  const hints = [];
+  for (let line = 0; line < document.lineCount; line++) {
+    const text = document.lineAt(line).text;
+    const decl = text.match(/^(\s+)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*(:\s*)?$/) || text.match(/^(\S.*?:\s+)([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*$/);
+    if (decl && known(decl[2], decl[3])) {
+      const message = versionNote(dataset, version, `${decl[2]}.${decl[3]}`);
+      const start = decl[1].length;
+      if (message) hints.push({ line, start, end: start + decl[2].length + 1 + decl[3].length, message });
+      continue;
+    }
+    const item = text.match(/^(\s*)-(\s*)([A-Za-z_]\w*)(\s*:)?(\s|$)/);
+    if (!item) continue;
+    const { mod, fn } = stateArgumentContext(document, line, item[1].length);
+    const start = item[1].length + 1 + item[2].length;
+    let message = null;
+    if (!item[4]) {
+      if (mod && known(mod, item[3])) message = versionNote(dataset, version, `${mod}.${item[3]}`);
+    } else if (mod && fn && known(mod, fn)) {
+      message = versionNote(dataset, version, `${mod}.${fn}`, item[3]);
+    }
+    if (message) hints.push({ line, start, end: start + item[3].length, message });
+  }
+  return hints;
 }
 
 const JINJA_KEYWORDS = [
@@ -4140,7 +4696,11 @@ async function activate(context) {
             : (dataset.mandatoryFields[full] || []).includes(key) ? 'required' : `default \`${pythonDefault(field[1])}\``;
           const file = dataset.moduleFiles[mod] || mod;
           const url = `https://docs.saltproject.io/en/${version}/ref/states/all/salt.states.${file}.html#salt.states.${file}.${fn}`;
-          return new vscode.Hover(new vscode.MarkdownString(`\`${key}\` — parameter of **${full}**, ${required} · Salt ${version} · [Salt docs](${url})`), range(start, end));
+          const added = versionAdded(dataset, full, key);
+          const note = versionNote(dataset, version, full, key);
+          return new vscode.Hover(new vscode.MarkdownString(
+            `\`${key}\` — parameter of **${full}**, ${required} · Salt ${version}${added ? ` · added in ${added}` : ''} · [Salt docs](${url})` +
+            (note ? `\n\n⚠ ${note}` : '')), range(start, end));
         }
       }
       const isRequisite = GLOBAL_STATE_ARGS.requisite.includes(key);
@@ -4295,6 +4855,37 @@ async function activate(context) {
       },
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
     )
+  );
+
+  // Version hints (#79, see findVersionHints): .sls only; Hint severity --
+  // faint dots under the key, kept out of the Problems panel. Follow the
+  // Salt version like the argument check.
+  const versionDiagnostics = vscode.languages.createDiagnosticCollection('salt-syntax-versions');
+  const refreshVersions = (document) => {
+    if (document.languageId !== 'sls') return;
+    if (!vscode.workspace.getConfiguration('saltSyntax').get('versionHints', true)) {
+      versionDiagnostics.delete(document.uri);
+      return;
+    }
+    const version = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008') === '3006' ? '3006' : '3008';
+    versionDiagnostics.set(document.uri, findVersionHints(document, activeDataset(), version).map((hint) => {
+      const d = new vscode.Diagnostic(new vscode.Range(hint.line, hint.start, hint.line, hint.end), hint.message, vscode.DiagnosticSeverity.Hint);
+      d.source = 'Salt Syntax';
+      d.code = 'version';
+      return d;
+    }));
+  };
+  vscode.workspace.textDocuments.forEach(refreshVersions);
+  context.subscriptions.push(
+    versionDiagnostics,
+    vscode.workspace.onDidOpenTextDocument(refreshVersions),
+    vscode.workspace.onDidChangeTextDocument((e) => refreshVersions(e.document)),
+    vscode.workspace.onDidCloseTextDocument((document) => versionDiagnostics.delete(document.uri)),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('saltSyntax.versionHints') || e.affectsConfiguration('saltSyntax.saltVersion')) {
+        vscode.workspace.textDocuments.forEach(refreshVersions);
+      }
+    })
   );
 
   // State-argument check (#62, see findArgumentIssues): .sls only, where
@@ -4611,6 +5202,7 @@ async function activate(context) {
         const { known } = knownStateFunctions(base, customStates, dictionary());
         const moduleFunctions = Object.fromEntries([...known].filter(([, fns]) => fns !== '*').map(([mod, fns]) => [mod, [...fns]]));
         const dataset = { ...base, moduleFunctions };
+        const version = vscode.workspace.getConfiguration('saltSyntax').get('saltVersion', '3008') === '3006' ? '3006' : '3008';
         const dotMatch = linePrefix.match(/^(\s*)([A-Za-z_][A-Za-z0-9_]*)\.$/);
         if (dotMatch && dataset.moduleFunctions[dotMatch[2]]) {
           const indent = dotMatch[1];
@@ -4628,7 +5220,8 @@ async function activate(context) {
               // typed text, and "basic" should sort right above "full".
               item.filterText = fn;
               item.sortText = `${isFull ? '1' : '0'}_${fn}`;
-              item.detail = isFull ? `${mod}.${fn} — all arguments` : `${mod}.${fn}`;
+              const added = versionAdded(dataset, `${mod}.${fn}`);
+              item.detail = `${mod}.${fn}${isFull ? ' — all arguments' : ''}${isRecentInLine(added, version) ? ` · Salt ${added}+` : ''}`;
 
               if (atTopLevel) {
                 // Fresh state block: generate the {{ sls }} id line too, then
@@ -4657,6 +5250,8 @@ async function activate(context) {
                 const args = buildArgsBody(fields, '  ', 1);
                 item.insertText = new vscode.SnippetString(`${fn}:\n${args.text}`);
               }
+              const note = versionNote(dataset, version, `${mod}.${fn}`);
+              if (note) item.documentation = new vscode.MarkdownString(`⚠ ${note}${item.documentation ? `\n\n${item.documentation.value}` : ''}`);
               return item;
             })
           );
@@ -4716,7 +5311,12 @@ async function activate(context) {
             const isRequired = required.includes(arg);
             const item = new vscode.CompletionItem(arg, vscode.CompletionItemKind.Property);
             item.insertText = new vscode.SnippetString(`${space}${arg}: \${1:${yamlPlaceholder(placeholder)}}`);
-            item.detail = `${key}${isRequired ? ' — required' : ''}`;
+            // Shown dimmed next to every item: the release it needs, if the
+            // line's first one doesn't have it (#79).
+            const added = versionAdded(dataset, key, arg);
+            item.detail = `${key}${isRequired ? ' — required' : ''}${isRecentInLine(added, version) ? ` · Salt ${added}+` : ''}`;
+            const note = versionNote(dataset, version, key, arg);
+            if (note) item.documentation = new vscode.MarkdownString(`⚠ ${note}`);
             item.sortText = `${isRequired ? '0' : '1'}_${String(i).padStart(3, '0')}`;
             items.push(item);
           });

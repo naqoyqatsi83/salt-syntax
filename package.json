@@ -179,6 +179,11 @@
           "default": true,
           "markdownDescription": "Flag a state argument its function doesn't take. For a function without `**kwargs` Salt fails the state (\"'x' is an invalid keyword argument for 'mod.fn'\"), so that's a warning; a function with `**kwargs` accepts any extra option, so only a near-miss of a real parameter (`pakgs` → `pkgs`) gets a hint. Requisites and other global arguments are always fine; keys built by Jinja aren't checked. Follows `#saltSyntax.saltVersion#`."
         },
+        "saltSyntax.versionHints": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Mark (faintly, as a hint — not in the Problems panel) a state function or argument that not every release of your Salt line has, e.g. `file.append`'s `encoding`, new in 3006.28: older minions fail the state on it, or ignore it where the function takes `**kwargs`. The release comes from Salt's docs (`versionadded`), or from Salt's release history where the docs don't say. Completion and hover show it too, whatever this setting. Follows `#saltSyntax.saltVersion#`."
+        },
         "saltSyntax.jinjaIndentCheck": {
           "type": "boolean",
           "default": true,

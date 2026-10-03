@@ -29,7 +29,7 @@ around them. It ships:
   functions from Salt's own source, each function's real arguments,
   requisites, Jinja keywords, filters and blocks;
 - hover info for state functions and their arguments, with links to
-  Salt's docs;
+  Salt's docs and the Salt release that added each one;
 - checks as you type: arguments a function doesn't take, Jinja
   indentation, non-ASCII characters;
 - a **rendered preview** — the YAML a formula renders to, with real
@@ -187,6 +187,27 @@ Arguments are also checked (`saltSyntax.argumentCheck`, on by default):
 Requisites and the other global arguments are always fine, and keys
 built by Jinja (`- {{ key }}: ...`) aren't checked. The rendered preview
 runs the same check on the rendered states, with Salt's own message.
+
+#### Which Salt release added it
+
+Hovers also show the Salt release that added a state function or
+argument, as Salt's docs give it (`added in 2018.3.0`). When not every
+release of your `saltSyntax.saltVersion` line has it, three places tell
+you, because older minions would fail the state on it:
+
+- **completion** shows the release next to the item, dimmed:
+  `encoding` → `file.append · Salt 3006.28+`;
+- **hover** adds a ⚠ line saying what older releases do with it;
+- **in the editor**, the key gets a faint hint (the dots VS Code draws
+  under it, not listed in Problems): `'encoding' is new in Salt 3006.28:
+  older 3006 releases fail this state`. Turn these off with
+  `saltSyntax.versionHints`.
+
+The release comes from Salt's docs (each docstring's `versionadded`),
+except where they don't say or give a number from the other line, as
+with a backport. There, it's the first release of your line whose source
+has it: `file.replace`'s `encoding` says 3006.26 in the docs, but 3008
+only has it from 3008.1.
 
 ### Unknown state functions, and your own
 
@@ -562,6 +583,7 @@ default, you can always override them yourself in `settings.json` too.
 | `saltSyntax.nonAsciiCheck` | `true` | Warn about non-ASCII characters in `.sls` files, with quick fixes converting them to ASCII — see [Non-ASCII check](#non-ascii-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.functionCheck` | `true` | Warn about an unknown state module or function, with a quick fix to the closest real one — see [Unknown state functions, and your own](#unknown-state-functions-and-your-own). |
 | `saltSyntax.knownStateFunctions` | `[]` | Your own state functions (`module.function`, or `module.*`), known besides Salt's and your formula's `_states/*.py`. Added by the warning's quick fixes; **Salt Syntax: Manage Known State Functions** removes them. |
+| `saltSyntax.versionHints` | `true` | Faintly mark a state function or argument that not every release of your Salt line has (e.g. `file.append`'s `encoding`, new in 3006.28) — see [Which Salt release added it](#which-salt-release-added-it). |
 | `saltSyntax.argumentCheck` | `true` | Flag a state argument its function doesn't take: a warning where Salt fails the state, a hint for a near-miss on a function that takes `**kwargs` — see [Hover info and the argument check](#hover-info-and-the-argument-check). |
 | `saltSyntax.jinjaIndentCheck` | `true` | Warn when a `{% %}` tag's indentation doesn't follow block nesting, with quick fixes to re-indent — see [Jinja indentation check](#jinja-indentation-check). Takes effect immediately, no reload needed. |
 | `saltSyntax.jinjaIndentCheckStyle` | `either` | Which indentation style the check accepts: `either` (one style per file), `outside` (spaces before `{%`), `inside` (tag at column 0, spaces after `{%-`) or `mixed`. |

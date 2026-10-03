@@ -234,6 +234,15 @@ To regenerate one dataset against a newer tag on its line:
    -- in 3008 built from `RequisiteType` in `salt/utils/requisite.py` --
    `STATE_REQUISITE_IN_KEYWORDS`, `STATE_RUNTIME_KEYWORDS`) and
    `GLOBAL_STATE_ARGS` in `extension.js` (their user-facing part).
+   Then `VERSION_ADDED_*` (#79): every dataset function's and argument's
+   `.. versionadded::` from its docstring (an argument's from under its
+   own heading -- `name`, `name (type):`, ``` ``name`` ```, `:param t name:`;
+   the function's from before the first heading), then, for anything
+   missing from the line's `.0` tag, the first tag of the line whose
+   source has it instead -- unless its docs version predates 3006.0 (a
+   `**kwargs` function that took it all along, `cmd.run`'s `password`).
+   Check that every item the source says is new since `.0` agrees with
+   what the docs say, and spot-check a sample of docstrings by hand.
 5. Diff against the previous version and manually verify anything that
    changed shape (new/removed modules, function list changes) before
    committing — don't just trust the automated pass blind, the same way the

@@ -26,6 +26,14 @@ version heading when that state gets tagged and merged to `main`.
   `#!jinja|yaml` shebang: its Jinja options apply, the line leaves the
   output, a malformed one is a warning.
   [#78](https://github.com/naqoyqatsi83/salt-syntax/issues/78)
+- The Salt release that added a state function or argument, from Salt's
+  docs (`versionadded`), in its hover. One that not every release of your
+  Salt line has also gets the release next to its completion item
+  (`file.append · Salt 3006.28+`) and a faint hint where it's used, since
+  older minions fail the state on it (setting `saltSyntax.versionHints`).
+  Where the docs don't say, or give the other line's number for a
+  backport, the release comes from Salt's release history.
+  [#79](https://github.com/naqoyqatsi83/salt-syntax/issues/79)
 
 ### Changed
 - Checked against Salt's newest releases, 3006.28 and 3008.3 (both
