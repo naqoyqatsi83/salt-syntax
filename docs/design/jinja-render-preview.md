@@ -176,7 +176,8 @@ dimming, hover values and profile diffs weren't built.
   `import_json` / `import_text` (rendered through Jinja first, as Salt
   does) and `load_*` blocks, `salt://` and `./relative` imports, `do` and
   loop-control extensions, and every one of Salt's filters (see the
-  coverage map). `grains.filter_by` / `pillar.filter_by` and the merge helpers
+  coverage map). `grains.filter_by` / `pillar.filter_by` (a key matched
+  as is before as a glob in 3006.28, not 3008.3) and the merge helpers
   (`slsutil.merge`, `defaults.merge`, ..., ported from Salt: in place where
   Salt's are) are *computed*; the lookups follow Salt's own
   (`config.get` reads opts, grains, then pillar; `pillar.get(merge=True)`;
@@ -230,7 +231,7 @@ Limits:
 ## Coverage of Salt's failure modes
 
 Researched against Salt's own source at the tags the extension's datasets
-are pinned to — **v3006.27** (LTS) and **v3008.2** — rather than from
+are pinned to — **v3006.28** (LTS) and **v3008.3** — rather than from
 memory. A render in Salt fails in one of three stages; this is what the
 preview catches of each, per version. Rules that differ between 3006 and
 3008 follow `saltSyntax.saltVersion` and use that version's exact
@@ -258,7 +259,8 @@ else); the preview uses the same wording.
 | Sandbox violation (`"".__class__`, …) | ✅ sandboxed environment, as Salt |
 | `{{ raise('…') }}` (Salt global) | ✅ `Jinja error: …` |
 | Salt tests `match`, `equalto` | ✅ Salt's implementations |
-| Salt's filters — 92 in 3008.2, 90 in 3006.27 (no `to_entries`/`from_entries`), identical signatures otherwise | ✅ every one registered, so an unknown filter fails the render as in Salt (`No filter named …`). ~60 pure ones implemented and **checked against Salt's own code** (`test/salt-filter-parity.test.py`: each Salt filter extracted from source at both tags, ~110 cases per version, identical results). Version differences honoured: `regex_search`/`regex_match` return only the groups in 3006, the whole match when there are none in 3008. Environment-dependent ones (DNS, HTTP, files, users, randomness, the current time, the networking helpers' option modes, `json_query`, …) are panel inputs |
+| Per-file `#jinja2: {...}` header (3006.28 / 3008.3: Jinja options such as `trim_blocks` for this template, on line 1 or below a renderer shebang) | ✅ ported from Salt's `parse_jinja_file_opts` and **checked against it** (`test/salt-jinja-header-parity.test.py`); the line is dropped from the output without shifting the line map, and what Salt only logs (a malformed header, an unknown option) is a preview warning |
+| Salt's filters — 92 in 3008.3, 90 in 3006.28 (no `to_entries`/`from_entries`), identical signatures otherwise | ✅ every one registered, so an unknown filter fails the render as in Salt (`No filter named …`). ~60 pure ones implemented and **checked against Salt's own code** (`test/salt-filter-parity.test.py`: each Salt filter extracted from source at both tags, ~110 cases per version, identical results). Version differences honoured: `regex_search`/`regex_match` return only the groups in 3006, the whole match when there are none in 3008. Environment-dependent ones (DNS, HTTP, files, users, randomness, the current time, the networking helpers' option modes, `json_query`, …) are panel inputs |
 
 ### 2. YAML loading — `salt/renderers/yaml.py`, `SaltYamlSafeLoader`
 
@@ -272,10 +274,10 @@ else); the preview uses the same wording.
 ### 3. State compiler — `salt/state.py`
 
 Salt runs `_handle_state_decls()` (identical in both), then
-`verify_high()` (3006.27: `State.verify_high`; 3008.2: `_verify_high`).
+`verify_high()` (3006.28: `State.verify_high`; 3008.3: `_verify_high`).
 The run-time checks (`State.verify_data()`: unknown function, missing
 parameter) and include resolution (`render_state()`) are identical in
-3006.27 and 3008.2. The structural checks were ported and checked
+3006.28 and 3008.3. The structural checks were ported and checked
 **message-for-message against Salt's own code**: the
 real functions extracted from both versions' `state.py`, run on the same
 rendered data — 20 scenarios × 2 versions, 0 mismatches.

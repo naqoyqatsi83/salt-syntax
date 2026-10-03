@@ -15,17 +15,20 @@ const { load, doc, Position } = require('./helpers/vscode');
   const functions = (mod) => complete(`id:\n  ${mod}.`).filter((i) => !i.label.endsWith('(full)')).map((i) => i.label);
   const fullArgs = (mod, fn) => complete(`id:\n  ${mod}.`).find((i) => i.label === `${fn} (full)`).insertText.value.split('\n').length - 1;
 
-  // Default: 3008.2 -- 128 modules; boto_* was split out into salt-extensions.
+  // Default: 3008.3 -- 128 modules; boto_* was split out into salt-extensions.
   assert.strictEqual(modules().length, 128, '3008: module count');
   assert.deepStrictEqual(functions('boto_ec2'), [], '3008: no boto_ec2');
   assert.ok(functions('file').includes('managed'));
   assert.strictEqual(fullArgs('file', 'managed'), 49, '3008: file.managed arguments');
+  assert.strictEqual(fullArgs('file', 'append'), 11, '3008: file.append arguments (no encoding)');
 
-  // 3006.27 (LTS): 353 modules, boto_* included, its own signatures.
+  // 3006.28 (LTS): 353 modules, boto_* included, its own signatures.
   h.config['saltSyntax.saltVersion'] = '3006';
   assert.strictEqual(modules().length, 353, '3006: module count');
   assert.ok(functions('boto_ec2').includes('instance_present'), '3006: boto_ec2');
   assert.strictEqual(fullArgs('file', 'managed'), 38, '3006: file.managed arguments');
+  // 3006.28 added encoding / encoding_errors to file.append/prepend/comment (#76).
+  assert.strictEqual(fullArgs('file', 'append'), 12, '3006: file.append arguments');
 
   // An unknown value falls back to 3008.
   h.config['saltSyntax.saltVersion'] = '3007';

@@ -16,7 +16,7 @@ FIXTURES = os.path.join(ROOT, "test", "fixtures")
 CACHE = os.path.join(ROOT, "test", ".cache")
 
 # The Salt releases the extension's datasets (and these checks) are pinned to.
-SALT_TAGS = {"3006": "v3006.27", "3008": "v3008.2"}
+SALT_TAGS = {"3006": "v3006.28", "3008": "v3008.3"}
 
 
 def skip(reason):

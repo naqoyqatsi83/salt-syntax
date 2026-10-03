@@ -13,14 +13,14 @@ const path = require('path');
 // module/function list" section for the full methodology and how to
 // regenerate either one against a newer tag.
 
-// All 128 of Salt's official state modules that exist in v3008.2 (the latest
+// All 128 of Salt's official state modules that exist in v3008.3 (the latest
 // stable release as of writing) -- docs.saltproject.io/en/latest/ref/states/all
 // lists 131, but 3 (dnfmodule, postgres_default_privileges, python) only exist
 // on the unreleased master branch, and pkg on master also has 2 extra functions
 // (trusted/untrusted) not yet in any release; this list deliberately excludes
 // all of those so it doesn't suggest states that don't exist in the Salt most
 // people actually have installed. Extracted directly from salt/states/*.py on
-// the saltstack/salt GitHub repo at tag v3008.2, not hand-guessed: a function
+// the saltstack/salt GitHub repo at tag v3008.3, not hand-guessed: a function
 // only counts as a real state function here if it's a top-level `def` whose
 // first parameter is literally `name` (Salt's actual convention for state
 // functions), which also excludes internal hook functions (mod_init,
@@ -165,7 +165,7 @@ const MODULE_FUNCTIONS_3008 = {
 };
 
 // Salt 3006.x's state module/function set -- extracted the same way, from
-// salt/states/*.py at tag v3006.27 (the latest 3006.x release as of
+// salt/states/*.py at tag v3006.28 (the latest 3006.x release as of
 // writing). Same name-first-parameter rule as MODULE_FUNCTIONS_3008, with
 // two additions specific to this extraction (both hand-verified, see
 // AGENTS.md):
@@ -179,7 +179,7 @@ const MODULE_FUNCTIONS_3008 = {
 //      zabbix_*/splunk/glassfish/libcloud_loadbalancer state functions,
 //      and stateconf.set/context, which are themselves a module-level
 //      `set = context = _no_op` alias rather than `def` statements) --
-//      confirmed by hand against the real v3006.27 source, the same way
+//      confirmed by hand against the real v3006.28 source, the same way
 //      module.run and postgres_cluster/schema.absent were confirmed for
 //      3008. A handful of other non-standard-first-param functions found
 //      during extraction (dellchassis.firmware_update, drac.network,
@@ -599,7 +599,7 @@ const FUNCTION_FIELDS = {
 const DEFAULT_FIELDS = [['name', 'name']];
 
 // Every module.function with at least one parameter that has no default at
-// all in its real Salt v3008.2 signature (Python would raise TypeError
+// all in its real Salt v3008.3 signature (Python would raise TypeError
 // without it) -- generated the same way as MODULE_FUNCTIONS_3008/
 // FULL_FUNCTION_FIELDS_3008, not hand-written. Used to guarantee "basic"
 // always includes these, even for functions with no curated FUNCTION_FIELDS
@@ -733,7 +733,7 @@ const MANDATORY_FIELDS_3008 = {
 };
 
 // Every 3006.x module.function with at least one parameter that has no
-// default at all in its real v3006.27 signature -- see the comment above
+// default at all in its real v3006.28 signature -- see the comment above
 // MANDATORY_FIELDS_3008 for what this guarantees.
 const MANDATORY_FIELDS_3006 = {
   'acl.absent': ['acl_type'],
@@ -1227,7 +1227,7 @@ function availableVariants(mod, fn, dataset) {
 
 // Full (all-arguments) variant of the same data, keyed the same way, generated
 // the same way as MODULE_FUNCTIONS_3008 (real function signatures from Salt
-// v3008.2 source, not hand-written) -- see the comment above
+// v3008.3 source, not hand-written) -- see the comment above
 // MODULE_FUNCTIONS_3008 and AGENTS.md's "Updating the Salt module/function
 // list" section. Only includes module.function pairs that actually have
 // parameters beyond `name`; nothing to show "full" for is just omitted
@@ -1903,10 +1903,10 @@ const FULL_FUNCTION_FIELDS_3006 = {
   'event.send': [['data', 'None'], ['preload', 'None'], ['with_env', 'False'], ['with_grains', 'False'], ['with_pillar', 'False'], ['show_changed', 'True']],
   'event.wait': [['sfun', 'None'], ['data', 'None']],
   'file.accumulated': [['filename', 'filename'], ['text', 'text']],
-  'file.append': [['text', 'None'], ['makedirs', 'False'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['ignore_whitespace', 'True']],
+  'file.append': [['text', 'None'], ['makedirs', 'False'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['ignore_whitespace', 'True'], ['encoding', 'None'], ['encoding_errors', 'strict']],
   'file.blockreplace': [['marker_start', '#-- start managed zone --'], ['marker_end', '#-- end managed zone --'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['content', '\'\''], ['append_if_not_found', 'False'], ['prepend_if_not_found', 'False'], ['backup', '.bak'], ['show_changes', 'True'], ['append_newline', 'None'], ['insert_before_match', 'None'], ['insert_after_match', 'None']],
   'file.cached': [['source_hash', '\'\''], ['source_hash_name', 'None'], ['skip_verify', 'False'], ['saltenv', 'base'], ['use_etag', 'False']],
-  'file.comment': [['regex', 'regex'], ['char', '#'], ['backup', '.bak'], ['ignore_missing', 'False']],
+  'file.comment': [['regex', 'regex'], ['char', '#'], ['backup', '.bak'], ['ignore_missing', 'False'], ['encoding', 'None'], ['encoding_errors', 'strict']],
   'file.copy': [['source', 'source'], ['force', 'False'], ['makedirs', 'False'], ['preserve', 'False'], ['user', 'None'], ['group', 'None'], ['mode', 'None'], ['dir_mode', 'None'], ['subdir', 'False']],
   'file.decode': [['encoded_data', 'None'], ['contents_pillar', 'None'], ['encoding_type', 'base64'], ['checksum', 'md5']],
   'file.directory': [['user', 'None'], ['group', 'None'], ['recurse', 'None'], ['max_depth', 'None'], ['dir_mode', 'None'], ['file_mode', 'None'], ['makedirs', 'False'], ['clean', 'False'], ['require', 'None'], ['exclude_pat', 'None'], ['follow_symlinks', 'False'], ['force', 'False'], ['backupname', 'None'], ['allow_symlink', 'True'], ['children_only', 'False'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True'], ['win_perms_reset', 'False']],
@@ -1917,7 +1917,7 @@ const FULL_FUNCTION_FIELDS_3006 = {
   'file.mknod': [['ntype', 'ntype'], ['major', '0'], ['minor', '0'], ['user', 'None'], ['group', 'None'], ['mode', '0600']],
   'file.not_cached': [['saltenv', 'base']],
   'file.patch': [['source', 'None'], ['source_hash', 'None'], ['source_hash_name', 'None'], ['skip_verify', 'False'], ['template', 'None'], ['context', 'None'], ['defaults', 'None'], ['options', '\'\''], ['reject_file', 'None'], ['strip', 'None'], ['saltenv', 'None']],
-  'file.prepend': [['text', 'None'], ['makedirs', 'False'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['header', 'None']],
+  'file.prepend': [['text', 'None'], ['makedirs', 'False'], ['source', 'None'], ['source_hash', 'None'], ['template', 'jinja'], ['sources', 'None'], ['source_hashes', 'None'], ['defaults', 'None'], ['context', 'None'], ['header', 'None'], ['encoding', 'None'], ['encoding_errors', 'strict']],
   'file.pruned': [['recurse', 'False'], ['ignore_errors', 'False'], ['older_than', 'None']],
   'file.recurse': [['source', 'source'], ['keep_source', 'True'], ['clean', 'False'], ['require', 'None'], ['user', 'None'], ['group', 'None'], ['dir_mode', 'None'], ['file_mode', 'None'], ['sym_mode', 'None'], ['template', 'None'], ['context', 'None'], ['replace', 'True'], ['defaults', 'None'], ['include_empty', 'False'], ['backup', '\'\''], ['include_pat', 'None'], ['exclude_pat', 'None'], ['maxdepth', 'None'], ['keep_symlinks', 'False'], ['force_symlinks', 'False'], ['win_owner', 'None'], ['win_perms', 'None'], ['win_deny_perms', 'None'], ['win_inheritance', 'True']],
   'file.rename': [['source', 'source'], ['force', 'False'], ['makedirs', 'False']],
@@ -2545,7 +2545,7 @@ const FULL_FUNCTION_FIELDS_3006 = {
 // Which state functions also take **kwargs (#61, #62), and which
 // salt/states/<file>.py a module's functions live in where the file isn't
 // named after the module (for docs links). Extracted from Salt's own source
-// at the same tags as the datasets above (v3008.2, v3006.27): an AST parse
+// at the same tags as the datasets above (v3008.3, v3006.28): an AST parse
 // of each file's top-level defs and plain-assignment aliases, with
 // __virtualname__ / __func_alias__ applied; where two files provide the same
 // function (platform alternates), it counts as taking **kwargs if either
@@ -2809,8 +2809,8 @@ function buildArgsBody(fields, indent, startTabstop) {
 
 // Arguments every state accepts, whatever its function (#58): Salt's own
 // STATE_REQUISITE_KEYWORDS, STATE_REQUISITE_IN_KEYWORDS and the user-facing
-// STATE_RUNTIME_KEYWORDS in salt/state.py (3008.2: requisites from
-// salt/utils/requisite.py's RequisiteType), identical in 3006.27 and 3008.2
+// STATE_RUNTIME_KEYWORDS in salt/state.py (3008.3: requisites from
+// salt/utils/requisite.py's RequisiteType), identical in 3006.28 and 3008.3
 // but for no_log (3008 only) -- plus `names`, which the state compiler
 // handles itself. Left out: Salt-internal keywords (`fun`, `state`,
 // `prerequired`, `__*__`).
@@ -3128,13 +3128,13 @@ const JINJA_KEYWORDS = [
   'filter', 'endfilter', 'with', 'endwith', 'raw', 'endraw', 'trans', 'endtrans',
   // Optional Jinja2 extensions (not core syntax on their own), but ones Salt's
   // own Jinja environment always enables (salt/utils/templates.py, verified
-  // against the same v3008.2 tag): jinja2.ext.do (`do`) and
+  // against the same v3008.3 tag): jinja2.ext.do (`do`) and
   // jinja2.ext.loopcontrols (`break`/`continue` inside a `for`).
   'do', 'break', 'continue'
 ];
 
 // Salt's own Jinja extension (salt.utils.jinja.SerializerExtension, verified
-// against the same v3008.2 tag as the module dataset above), not vanilla
+// against the same v3008.3 tag as the module dataset above), not vanilla
 // Jinja2: three block tags all closed by the shared `endload`, and three
 // single-tag `import_*` forms that load an external file the same way.
 const SALT_JINJA_TAGS = [

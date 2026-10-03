@@ -105,6 +105,12 @@ rest of this file stays current.
     (`test/salt-{filter,module}-parity.test.py`) -- written from memory,
     #66-#68 and #72 each got Salt's behaviour subtly wrong (copies instead
     of in-place merges, `config.get` skipping pillar, dict-only key walks).
+  - On a new Salt point release, `git diff` the old and new tag of *each*
+    line over `salt/states` plus every file the preview ports (grep `src/`
+    and `test/` for `salt/...py`), AST-diff the state signatures, and bump
+    `SALT_TAGS` in `test/helpers/preview.py` so the parity tests run
+    against it. The lines don't move in step: 3006.28 changed `filter_by`
+    and `file.append`'s arguments, 3008.3 didn't (#76-#78).
 - **Next up:** nothing committed to. Candidates, none started:
   - execution-module data from Salt's `salt/modules/*.py` (both versions,
     extracted like the state data), for checking / hovering / completing
@@ -112,7 +118,6 @@ rest of this file stays current.
     whose highlighting and syntax check the user put on hold;
   - naming the answered inputs in the preview header ("1 answered
     (`test`)"), after a stale panel answer caused confusion;
-  - refreshing the Salt datasets against newer 3006/3008 point releases;
   - the preview's known gaps from Salt (#68): `config.get`'s `merge=` and
     Salt's `DEFAULTS` table for unanswered keys, `slsutil.merge`'s
     yamlex `aggregate` strategy, `tplpath` being the file-roots-relative

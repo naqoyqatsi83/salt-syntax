@@ -47,7 +47,7 @@ const { load, doc, Position } = require('./helpers/vscode');
 
   // (full): every parameter of the real signature, with its real default.
   const full = (await insert('file.', managedFull))[1];
-  assert.strictEqual(argLines(full).length, 49, 'file.managed accepts 49 arguments beyond name (3008.2)');
+  assert.strictEqual(argLines(full).length, 49, 'file.managed accepts 49 arguments beyond name (3008.3)');
   assert.match(full, /- keep_source: \$\{\d+:True\}/);
 
   // Basic always includes what Salt requires, curated entry or not.

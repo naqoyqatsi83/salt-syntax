@@ -73,13 +73,13 @@ def salt_modules(version, pillar, grains, opts):
     return out
 
 
-def preview_functions(r, pillar, grains, opts):
+def preview_functions(r, pillar, grains, opts, version):
     """The preview's salt[...] with the same data given as panel answers."""
     answers = {}
     for kind, data in (("pillar", pillar), ("grains", grains), ("config", opts)):
         for key, value in data.items():
             answers[f"{kind}|{key}"] = yaml.safe_dump(value)
-    funcs = r.SaltFunctions(r.Session(answers), None)
+    funcs = r.SaltFunctions(r.Session(answers), None, version)
     return lambda name: funcs[name]
 
 
@@ -96,7 +96,8 @@ def outcome(func, args, kwargs):
 
 PILLAR = {"app": {"port": 8, "hosts": ["a", "b"], "tls": {"on": True}}, "users": [{"name": "u1"}, {"name": "u2"}],
           "region": "eu-west", "roles": ["web", "db"], "8080": "num-key"}
-GRAINS = {"os_family": "RedHat", "os": "Fedora", "roles": ["db"], "id": "grain-id", "ip4": ["10.0.0.1"]}
+GRAINS = {"os_family": "RedHat", "os": "Fedora", "roles": ["db"], "id": "grain-id", "ip4": ["10.0.0.1"],
+          "gpu": "GP104GL [Quadro P4000]"}
 OPTS = {"id": "minion1", "master": "salt.example", "nested": {"k": "v"}}
 
 D = {"pkg": {"name": "p", "opts": ["a"]}, "svc": "s", "files": ["x"]}
@@ -125,7 +126,10 @@ CASES = {
                          ([LOOKUP], {"merge": {"pkg": {"extra": 1}}}), ([LOOKUP], {"merge": "x"}),
                          ([{"Red*": 1, "*": 2}], {}), ([{"web": "w", "db": "d"}], {"grain": "roles"}),
                          ([{"10.*": "net10"}], {"grain": "ip4"}), ([{"RedHat": "s"}], {"base": "RedHat"}),
-                         ([{"RedHat": "s", "base": {"a": 1}}], {"base": "base"})],
+                         ([{"RedHat": "s", "base": {"a": 1}}], {"base": "base"}),
+                         # A literal key with glob characters: matched exactly first in 3006.28, not in 3008.3 (#77).
+                         ([{"GP104GL [Quadro P4000]": "quadro", "default": "other"}], {"grain": "gpu"}),
+                         ([{"GP104GL [Q*": "glob", "default": "other"}], {"grain": "gpu"})],
     "pillar.filter_by": [([{"eu-*": "eu", "default": "other"}, "region"], {}), ([{"web": 1}], {"pillar": "roles"}),
                          ([{"x": 1, "default": 0}, "nope"], {}), ([{"8": "p8"}, "app:port"], {})],
     "pillar.get": [(["app:port"], {}), (["app:missing", "d"], {}), (["app:hosts:1"], {}), (["users:0:name"], {}),
@@ -158,6 +162,6 @@ for version in ("3006", "3008"):
             p1, g1, o1, a1, k1 = fresh()
             p2, g2, o2, a2, k2 = fresh()
             theirs = outcome(salt_modules(version, p1, g1, o1)[name], a1, k1)
-            ours = outcome(preview_functions(r, p2, g2, o2)(name), a2, k2)
+            ours = outcome(preview_functions(r, p2, g2, o2, version)(name), a2, k2)
             c.eq(ours, theirs, f"Salt {version}: {name}{tuple(args)}{kwargs or ''}")
 c.done()

@@ -30,6 +30,7 @@ import collections
 import copy
 import fnmatch
 import functools
+import inspect
 import io
 import json
 import os
@@ -324,9 +325,10 @@ class Lookup:
 class SaltFunctions:
     """The `salt` dunder: salt['mod.fn'](...) and salt.mod.fn(...)."""
 
-    def __init__(self, session, lookups):
+    def __init__(self, session, lookups, version="3008"):
         self._s = session
         self._l = lookups
+        self._version = version  # where Salt's functions differ between 3006 and 3008
 
     def __getitem__(self, name):
         return self._function(str(name))
@@ -406,14 +408,17 @@ class SaltFunctions:
         # grains.filter_by and pillar.filter_by: salt.utils.data.filter_by,
         # branching on a grain or a pillar key. Keys are fnmatch patterns,
         # a list value (e.g. roles) matches on its first matching item, and
-        # merge= updates the matched entry itself, as in Salt.
+        # merge= updates the matched entry itself, as in Salt. 3006.28 tries
+        # a key as is before as a glob, so `GP104GL [Quadro P4000]` matches
+        # itself (#77); 3008.3 doesn't.
         val = self._s.lookup(source, grain if key is None else key)
         if isinstance(val, Placeholder):
             val = []  # unanswered, as a missing grain/pillar key in Salt
+        exact_first = self._version == "3006"
         ret = None
         for each in val if isinstance(val, list) else [val]:
             for k in lookup_dict:
-                if fnmatch.fnmatchcase(str(each), str(k)):
+                if (exact_first and str(each) == str(k)) or fnmatch.fnmatchcase(str(each), str(k)):
                     ret = lookup_dict[k]
                     break
             if ret is not None:
@@ -472,6 +477,61 @@ def preprocess(source):
         pos = m.end()
     out.append(source[pos:])
     return "".join(out)
+
+
+# Salt's per-file Jinja options (#78): parse_jinja_file_opts() in
+# salt/utils/templates.py, new in 3006.28 and 3008.3 (the same in both).
+JINJA2_HEADER = "#jinja2:"
+
+
+def jinja_file_opts(source, warnings):
+    """(Environment options, source) for a `#jinja2: {...}` header on line 1,
+    or on line 2 below a renderer shebang (`#!jinja|yaml`, not `#!/...`).
+    Read only in the template being rendered, as in Salt; an imported one's
+    header stays text. Salt removes the line; here it becomes an empty
+    `{{ ''` expression closed (`}}`) at the start of the next line instead, so
+    every line number stays true -- only that next line's columns move, by
+    two. An expression, not a comment: trim_blocks / lstrip_blocks, which the
+    header may set, apply to comments too."""
+    lines = source.split("\n")
+    idx = 1 if lines[0].startswith("#!") and not lines[0].startswith("#!/") else 0
+    if idx >= len(lines) or not lines[idx].startswith(JINJA2_HEADER):
+        return {}, source
+    payload = lines[idx][len(JINJA2_HEADER):]
+    if not payload.strip():
+        return {}, source  # a bare "#jinja2:" isn't an override
+    try:
+        data = json.loads(payload)
+    except ValueError:
+        warnings.append(f"Ignoring malformed '#jinja2:' header in template: {lines[idx]} (Salt does too)")
+        return {}, source
+    if not isinstance(data, dict):
+        warnings.append(f"Ignoring '#jinja2:' header that is not a JSON object: {lines[idx]} (Salt does too)")
+        return {}, source
+    accepted = inspect.signature(jinja2.Environment.__init__).parameters
+    opts = {}
+    for k, v in data.items():
+        k = k.lower()
+        if not hasattr(jinja2.defaults, k.upper()):
+            warnings.append(f"'#jinja2:' header: Jinja2 environment {k} is not recognized (Salt ignores it)")
+        elif k == "keep_trailing_newline":
+            pass  # the preview keeps it on to give Salt's trailing newline, whatever the template asks
+        elif k in accepted:
+            opts[k] = v
+    start = opts.get("variable_start_string", "{{") + " ''"
+    end = opts.get("variable_end_string", "}}")
+    # Salt renders without the template's final newline and adds one back if
+    # the template had one -- so where the header is the last line, what's
+    # left of the template decides, as here.
+    if idx + 1 < len(lines) and not (idx == 0 and lines[1:] == [""]):
+        lines[idx], lines[idx + 1] = start, end + lines[idx + 1]
+    elif idx + 1 < len(lines):
+        lines[idx] = start + end  # nothing else: Salt gives just the newline
+    elif idx:
+        lines[idx - 1], lines[idx] = lines[idx - 1] + start, end  # the shebang loses its newline too
+    else:
+        lines[idx] = start + end
+    return opts, "\n".join(lines)
 
 
 class SaltYamlLoader(yaml.SafeLoader):
@@ -925,8 +985,8 @@ def check_rendered_yaml(text, version="3008", sls="", state_data=None, roots=(),
 
 
 # --- Salt's state compiler checks ----------------------------------------
-# Ported from Salt's own _handle_state_decls() (identical in 3006.27 and
-# 3008.2) and verify_high() (3006.27: State.verify_high; 3008.2:
+# Ported from Salt's own _handle_state_decls() (identical in 3006.28 and
+# 3008.3) and verify_high() (3006.28: State.verify_high; 3008.3:
 # _verify_high), in that order, run on the rendered
 # YAML's node tree so each problem can be pinned to its line. The messages
 # are Salt's own, for the selected saltSyntax.saltVersion line.
@@ -1489,7 +1549,7 @@ class SaltEnvironment(jinja2.sandbox.SandboxedEnvironment):
 
 
 # --- Salt's Jinja filters ---------------------------------------------------
-# Salt registers 92 filters in 3008.2 (90 in 3006.27: no to_entries /
+# Salt registers 92 filters in 3008.3 (90 in 3006.28: no to_entries /
 # from_entries), from salt/utils/{data,dateutils,dictupdate,files,hashutils,
 # http,jinja,network,path,stringutils,user,yamlencoding}.py plus its
 # SerializerExtension -- with identical signatures in both versions. The
@@ -2062,6 +2122,7 @@ def main():
     # Newlines as Jinja reads them (and as imported files are read): CRLF /
     # CR -> LF. A CRLF editor buffer would otherwise defeat the line map.
     source = req["source"].replace("\r\n", "\n").replace("\r", "\n")
+    file_opts, source = jinja_file_opts(source, session.warnings)
 
     grains, pillar, opts = Lookup(session, "grains"), Lookup(session, "pillar"), Lookup(session, "config")
 
@@ -2155,11 +2216,12 @@ def main():
         undefined=RecordingUndefined,
         extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"],
         keep_trailing_newline=True,
+        **file_opts,
     )
     env.filters.update(salt_filters(salt_version, session))
 
     # Salt's own Jinja global and tests (salt/utils/jinja.py, identical in
-    # 3006.27 and 3008.2).
+    # 3006.28 and 3008.3).
     def jinja_raise(msg):
         raise jinja2.exceptions.TemplateError(msg)
 
@@ -2192,7 +2254,7 @@ def main():
 
     env.globals.update(ctx)
     env.globals.update({
-        "salt": SaltFunctions(session, {"grains": grains, "pillar": pillar}),
+        "salt": SaltFunctions(session, {"grains": grains, "pillar": pillar}, salt_version),
         "grains": grains,
         "pillar": pillar,
         "opts": opts,

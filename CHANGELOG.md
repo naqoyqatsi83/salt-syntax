@@ -21,6 +21,19 @@ version heading when that state gets tagged and merged to `main`.
   workspace folder across restarts (windows with no folder open share
   one set, kept in step); existing answers move into the active one.
   [#73](https://github.com/naqoyqatsi83/salt-syntax/issues/73)
+- The preview honours Salt's per-file `#jinja2: {"trim_blocks": true, ...}`
+  header (new in 3006.28 / 3008.3) on a template's first line or below a
+  `#!jinja|yaml` shebang: its Jinja options apply, the line leaves the
+  output, a malformed one is a warning.
+  [#78](https://github.com/naqoyqatsi83/salt-syntax/issues/78)
+
+### Changed
+- Checked against Salt's newest releases, 3006.28 and 3008.3 (both
+  2026-09-30), and pinned to them: in 3006, `file.append`, `file.prepend`
+  and `file.comment` take the new `encoding` / `encoding_errors`
+  arguments (completion offers them; the argument check no longer flags
+  them). Nothing else in the state modules changed.
+  [#76](https://github.com/naqoyqatsi83/salt-syntax/issues/76)
 
 ### Fixed
 - The preview reads YAML the way Salt does -- panel answers, `import_yaml`
@@ -32,6 +45,11 @@ version heading when that state gets tagged and merged to `main`.
   (`{% if data is list %}` failed with "No test named 'list'"), and the
   `odict` and `show_full_context` globals.
   [#75](https://github.com/naqoyqatsi83/salt-syntax/issues/75)
+- In 3006 mode the preview's `grains.filter_by` / `pillar.filter_by`
+  match a key exactly before as a glob, as Salt 3006.28 does: a key like
+  `GP104GL [Quadro P4000]` now matches itself instead of falling through
+  to `default`. 3008.3 doesn't do this, so 3008 mode is unchanged.
+  [#77](https://github.com/naqoyqatsi83/salt-syntax/issues/77)
 
 ## [0.14.0] - 2026-09-30
 

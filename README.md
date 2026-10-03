@@ -77,7 +77,7 @@ item) explicitly, so Jinja-led keys are handled correctly from the start.
 
 - **Type a module name + `.` at the start of a line** (e.g. `file.`) to get
   its real state functions (`managed`, `absent`, ...) — all 128 state
-  modules that exist in Salt v3008.2 (the latest stable release) are
+  modules that exist in Salt v3008.3 (the latest stable release) are
   covered by default, with function names extracted directly from
   `salt/states/*.py` at that release tag (not guessed, and not from
   `master`, which carries unreleased modules/functions — see the comment
