@@ -116,4 +116,9 @@ c.eq(ascii(json.loads(out.stdout or b"{}").get("rendered")), ascii(req["source"]
 oc = one('s:\n  file.managed:\n    - mode: {{ salt["pillar.get"]("m") }}\n    - dir_mode: {{ ("d: 0755" | load_yaml).d }}\n',
          {"pillar|m": "0644"})["rendered"]
 c.true("- mode: 644" in oc and "- dir_mode: 755" in oc, f"0644 / 0755 read as 644 / 755, not octal 420 / 493: {oc!r}")
+
+# What Salt's render_jinja_tmpl adds to Jinja (#75): the `list` test, `odict`, `show_full_context`.
+r = one('a: {{ [1] is list }} {{ (1,) is list }} {{ {} is list }}\nb: {{ odict([("z", 1), ("a", 2)]) | tojson }}\n'
+        'c: {{ show_full_context().sls }} {{ show_full_context().pillar | tojson }}\n', {"pillar|(all)": "{k: v}"})
+c.eq((r["error"], r["rendered"]), (None, 'a: True False False\nb: {"z": 1, "a": 2}\nc: f {"k": "v"}\n'), "list test, odict, show_full_context")
 c.done()

@@ -26,6 +26,7 @@ like «grains:os». Pure-logic helpers (grains/pillar.filter_by, the merge
 functions) are computed instead of asked.
 """
 import bisect
+import collections
 import copy
 import fnmatch
 import functools
@@ -1980,6 +1981,47 @@ def _compiling():
     return False
 
 
+def simple_types_filter(data):
+    """salt.utils.data.simple_types_filter: every value that isn't a plain
+    str / int / float / bool / list / tuple / dict (or None) as its repr."""
+    if data is None:
+        return data
+    keys = (str, int, float, bool)
+    values = keys + (list, tuple)
+    if isinstance(data, (list, tuple)):
+        return [simple_types_filter(v) if isinstance(v, (dict, list)) else v if v is None or isinstance(v, values) else repr(v)
+                for v in data]
+    if isinstance(data, dict):
+        out = {}
+        for key, value in data.items():
+            if key is not None and not isinstance(key, keys):
+                key = repr(key)
+            if value is not None and isinstance(value, (dict, list, tuple)):
+                value = simple_types_filter(value)
+            elif value is not None and not isinstance(value, values):
+                value = repr(value)
+            out[key] = value
+        return out
+    return data
+
+
+def show_full_context(ctx):
+    """salt.utils.jinja.show_full_context: the template's whole context,
+    as simple types. Salt's grains / pillar / opts are plain dicts there;
+    here each is read in full (asked as «kind:(all)»), and the preview's own
+    internals are left out."""
+    full = {}
+    for key, value in ctx.items():
+        if key.startswith("__salt_"):
+            continue
+        if isinstance(value, Lookup):
+            value = dict(value.items())
+        elif isinstance(value, SaltFunctions):
+            value = "<salt execution modules>"
+        full[key] = value
+    return simple_types_filter(full)
+
+
 def template_location():
     """(template file, line) of the template code running right now, from
     the live call stack -- Jinja's compiled modules carry their template as
@@ -2127,6 +2169,11 @@ def main():
     env.globals["raise"] = jinja_raise
     env.tests["match"] = test_match
     env.tests["equalto"] = lambda value, other: value == other
+    # ... and what salt/utils/templates.py's render_jinja_tmpl adds on top
+    # (identical in 3006 and 3008).
+    env.tests["list"] = lambda value: isinstance(value, list)  # salt.utils.data.is_list
+    env.globals["odict"] = collections.OrderedDict
+    env.globals["show_full_context"] = jinja2.pass_context(show_full_context)
 
     imported_values = {}  # id -> (file, snapshot, value): what import_yaml & co. loaded (#65)
 

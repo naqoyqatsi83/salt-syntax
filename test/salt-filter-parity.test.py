@@ -22,7 +22,7 @@ import warnings
 from collections import OrderedDict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "helpers"))
-from preview import Checks, renderer, salt_source, skip  # noqa: E402
+from preview import FIXTURES, Checks, render, renderer, salt_source, skip  # noqa: E402
 
 try:
     import yaml
@@ -172,4 +172,21 @@ for version in ("3006", "3008"):
             c.eq(outcome(ours[name], a2, k2), outcome(salt[name], a1, k1), f"Salt {version}: {name}{tuple(args)}{kwargs or ''}")
     untested = sorted(set(salt) - set(CASES) - env_only - {"yaml", "json", "load_yaml", "load_json", "load_text"})
     c.eq(untested, [], f"Salt {version}: every pure filter has parity cases")
+
+    # Every Jinja test and global Salt's environment has besides its filters
+    # (#75): @jinja_test / @jinja_global in salt/utils/jinja.py, and what
+    # render_jinja_tmpl adds in salt/utils/templates.py (e.g. the `list` test).
+    tests, globals_ = set(), set()
+    for path in ("salt/utils/jinja.py", "salt/utils/templates.py"):
+        src = salt_source(version, path)
+        tests |= set(re.findall(r'@jinja_test\("(\w+)"\)', src)) | set(re.findall(r'jinja_env\.tests\["(\w+)"\]', src))
+        globals_ |= set(re.findall(r'@jinja_global\("(\w+)"\)', src)) | set(re.findall(r'jinja_env\.globals\["(\w+)"\]', src))
+    c.true({"list", "match", "equalto"} <= tests and {"raise", "odict", "show_full_context"} <= globals_, f"Salt {version}: found {tests} {globals_}")
+    root = os.path.join(FIXTURES, "errors")
+    for name in sorted(tests):
+        err = render(f"x: {{{{ 1 is {name} }}}}\n", os.path.join(root, "f", "init.sls"), [root], version=version)["error"]
+        c.true(not err or "No test named" not in err["message"], f"Salt {version}: test {name!r} exists in the preview: {err}")
+    for name in sorted(globals_):
+        out = render(f"x: {{{{ {name} is defined }}}}\n", os.path.join(root, "f", "init.sls"), [root], version=version)["rendered"]
+        c.eq(out, "x: True\n", f"Salt {version}: global {name!r} exists in the preview")
 c.done()

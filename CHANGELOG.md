@@ -28,6 +28,10 @@ version heading when that state gets tagged and merged to `main`.
   (`mode: 0755` is 755, which file states make `'0755'`, not 493), dates
   stay strings, merge keys and duplicate keys behave as in Salt.
   [#74](https://github.com/naqoyqatsi83/salt-syntax/issues/74)
+- The preview knows the Jinja extras Salt adds: the `list` test
+  (`{% if data is list %}` failed with "No test named 'list'"), and the
+  `odict` and `show_full_context` globals.
+  [#75](https://github.com/naqoyqatsi83/salt-syntax/issues/75)
 
 ## [0.14.0] - 2026-09-30
 
