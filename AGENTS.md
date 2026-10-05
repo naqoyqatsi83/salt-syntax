@@ -76,8 +76,8 @@ rest of this file stays current.
   `experimental/template-inputs-poc`; #23 the umbrella), grammar tests
   (#47), and on top of the preview's line map: scroll sync (#48),
   problems on the formula line (#49), Go to Formula Line (#50). The
-  experimental branches are kept for history but no longer where work
-  happens. Design notes and coverage map:
+  `experimental/*` branches were all merged and deleted (2026-10-06);
+  their commits live on in `main`. Design notes and coverage map:
   `docs/design/jinja-render-preview.md`.
 - **Identity:** commit, tag, and release only as the one identity this
   repo's history already uses — never introduce any other name or handle
